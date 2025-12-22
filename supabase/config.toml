@@ -1,0 +1,4 @@
+project_id = "vwhhxdkxwgonzhpruymh"
+
+[functions.ai-tutor]
+verify_jwt = false
