@@ -67,7 +67,7 @@ const Dashboard = () => {
       >
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-4">
-            <div 
+            <div
               className="w-14 h-14 rounded-2xl flex items-center justify-center"
               style={{ background: 'linear-gradient(135deg, hsl(199 89% 48% / 0.3), hsl(263 70% 58% / 0.3))' }}
             >
@@ -86,20 +86,26 @@ const Dashboard = () => {
 
           {/* Auth Button */}
           <div className="flex items-center gap-3">
-            {loading ? null : user ? (
+            {loading ? (
+              <Button variant="ghost" disabled size="sm">Loading...</Button>
+            ) : user ? (
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2 text-sm">
                   <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
                     <User className="w-4 h-4 text-primary" />
                   </div>
                   <span className="text-muted-foreground hidden md:inline">
-                    {user.email}
+                    {user.displayName || user.email || 'Student'}
                   </span>
                 </div>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="sm"
-                  onClick={signOut}
+                  onClick={async () => {
+                    await signOut();
+                    // Force refresh or redirect slightly after to ensure state clears
+                    window.location.href = '/#/auth';
+                  }}
                 >
                   Sign Out
                 </Button>
@@ -125,7 +131,7 @@ const Dashboard = () => {
       >
         {stats.map((stat, index) => (
           <div key={stat.label} className="glass rounded-2xl p-5 flex items-center gap-4">
-            <div 
+            <div
               className="w-12 h-12 rounded-xl flex items-center justify-center"
               style={{ background: 'linear-gradient(135deg, hsl(199 89% 48% / 0.2), hsl(199 89% 48% / 0.05))' }}
             >
@@ -149,7 +155,7 @@ const Dashboard = () => {
       >
         <h2 className="text-xl font-semibold text-foreground mb-4 font-display">Quick Actions</h2>
       </motion.div>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {quickActions.map((action, index) => (
           <ModuleCard
