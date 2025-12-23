@@ -1,118 +1,376 @@
-import { motion } from 'framer-motion';
+import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import PageLayout from '@/components/layout/PageLayout';
 import PageHeader from '@/components/ui/PageHeader';
-import { GraduationCap, Users, Clock, Video } from 'lucide-react';
+import {
+  GraduationCap, Users, Video, Mic, MicOff, VideoOff,
+  PhoneOff, Copy, Settings, CheckCircle2, Info
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
+
+// Agora Imports
+import AgoraRTC, {
+  AgoraRTCProvider,
+  useJoin,
+  useLocalCameraTrack,
+  useLocalMicrophoneTrack,
+  usePublish,
+  useRTCClient,
+  useRemoteUsers,
+  RemoteUser,
+  LocalUser
+} from "agora-rtc-react";
 
 /**
- * Study Rooms - Virtual study sessions with peers
+ * CONFIGURATION
  */
-const StudyRooms = () => {
-  const activeRooms = [
-    { 
-      name: 'DSA Problem Solving', 
-      host: 'Rahul M.', 
-      participants: 12, 
-      topic: 'Graph Algorithms',
-      live: true 
-    },
-    { 
-      name: 'DBMS Revision', 
-      host: 'Priya S.', 
-      participants: 8, 
-      topic: 'Normalization',
-      live: true 
-    },
-    { 
-      name: 'ML Study Group', 
-      host: 'Arun K.', 
-      participants: 15, 
-      topic: 'Neural Networks',
-      live: true 
-    },
-  ];
+const APP_ID = "bb21d68abe3449f9b90944ee33253fa5";
+const TOKEN = null;
 
-  const scheduledRooms = [
-    { name: 'OS Concepts Deep Dive', host: 'Sneha R.', time: '4:00 PM', participants: 6 },
-    { name: 'Competitive Programming', host: 'Vikram J.', time: '6:00 PM', participants: 10 },
-  ];
+type ViewState = 'lobby' | 'prejoin' | 'meeting';
+
+const StudyRooms = () => {
+  const [view, setView] = useState<ViewState>('lobby');
+  const [roomCode, setRoomCode] = useState("");
+
+  // User Preferences (passed from PreJoin to Meeting)
+  const [micOn, setMicOn] = useState(true);
+  const [cameraOn, setCameraOn] = useState(true);
+
+  const client = useRTCClient(AgoraRTC.createClient({ codec: "vp8", mode: "rtc" }));
+  const location = useLocation();
+
+  // Handle URL Deep Linking
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const code = searchParams.get('room');
+    if (code) {
+      setRoomCode(code);
+      setView('prejoin');
+    }
+  }, [location]);
+
+  return (
+    <AgoraRTCProvider client={client}>
+      {view === 'lobby' && (
+        <Lobby
+          onJoin={(code) => {
+            setRoomCode(code);
+            setView('prejoin');
+          }}
+        />
+      )}
+
+      {view === 'prejoin' && (
+        <PreJoinRoom
+          roomCode={roomCode}
+          micOn={micOn}
+          setMicOn={setMicOn}
+          cameraOn={cameraOn}
+          setCameraOn={setCameraOn}
+          onJoinNow={() => setView('meeting')}
+          onBack={() => setView('lobby')}
+        />
+      )}
+
+      {view === 'meeting' && (
+        <LiveMeeting
+          roomCode={roomCode}
+          initialMic={micOn}
+          initialCam={cameraOn}
+          onLeave={() => {
+            setView('lobby');
+            setRoomCode("");
+          }}
+        />
+      )}
+    </AgoraRTCProvider>
+  );
+};
+
+// ==========================================
+// 1. LOBBY VIEW (Home)
+// ==========================================
+const Lobby = ({ onJoin }: { onJoin: (code: string) => void }) => {
+  const [inputCode, setInputCode] = useState("");
+
+  const createInstantMeeting = () => {
+    // Generate a 3-part code like "abc-def-ghi"
+    const part1 = Math.random().toString(36).substring(2, 5);
+    const part2 = Math.random().toString(36).substring(2, 5);
+    const code = `${part1}-${part2}`;
+    onJoin(code);
+  };
 
   return (
     <PageLayout>
       <PageHeader
         icon={GraduationCap}
         title="Study Rooms"
-        subtitle="Join virtual study sessions with your peers"
+        subtitle="High-quality video calls for study groups"
         gradient="linear-gradient(135deg, hsl(330 80% 55% / 0.3), hsl(330 80% 55% / 0.1))"
       />
 
-      {/* Live Rooms */}
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold text-foreground font-display">
-          Live Now
-          <span className="ml-2 w-2 h-2 bg-red-500 rounded-full inline-block animate-pulse" />
-        </h2>
-        <Button className="gap-2 bg-primary hover:bg-primary/90">
-          <Video className="w-4 h-4" />
-          Create Room
-        </Button>
-      </div>
+      <div className="flex flex-col md:flex-row gap-8 max-w-5xl mx-auto mt-12 items-center justify-center p-4">
+        {/* Hero Section */}
+        <div className="flex-1 space-y-6 text-center md:text-left">
+          <h1 className="text-4xl md:text-5xl font-bold tracking-tight font-display text-foreground">
+            Premium Video Meetings. <br />
+            <span className="text-primary">Now Free for Students.</span>
+          </h1>
+          <p className="text-lg text-muted-foreground">
+            Connect, collaborate, and study together with secure video conferencing using Agora.
+          </p>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        {activeRooms.map((room, index) => (
-          <motion.div
-            key={room.name}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: index * 0.1 }}
-            className="glass rounded-2xl p-5 hover:scale-[1.02] transition-transform cursor-pointer"
-          >
-            <div className="flex items-center gap-2 mb-3">
-              <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-              <span className="text-xs text-red-400 font-medium">LIVE</span>
-            </div>
-            <h3 className="text-lg font-semibold text-foreground mb-1">{room.name}</h3>
-            <p className="text-sm text-muted-foreground mb-3">{room.topic}</p>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Users className="w-4 h-4" />
-                <span>{room.participants} studying</span>
-              </div>
-              <Button size="sm" variant="outline">Join</Button>
-            </div>
-            <p className="text-xs text-muted-foreground mt-3">Hosted by {room.host}</p>
-          </motion.div>
-        ))}
-      </div>
+          <div className="flex flex-col sm:flex-row gap-4 mt-8 justify-center md:justify-start">
+            <Button size="lg" className="h-12 px-8 text-base shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90" onClick={createInstantMeeting}>
+              <Video className="mr-2 w-5 h-5" />
+              New Meeting
+            </Button>
 
-      {/* Scheduled Rooms */}
-      <h2 className="text-xl font-semibold text-foreground mb-4 font-display">Scheduled Today</h2>
-      <div className="space-y-3">
-        {scheduledRooms.map((room, index) => (
-          <motion.div
-            key={room.name}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.3, delay: 0.3 + index * 0.1 }}
-            className="glass rounded-xl p-4 flex items-center justify-between"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-accent/20 flex items-center justify-center">
-                <Clock className="w-6 h-6 text-accent" />
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="relative w-full sm:w-64">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  <Users className="w-4 h-4" />
+                </span>
+                <input
+                  type="text"
+                  placeholder="Enter a code or link"
+                  className="h-12 pl-10 pr-4 rounded-lg bg-background border border-input focus:ring-2 focus:ring-primary/20 outline-none w-full transition-all"
+                  value={inputCode}
+                  onChange={(e) => setInputCode(e.target.value)}
+                />
               </div>
-              <div>
-                <h3 className="text-foreground font-medium">{room.name}</h3>
-                <p className="text-sm text-muted-foreground">By {room.host} • {room.participants} interested</p>
+              <Button
+                variant="outline"
+                className="h-12 px-6 hover:bg-accent/10"
+                disabled={!inputCode.trim()}
+                onClick={() => onJoin(inputCode.trim())}
+              >
+                Join
+              </Button>
+            </div>
+          </div>
+
+          <div className="pt-8 border-t border-border/40 w-full max-w-md mx-auto md:mx-0">
+            <p className="text-sm text-muted-foreground mb-2 flex items-center justify-center md:justify-start gap-2">
+              <Info className="w-4 h-4" />
+              Learn more about our study rooms
+            </p>
+          </div>
+        </div>
+
+        {/* Illustration / Image */}
+        <div className="flex-1 w-full max-w-md hidden md:block">
+          <div className="aspect-square rounded-full bg-gradient-to-tr from-primary/20 via-accent/10 to-transparent p-12 relative animate-slow-spin">
+            <div className="absolute inset-0 flex items-center justify-center">
+              {/* Mock Grid */}
+              <div className="grid grid-cols-2 gap-4 w-64 rotate-[-6deg]">
+                <div className="h-32 bg-card rounded-2xl shadow-xl border border-white/10 flex items-center justify-center">
+                  <Video className="w-8 h-8 text-muted-foreground/30" />
+                </div>
+                <div className="h-32 bg-primary/20 rounded-2xl shadow-xl flex items-center justify-center">
+                  <Users className="w-8 h-8 text-primary" />
+                </div>
+                <div className="h-32 bg-accent/20 rounded-2xl shadow-xl flex items-center justify-center">
+                  <Mic className="w-8 h-8 text-accent" />
+                </div>
+                <div className="h-32 bg-card rounded-2xl shadow-xl border border-white/10 flex items-center justify-center">
+                  <Settings className="w-8 h-8 text-muted-foreground/30" />
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-primary font-medium">{room.time}</span>
-              <Button size="sm" variant="outline">Remind Me</Button>
-            </div>
-          </motion.div>
-        ))}
+          </div>
+        </div>
       </div>
     </PageLayout>
+  );
+};
+
+// ==========================================
+// 2. PRE-JOIN ROOM (Green Room)
+// ==========================================
+const PreJoinRoom = (props: {
+  roomCode: string,
+  micOn: boolean, setMicOn: (v: boolean) => void,
+  cameraOn: boolean, setCameraOn: (v: boolean) => void,
+  onJoinNow: () => void,
+  onBack: () => void
+}) => {
+  // Local Tracks Hook for Preview
+  const { localMicrophoneTrack } = useLocalMicrophoneTrack(props.micOn);
+  const { localCameraTrack } = useLocalCameraTrack(props.cameraOn);
+
+  return (
+    <div className="min-h-screen bg-[#202124] text-white flex flex-col items-center justify-center p-4">
+      <div className="w-full max-w-4xl flex flex-col md:flex-row gap-12 items-center">
+
+        {/* Left: Preview */}
+        <div className="flex-1 w-full max-w-xl">
+          <div className="relative aspect-video bg-[#3c4043] rounded-2xl overflow-hidden shadow-2xl border border-white/10 group">
+            <LocalUser
+              audioTrack={localMicrophoneTrack}
+              cameraOn={props.cameraOn}
+              micOn={props.micOn}
+              videoTrack={localCameraTrack}
+              cover="https://www.agora.io/en/wp-content/uploads/2022/10/3d-spatial-audio-icon.svg"
+            >
+              <div className="absolute top-4 right-4 bg-black/50 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2">
+                <CheckCircle2 className="w-3 h-3 text-green-400" />
+                Ready to join
+              </div>
+            </LocalUser>
+
+            {/* Overlay Controls */}
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 z-20">
+              <button
+                onClick={() => props.setMicOn(!props.micOn)}
+                className={`p-4 rounded-full transition-all ${!props.micOn ? 'bg-red-600 hover:bg-red-700 shadow-lg' : 'bg-[#3c4043] hover:bg-[#4b4f52]/80 border border-white/10'}`}
+              >
+                {props.micOn ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
+              </button>
+              <button
+                onClick={() => props.setCameraOn(!props.cameraOn)}
+                className={`p-4 rounded-full transition-all ${!props.cameraOn ? 'bg-red-600 hover:bg-red-700 shadow-lg' : 'bg-[#3c4043] hover:bg-[#4b4f52]/80 border border-white/10'}`}
+              >
+                {props.cameraOn ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Right: Join Info */}
+        <div className="flex-1 space-y-6 text-center md:text-left">
+          <h2 className="text-3xl font-display font-medium">Ready to join?</h2>
+          <p className="text-gray-400">
+            You are about to join room: <span className="text-white font-mono bg-white/10 px-2 py-1 rounded select-all">{props.roomCode}</span>
+          </p>
+
+          <div className="flex flex-col gap-3 max-w-xs mx-auto md:mx-0">
+            <Button size="lg" className="rounded-full bg-blue-600 hover:bg-blue-700 h-12 text-base font-medium shadow-blue-500/20 shadow-lg" onClick={props.onJoinNow}>
+              Join Now
+            </Button>
+            <Button variant="ghost" className="rounded-full text-gray-400 hover:text-white hover:bg-white/10" onClick={props.onBack}>
+              Back to Home
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// 3. LIVE MEETING VIEW
+// ==========================================
+const LiveMeeting = (props: {
+  roomCode: string,
+  initialMic: boolean,
+  initialCam: boolean,
+  onLeave: () => void
+}) => {
+  const [micOn, setMicOn] = useState(props.initialMic);
+  const [cameraOn, setCameraOn] = useState(props.initialCam);
+  const { toast } = useToast();
+
+  // Connection Hooks
+  const { isConnected } = useJoin({ appid: APP_ID, channel: props.roomCode, token: TOKEN }, true);
+  const { localMicrophoneTrack } = useLocalMicrophoneTrack(micOn);
+  const { localCameraTrack } = useLocalCameraTrack(cameraOn);
+  usePublish([localMicrophoneTrack, localCameraTrack]);
+
+  const remoteUsers = useRemoteUsers();
+
+  return (
+    <div className="h-screen w-full bg-[#202124] text-white flex flex-col overflow-hidden fixed top-0 left-0 z-50">
+      {/* Top Bar */}
+      <div className="h-16 flex items-center justify-between px-6 bg-black/40 backdrop-blur-md z-10 absolute top-0 w-full">
+        <div className="flex items-center gap-3">
+          <span className="text-lg font-medium tracking-wide">{props.roomCode}</span>
+          <div className="px-2 py-0.5 bg-gray-800 text-gray-300 text-xs rounded-md font-mono border border-white/10">
+            LIVE
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Users className="w-4 h-4 text-gray-400" />
+          <span className="text-sm text-gray-300">{remoteUsers.length + 1}</span>
+        </div>
+      </div>
+
+      {/* Video Grid */}
+      <div className="flex-1 p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto bg-[#202124] pt-20 pb-24">
+        {/* You */}
+        <div className="relative bg-[#3c4043] rounded-xl overflow-hidden border-2 border-blue-500/0 aspect-video group shadow-lg">
+          <LocalUser
+            audioTrack={localMicrophoneTrack}
+            cameraOn={cameraOn}
+            micOn={micOn}
+            videoTrack={localCameraTrack}
+            cover="https://www.agora.io/en/wp-content/uploads/2022/10/3d-spatial-audio-icon.svg"
+          >
+            <div className="absolute bottom-3 left-3 bg-black/50 px-2 py-1 rounded text-sm font-medium z-10">
+              You
+            </div>
+          </LocalUser>
+        </div>
+
+        {/* Others */}
+        {remoteUsers.map((user) => (
+          <div key={user.uid} className="relative bg-[#3c4043] rounded-xl overflow-hidden aspect-video shadow-lg">
+            <RemoteUser cover="https://www.agora.io/en/wp-content/uploads/2022/10/3d-spatial-audio-icon.svg" user={user}>
+              <div className="absolute bottom-3 left-3 bg-black/50 px-2 py-1 rounded text-sm font-medium z-10">
+                Student {user.uid}
+              </div>
+            </RemoteUser>
+          </div>
+        ))}
+
+        {remoteUsers.length === 0 && (
+          <div className="flex items-center justify-center p-8 text-center text-gray-500 h-full border-2 border-dashed border-gray-700 rounded-xl">
+            <p>Waiting for others to join...</p>
+          </div>
+        )}
+      </div>
+
+      {/* Bottom Bar */}
+      <div className="h-20 bg-[#202124] flex items-center justify-center gap-4 px-4 z-20 absolute bottom-0 w-full shadow-2xl border-t border-white/5">
+        <button
+          onClick={() => setMicOn(!micOn)}
+          className={`h-12 w-12 rounded-full flex items-center justify-center transition-all ${!micOn ? 'bg-red-600 hover:bg-red-700' : 'bg-[#3c4043] hover:bg-[#4b4f52]'}`}
+        >
+          {micOn ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
+        </button>
+        <button
+          onClick={() => setCameraOn(!cameraOn)}
+          className={`h-12 w-12 rounded-full flex items-center justify-center transition-all ${!cameraOn ? 'bg-red-600 hover:bg-red-700' : 'bg-[#3c4043] hover:bg-[#4b4f52]'}`}
+        >
+          {cameraOn ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
+        </button>
+
+        <div className="w-px h-8 bg-gray-600 mx-2" />
+
+        <button
+          onClick={() => {
+            const link = `${window.location.origin}/#/study-rooms?room=${props.roomCode}`;
+            navigator.clipboard.writeText(link);
+            toast({ title: "Copied joining info", description: "Meeting link copied to clipboard" });
+          }}
+          className="h-12 w-12 rounded-full bg-[#3c4043] hover:bg-[#4b4f52] flex items-center justify-center text-blue-400 transition-colors"
+          title="Copy Link"
+        >
+          <Copy className="w-5 h-5" />
+        </button>
+
+        <button
+          onClick={props.onLeave}
+          className="h-12 px-8 rounded-full bg-red-600 hover:bg-red-700 flex items-center font-medium gap-2 transition-colors ml-4"
+        >
+          <PhoneOff className="w-5 h-5" />
+          <span className="hidden sm:inline">Leave call</span>
+        </button>
+      </div>
+    </div>
   );
 };
 
