@@ -1,13 +1,16 @@
 import { motion } from 'framer-motion';
 import PageLayout from '@/components/layout/PageLayout';
 import PageHeader from '@/components/ui/PageHeader';
-import { Settings, User, Bell, Shield, Palette, Moon, LogOut } from 'lucide-react';
+import { Settings, User, Bell, Shield, Palette, LogOut } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
+import { useAuth } from '@/hooks/useAuth';
 
 /**
  * Settings - App configuration and preferences
  */
 const SettingsPage = () => {
+  const { signOut } = useAuth();
+
   const settingsSections = [
     {
       title: 'Account',
@@ -44,6 +47,11 @@ const SettingsPage = () => {
     },
   ];
 
+  const handleSignOut = async () => {
+    await signOut();
+    window.location.href = '/#/auth';
+  };
+
   return (
     <PageLayout>
       <PageHeader
@@ -66,9 +74,9 @@ const SettingsPage = () => {
               <section.icon className="w-5 h-5 text-primary" />
               <h2 className="text-lg font-semibold text-foreground font-display">{section.title}</h2>
             </div>
-            
+
             <div className="space-y-4">
-              {section.settings.map((setting, index) => (
+              {section.settings.map((setting) => (
                 <div
                   key={setting.label}
                   className="flex items-center justify-between py-3 border-b border-border last:border-0"
@@ -94,9 +102,10 @@ const SettingsPage = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.4 }}
-          className="glass rounded-2xl p-6"
+          className="glass rounded-2xl p-6 hover:bg-red-500/10 transition-colors cursor-pointer group"
+          onClick={handleSignOut}
         >
-          <button className="flex items-center gap-3 text-destructive hover:text-destructive/80 transition-colors">
+          <button className="flex items-center gap-3 text-destructive group-hover:text-red-500 transition-colors w-full">
             <LogOut className="w-5 h-5" />
             <span className="font-medium">Log Out</span>
           </button>
