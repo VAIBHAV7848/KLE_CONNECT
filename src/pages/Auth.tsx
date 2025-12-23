@@ -1,12 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { GraduationCap, Mail, Lock, User, ArrowLeft, Loader2 } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { GraduationCap, Mail, Lock, User, ArrowLeft, Loader2, Phone, UserCircle } from 'lucide-react';
 import { z } from 'zod';
+import { ConfirmationResult } from 'firebase/auth';
 
 const signUpSchema = z.object({
   fullName: z.string().min(2, 'Name must be at least 2 characters').max(100),
@@ -21,13 +23,23 @@ const signInSchema = z.object({
 
 const Auth = () => {
   const [isSignUp, setIsSignUp] = useState(false);
+
+  // Email Auth State
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
+
+  // Phone Auth State
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [otp, setOtp] = useState('');
+  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
+  const [isRecaptchaVerified, setIsRecaptchaVerified] = useState(false);
+  const recaptchaVerifierRef = useRef<any>(null);
+
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const { signUp, signIn, signInWithGoogle, user, loading: authLoading } = useAuth();
+  const { signUp, signIn, signInWithGoogle, signInAnonymously, setUpRecaptcha, signInWithPhone, user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -37,7 +49,7 @@ const Auth = () => {
     }
   }, [user, authLoading, navigate]);
 
-  const validateForm = () => {
+  const validateEmailForm = () => {
     try {
       if (isSignUp) {
         signUpSchema.parse({ fullName, email, password });
@@ -60,10 +72,10 @@ const Auth = () => {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!validateForm()) return;
+    if (!validateEmailForm()) return;
 
     setLoading(true);
 
@@ -112,10 +124,142 @@ const Auth = () => {
     }
   };
 
+  const handleSendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!phoneNumber) {
+      setErrors({ phoneNumber: 'Phone number is required' });
+      return;
+    }
+
+    // Auto-format phone number to include +91 if missing
+    let formattedNumber = phoneNumber.trim();
+    if (!formattedNumber.startsWith('+')) {
+      // Default to India (+91) if no country code provided
+      if (formattedNumber.length === 10) {
+        formattedNumber = `+91${formattedNumber}`;
+      } else {
+        // Fallback: Just prepend +91 for now if it looks like a local number
+        formattedNumber = `+91${formattedNumber}`;
+      }
+    }
+
+    // Basic validation before sending to Firebase
+    // E.164 format: +[country code][number]
+    const phoneRegex = /^\+[1-9]\d{1,14}$/;
+    if (!phoneRegex.test(formattedNumber)) {
+      setErrors({ phoneNumber: 'Invalid phone number format. Use E.164 format (e.g., +919876543210)' });
+      return;
+    }
+
+    setLoading(true);
+    setErrors({}); // Clear previous errors
+
+    try {
+      if (!recaptchaVerifierRef.current) {
+        // Ensure the container exists
+        const container = document.getElementById('recaptcha-container');
+        if (container) {
+          recaptchaVerifierRef.current = setUpRecaptcha('recaptcha-container');
+        } else {
+          throw new Error("Recaptcha container not found");
+        }
+      }
+
+      const { confirmationResult, error } = await signInWithPhone(formattedNumber, recaptchaVerifierRef.current);
+      if (error) {
+        console.error("OTP Send Error:", error);
+        // Reset recaptcha if there's an error to allow retrying
+        if (recaptchaVerifierRef.current) {
+          recaptchaVerifierRef.current.clear();
+          recaptchaVerifierRef.current = null;
+        }
+
+        let errorMessage = error.message;
+        if (error.message.includes('auth/invalid-phone-number')) {
+          errorMessage = "Invalid phone number format. We added +91 automatically, but it still failed. Please check the number.";
+        } else if (error.message.includes('reCAPTCHA')) {
+          errorMessage = "Verification failed. Please try again.";
+        }
+
+        toast({
+          title: 'Failed to send OTP',
+          description: errorMessage,
+          variant: 'destructive',
+        });
+      } else {
+        setConfirmationResult(confirmationResult);
+        toast({
+          title: 'OTP Sent',
+          description: `We've sent a code to ${formattedNumber}`,
+        });
+      }
+    } catch (err: any) {
+      console.error("Catch Error:", err);
+      // Reset recaptcha on error
+      if (recaptchaVerifierRef.current) {
+        recaptchaVerifierRef.current.clear();
+        recaptchaVerifierRef.current = null;
+      }
+
+      toast({
+        title: 'Error',
+        description: err.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!otp || !confirmationResult) return;
+
+    setLoading(true);
+    try {
+      await confirmationResult.confirm(otp);
+      toast({
+        title: 'Success',
+        description: 'Phone number verified successfully!',
+      });
+      navigate('/');
+    } catch (error: any) {
+      toast({
+        title: 'Verification Failed',
+        description: 'Invalid OTP. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGuestLogin = async () => {
+    setLoading(true);
+    const { error } = await signInAnonymously();
+    setLoading(false);
+    if (error) {
+      toast({
+        title: 'Guest Login Failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } else {
+      toast({
+        title: 'Welcome Guest!',
+        description: 'You are now logged in anonymously.',
+      });
+      navigate('/');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4 relative overflow-hidden">
       {/* Ambient background */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden" />
+
+      {/* Recaptcha Container */}
+      <div id="recaptcha-container"></div>
 
       {/* Back button */}
       <Link
@@ -134,7 +278,7 @@ const Auth = () => {
       >
         <div className="glass rounded-2xl p-8">
           {/* Header */}
-          <div className="text-center mb-8">
+          <div className="text-center mb-6">
             <div className="flex justify-center mb-4">
               <div
                 className="w-16 h-16 rounded-2xl flex items-center justify-center"
@@ -148,83 +292,166 @@ const Auth = () => {
               <span className="text-foreground"> CONNECT</span>
             </h1>
             <p className="text-muted-foreground text-sm mt-2">
-              {isSignUp ? 'Create your student account' : 'Welcome back, student!'}
+              Welcome to the student portal
             </p>
           </div>
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {isSignUp && (
-              <div>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    type="text"
-                    placeholder="Full Name"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="pl-10 bg-muted border-border"
-                  />
-                </div>
-                {errors.fullName && (
-                  <p className="text-destructive text-xs mt-1">{errors.fullName}</p>
+          <Tabs defaultValue="email" className="w-full">
+            <TabsList className="grid w-full grid-cols-2 mb-6">
+              <TabsTrigger value="email">Email</TabsTrigger>
+              <TabsTrigger value="phone">Phone</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="email">
+              <form onSubmit={handleEmailSubmit} className="space-y-4">
+                {isSignUp && (
+                  <div>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        type="text"
+                        placeholder="Full Name"
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        className="pl-10 bg-muted border-border"
+                      />
+                    </div>
+                    {errors.fullName && (
+                      <p className="text-destructive text-xs mt-1">{errors.fullName}</p>
+                    )}
+                  </div>
                 )}
-              </div>
-            )}
 
-            <div>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  type="email"
-                  placeholder="Email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10 bg-muted border-border"
-                />
-              </div>
-              {errors.email && (
-                <p className="text-destructive text-xs mt-1">{errors.email}</p>
-              )}
-            </div>
+                <div>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      type="email"
+                      placeholder="Email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="pl-10 bg-muted border-border"
+                    />
+                  </div>
+                  {errors.email && (
+                    <p className="text-destructive text-xs mt-1">{errors.email}</p>
+                  )}
+                </div>
 
-            <div>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  type="password"
-                  placeholder="Password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10 bg-muted border-border"
-                />
-              </div>
-              {errors.password && (
-                <p className="text-destructive text-xs mt-1">{errors.password}</p>
-              )}
-            </div>
+                <div>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      type="password"
+                      placeholder="Password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="pl-10 bg-muted border-border"
+                    />
+                  </div>
+                  {errors.password && (
+                    <p className="text-destructive text-xs mt-1">{errors.password}</p>
+                  )}
+                </div>
 
-            <Button
-              type="submit"
-              className="w-full bg-primary hover:bg-primary/90"
-              disabled={loading}
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  {isSignUp ? 'Creating account...' : 'Signing in...'}
-                </>
+                <Button
+                  type="submit"
+                  className="w-full bg-primary hover:bg-primary/90"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      {isSignUp ? 'Creating account...' : 'Signing in...'}
+                    </>
+                  ) : (
+                    isSignUp ? 'Create Account' : 'Sign In'
+                  )}
+                </Button>
+
+                {/* Toggle Email Mode */}
+                <div className="text-center mt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSignUp(!isSignUp);
+                      setErrors({});
+                    }}
+                    className="text-xs text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
+                  </button>
+                </div>
+              </form>
+            </TabsContent>
+
+            <TabsContent value="phone">
+              {!confirmationResult ? (
+                <form onSubmit={handleSendOtp} className="space-y-4">
+                  <div>
+                    <div className="relative">
+                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        type="tel"
+                        placeholder="+1 234 567 8900"
+                        value={phoneNumber}
+                        onChange={(e) => setPhoneNumber(e.target.value)}
+                        className="pl-10 bg-muted border-border"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1 ml-1">Include country code (e.g. +91 for India)</p>
+                    {errors.phoneNumber && (
+                      <p className="text-destructive text-xs mt-1">{errors.phoneNumber}</p>
+                    )}
+                  </div>
+                  <Button
+                    type="submit"
+                    className="w-full bg-primary hover:bg-primary/90"
+                    disabled={loading}
+                  >
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send OTP"}
+                  </Button>
+                </form>
               ) : (
-                isSignUp ? 'Create Account' : 'Sign In'
+                <form onSubmit={handleVerifyOtp} className="space-y-4">
+                  <div>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        type="text"
+                        placeholder="Enter 6-digit OTP"
+                        value={otp}
+                        onChange={(e) => setOtp(e.target.value)}
+                        className="pl-10 bg-muted border-border"
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    type="submit"
+                    className="w-full bg-primary hover:bg-primary/90"
+                    disabled={loading}
+                  >
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Verify OTP"}
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmationResult(null)}
+                    className="w-full text-xs text-muted-foreground hover:text-primary mt-2"
+                  >
+                    Change phone number
+                  </button>
+                </form>
               )}
-            </Button>
+            </TabsContent>
+          </Tabs>
 
-            <div className="relative my-4">
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
-              </div>
+          <div className="relative my-6">
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
             </div>
+          </div>
 
+          <div className="space-y-2">
             <Button
               type="button"
               variant="outline"
@@ -254,21 +481,19 @@ const Auth = () => {
               </svg>
               Google
             </Button>
-          </form>
 
-          {/* Toggle */}
-          <div className="text-center mt-6">
-            <button
+            <Button
               type="button"
-              onClick={() => {
-                setIsSignUp(!isSignUp);
-                setErrors({});
-              }}
-              className="text-sm text-muted-foreground hover:text-primary transition-colors"
+              variant="outline"
+              className="w-full"
+              disabled={loading}
+              onClick={handleGuestLogin}
             >
-              {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
-            </button>
+              <UserCircle className="mr-2 h-4 w-4" />
+              Continue as Guest
+            </Button>
           </div>
+
         </div>
       </motion.div>
     </div>
