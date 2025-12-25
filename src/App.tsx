@@ -18,6 +18,7 @@ import Doubts from "./pages/Doubts";
 import SeniorConnect from "./pages/SeniorConnect";
 import StudentHelp from "./pages/StudentHelp";
 import SettingsPage from "./pages/Settings";
+import Support from "./pages/Support";
 import NotFound from "./pages/NotFound";
 import ErrorBoundary from "./components/ErrorBoundary";
 
@@ -82,6 +83,11 @@ const App = () => (
               <Route path="/student-help" element={
                 <ProtectedRoute>
                   <StudentHelp />
+                </ProtectedRoute>
+              } />
+              <Route path="/support" element={
+                <ProtectedRoute>
+                  <Support />
                 </ProtectedRoute>
               } />
               <Route path="/settings" element={
