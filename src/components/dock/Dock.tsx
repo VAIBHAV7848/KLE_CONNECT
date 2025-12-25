@@ -12,6 +12,7 @@ import {
   MessageCircle,
   Users,
   Heart,
+  HeartHandshake,
   Settings
 } from 'lucide-react';
 
@@ -78,6 +79,12 @@ const navigationItems = [
     label: 'Student Help', 
     to: '/student-help',
     gradient: 'linear-gradient(135deg, hsl(350 80% 50% / 0.3), hsl(350 80% 50% / 0.1))'
+  },
+  { 
+    icon: HeartHandshake, 
+    label: 'Support', 
+    to: '/support',
+    gradient: 'linear-gradient(135deg, hsl(35 90% 55% / 0.3), hsl(35 90% 55% / 0.1))'
   },
   { 
     icon: Settings, 

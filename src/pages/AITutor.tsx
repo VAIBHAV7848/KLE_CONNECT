@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, FC, ReactNode } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import PageLayout from '@/components/layout/PageLayout';
 import PageHeader from '@/components/ui/PageHeader';
@@ -6,12 +6,6 @@ import { Bot, Send, Sparkles, User, GraduationCap, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import ReactMarkdown from 'react-markdown';
-
-declare module 'react-markdown' {
-  export interface ReactMarkdownProps {
-    children?: ReactNode;
-  }
-}
 // Mock typing animation configuration
 const TYPING_SPEED = { min: 5, max: 10 }; // milliseconds per character
 const NETWORK_DELAY = 800; // milliseconds
