@@ -26,7 +26,7 @@ import AgoraRTC, {
 /**
  * CONFIGURATION
  */
-const APP_ID = "bb21d68abe3449f9b90944ee33253fa5";
+const APP_ID = "35f1e777bff540a9ad19c9b6fa3c2bc2";
 // const TOKEN = null; // Replaced by dynamic token fetching
 const TOKEN_SERVER_URL = "https://kle-token-server.onrender.com";
 
