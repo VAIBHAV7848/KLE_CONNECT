@@ -280,7 +280,9 @@ const LiveMeeting = (props: {
   const [token, setToken] = useState<string | null>(null);
   const [uid] = useState<number>(() => Math.floor(Math.random() * 1000000));
 
-  // Fetch Token from Backend
+  // Fetch Token from Backend (DISABLED FOR DIRECT CONNECTION)
+  // To restore security: Uncomment this useEffect and ensure backend is running.
+  /*
   useEffect(() => {
     const fetchToken = async () => {
       try {
@@ -291,13 +293,13 @@ const LiveMeeting = (props: {
         });
 
         if (!response.ok) throw new Error("Failed to get token");
-
+        
         const data = await response.json();
         setToken(data.token);
       } catch (error) {
         console.error("Token fetch error:", error);
         // Explicitly alert the user to the failure cause
-        alert(`Connection Failed: Unable to reach Token Server.\n\nPossible causes:\n1. Server is sleeping (try again in 30s)\n2. Firewall blocking 'onrender.com'\n3. Browser security blocking API\n\nError: ${error}`);
+        // alert(`Connection Failed: ...`); 
         toast({
           title: "Connection Error",
           description: "Could not connect to server. Retrying...",
@@ -310,11 +312,13 @@ const LiveMeeting = (props: {
       fetchToken();
     }
   }, [props.roomCode, uid, toast]);
+  */
 
-  // Connection Hooks
+  // DIRECT CONNECTION MODE (No Security)
+  // Ensure your Agora Project is set to "APP ID ONLY" in the console.
   const { isConnected } = useJoin(
-    { appid: APP_ID, channel: props.roomCode, token: token || null, uid: uid },
-    !!token
+    { appid: APP_ID, channel: props.roomCode, token: null, uid: uid },
+    true // Always ready to join
   );
 
   const { localMicrophoneTrack } = useLocalMicrophoneTrack(micOn);
