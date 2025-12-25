@@ -1,0 +1,15 @@
+{
+    "name": "agora-token-server",
+    "version": "1.0.0",
+    "description": "Simple Node.js server to generate Agora RTC tokens",
+    "main": "index.js",
+    "scripts": {
+        "start": "node index.js"
+    },
+    "dependencies": {
+        "agora-access-token": "^2.0.4",
+        "cors": "^2.8.5",
+        "dotenv": "^16.3.1",
+        "express": "^4.18.2"
+    }
+}

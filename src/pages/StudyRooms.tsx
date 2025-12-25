@@ -26,7 +26,8 @@ import AgoraRTC, {
  * CONFIGURATION
  */
 const APP_ID = "bb21d68abe3449f9b90944ee33253fa5";
-const TOKEN = null;
+// const TOKEN = null; // Replaced by dynamic token fetching
+const TOKEN_SERVER_URL = import.meta.env.VITE_AGORA_TOKEN_SERVER || "http://localhost:8080";
 
 type ViewState = 'lobby' | 'prejoin' | 'meeting';
 
@@ -44,7 +45,7 @@ const StudyRooms = () => {
   // Handle URL Deep Linking
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
-    const code = searchParams.get('room');
+    const code = searchParams.get('channel');
     if (code) {
       setRoomCode(code);
       setView('prejoin');
@@ -96,10 +97,8 @@ const Lobby = ({ onJoin }: { onJoin: (code: string) => void }) => {
   const [inputCode, setInputCode] = useState("");
 
   const createInstantMeeting = () => {
-    // Generate a 3-part code like "abc-def-ghi"
-    const part1 = Math.random().toString(36).substring(2, 5);
-    const part2 = Math.random().toString(36).substring(2, 5);
-    const code = `${part1}-${part2}`;
+    // Generate a UUID for unique channel names
+    const code = crypto.randomUUID();
     onJoin(code);
   };
 
@@ -275,7 +274,44 @@ const LiveMeeting = (props: {
   const { toast } = useToast();
 
   // Connection Hooks
-  const { isConnected } = useJoin({ appid: APP_ID, channel: props.roomCode, token: TOKEN }, true);
+  const [token, setToken] = useState<string | null>(null);
+  const [uid] = useState<number>(() => Math.floor(Math.random() * 1000000));
+
+  // Fetch Token from Backend
+  useEffect(() => {
+    const fetchToken = async () => {
+      try {
+        const response = await fetch(`${TOKEN_SERVER_URL}/token`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ channel: props.roomCode, uid: uid }),
+        });
+
+        if (!response.ok) throw new Error("Failed to get token");
+
+        const data = await response.json();
+        setToken(data.token);
+      } catch (error) {
+        console.error("Token fetch error:", error);
+        toast({
+          title: "Connection Failed",
+          description: "Could not fetch secure token from backend.",
+          variant: "destructive",
+        });
+      }
+    };
+
+    if (props.roomCode) {
+      fetchToken();
+    }
+  }, [props.roomCode, uid, toast]);
+
+  // Connection Hooks - Wait for token
+  const { isConnected } = useJoin(
+    { appid: APP_ID, channel: props.roomCode, token: token || null, uid: uid },
+    !!token
+  );
+
   const { localMicrophoneTrack } = useLocalMicrophoneTrack(micOn);
   const { localCameraTrack } = useLocalCameraTrack(cameraOn);
   usePublish([localMicrophoneTrack, localCameraTrack]);
@@ -352,7 +388,7 @@ const LiveMeeting = (props: {
 
         <button
           onClick={() => {
-            const link = `${window.location.origin}/#/study-rooms?room=${props.roomCode}`;
+            const link = `${window.location.origin}/#/study-rooms?channel=${props.roomCode}`;
             navigator.clipboard.writeText(link);
             toast({ title: "Copied joining info", description: "Meeting link copied to clipboard" });
           }}
