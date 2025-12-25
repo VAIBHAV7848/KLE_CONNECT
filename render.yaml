@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: kle-token-server
+    env: node
+    rootDir: token-server
+    buildCommand: npm install
+    startCommand: node index.js
+    plan: free
+    envVars:
+      - key: APP_ID
+        value: bb21d68abe3449f9b90944ee33253fa5
+      - key: APP_CERTIFICATE
+        sync: false
