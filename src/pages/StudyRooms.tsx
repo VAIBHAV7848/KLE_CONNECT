@@ -296,6 +296,8 @@ const LiveMeeting = (props: {
         setToken(data.token);
       } catch (error) {
         console.error("Token fetch error:", error);
+        // Explicitly alert the user to the failure cause
+        alert(`Connection Failed: Unable to reach Token Server.\n\nPossible causes:\n1. Server is sleeping (try again in 30s)\n2. Firewall blocking 'onrender.com'\n3. Browser security blocking API\n\nError: ${error}`);
         toast({
           title: "Connection Error",
           description: "Could not connect to server. Retrying...",
