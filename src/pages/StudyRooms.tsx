@@ -4,7 +4,7 @@ import PageLayout from '@/components/layout/PageLayout';
 import PageHeader from '@/components/ui/PageHeader';
 import {
   GraduationCap, Users, Video, Mic, MicOff, VideoOff,
-  PhoneOff, Copy, Settings, CheckCircle2, Info
+  PhoneOff, Copy, Settings, CheckCircle2, Info, MonitorUp, Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -15,6 +15,7 @@ import AgoraRTC, {
   useJoin,
   useLocalCameraTrack,
   useLocalMicrophoneTrack,
+  useLocalScreenTrack,
   usePublish,
   useRTCClient,
   useRemoteUsers,
@@ -271,6 +272,8 @@ const LiveMeeting = (props: {
 }) => {
   const [micOn, setMicOn] = useState(props.initialMic);
   const [cameraOn, setCameraOn] = useState(props.initialCam);
+  const [screenShareOn, setScreenShareOn] = useState(false);
+
   const { toast } = useToast();
 
   // Connection Hooks
@@ -294,8 +297,8 @@ const LiveMeeting = (props: {
       } catch (error) {
         console.error("Token fetch error:", error);
         toast({
-          title: "Setup Required",
-          description: "Could not connect to Token Server. If you are live, ensure the backend is deployed.",
+          title: "Connection Error",
+          description: "Could not connect to server. Retrying...",
           variant: "destructive",
         });
       }
@@ -306,7 +309,7 @@ const LiveMeeting = (props: {
     }
   }, [props.roomCode, uid, toast]);
 
-  // Connection Hooks - Wait for token
+  // Connection Hooks
   const { isConnected } = useJoin(
     { appid: APP_ID, channel: props.roomCode, token: token || null, uid: uid },
     !!token
@@ -314,7 +317,18 @@ const LiveMeeting = (props: {
 
   const { localMicrophoneTrack } = useLocalMicrophoneTrack(micOn);
   const { localCameraTrack } = useLocalCameraTrack(cameraOn);
-  usePublish([localMicrophoneTrack, localCameraTrack]);
+  const { screenTrack, error: screenError } = useLocalScreenTrack(screenShareOn, {}, "disable");
+
+  // Handle Screen Share Stop (via browser UI)
+  useEffect(() => {
+    if (screenShareOn && screenTrack) {
+      screenTrack.on("track-ended", () => {
+        setScreenShareOn(false);
+      });
+    }
+  }, [screenShareOn, screenTrack]);
+
+  usePublish([localMicrophoneTrack, localCameraTrack, screenShareOn ? screenTrack : null]);
 
   const remoteUsers = useRemoteUsers();
 
@@ -323,10 +337,21 @@ const LiveMeeting = (props: {
       {/* Top Bar */}
       <div className="h-16 flex items-center justify-between px-6 bg-black/40 backdrop-blur-md z-10 absolute top-0 w-full">
         <div className="flex items-center gap-3">
-          <span className="text-lg font-medium tracking-wide">{props.roomCode}</span>
-          <div className="px-2 py-0.5 bg-gray-800 text-gray-300 text-xs rounded-md font-mono border border-white/10">
-            LIVE
-          </div>
+          <span className="text-lg font-medium tracking-wide font-mono">{props.roomCode.substring(0, 8)}...</span>
+          {isConnected ? (
+            <div className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-md font-mono border border-green-500/20 flex items-center gap-1">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+              </span>
+              LIVE
+            </div>
+          ) : (
+            <div className="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded-md font-mono border border-yellow-500/20 flex items-center gap-1">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              CONNECTING
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Users className="w-4 h-4 text-gray-400" />
@@ -336,24 +361,43 @@ const LiveMeeting = (props: {
 
       {/* Video Grid */}
       <div className="flex-1 p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto bg-[#202124] pt-20 pb-24">
-        {/* You */}
-        <div className="relative bg-[#3c4043] rounded-xl overflow-hidden border-2 border-blue-500/0 aspect-video group shadow-lg">
-          <LocalUser
-            audioTrack={localMicrophoneTrack}
-            cameraOn={cameraOn}
-            micOn={micOn}
-            videoTrack={localCameraTrack}
-            cover="https://www.agora.io/en/wp-content/uploads/2022/10/3d-spatial-audio-icon.svg"
-          >
-            <div className="absolute bottom-3 left-3 bg-black/50 px-2 py-1 rounded text-sm font-medium z-10">
-              You
-            </div>
-          </LocalUser>
-        </div>
+        {/* You (Camera) */}
+        {!screenShareOn && (
+          <div className="relative bg-[#3c4043] rounded-xl overflow-hidden border-2 border-blue-500/0 aspect-video group shadow-lg">
+            <LocalUser
+              audioTrack={localMicrophoneTrack}
+              cameraOn={cameraOn}
+              micOn={micOn}
+              videoTrack={localCameraTrack}
+              cover="https://www.agora.io/en/wp-content/uploads/2022/10/3d-spatial-audio-icon.svg"
+            >
+              <div className="absolute bottom-3 left-3 bg-black/50 px-2 py-1 rounded text-sm font-medium z-10">
+                You
+              </div>
+            </LocalUser>
+          </div>
+        )}
+
+        {/* You (Screen Share) */}
+        {screenShareOn && screenTrack && (
+          <div className="relative bg-[#3c4043] rounded-xl overflow-hidden border-2 border-blue-500 aspect-video group shadow-lg col-span-2 row-span-2">
+            <LocalUser
+              audioTrack={localMicrophoneTrack}
+              cameraOn={false}
+              micOn={micOn}
+              videoTrack={screenTrack}
+              cover="https://www.agora.io/en/wp-content/uploads/2022/10/3d-spatial-audio-icon.svg"
+            >
+              <div className="absolute bottom-3 left-3 bg-blue-600 px-2 py-1 rounded text-sm font-medium z-10 flex items-center gap-2">
+                <MonitorUp className="w-3 h-3" /> You are presenting
+              </div>
+            </LocalUser>
+          </div>
+        )}
 
         {/* Others */}
         {remoteUsers.map((user) => (
-          <div key={user.uid} className="relative bg-[#3c4043] rounded-xl overflow-hidden aspect-video shadow-lg">
+          <div key={user.uid} className={`relative bg-[#3c4043] rounded-xl overflow-hidden aspect-video shadow-lg ${user.hasVideo ? '' : 'flex items-center justify-center'}`}>
             <RemoteUser cover="https://www.agora.io/en/wp-content/uploads/2022/10/3d-spatial-audio-icon.svg" user={user}>
               <div className="absolute bottom-3 left-3 bg-black/50 px-2 py-1 rounded text-sm font-medium z-10">
                 Student {user.uid}
@@ -362,9 +406,20 @@ const LiveMeeting = (props: {
           </div>
         ))}
 
-        {remoteUsers.length === 0 && (
-          <div className="flex items-center justify-center p-8 text-center text-gray-500 h-full border-2 border-dashed border-gray-700 rounded-xl">
-            <p>Waiting for others to join...</p>
+        {remoteUsers.length === 0 && isConnected && (
+          <div className="col-span-1 md:col-span-2 lg:col-span-3 flex items-center justify-center p-8 text-center text-gray-500 h-64 border-2 border-dashed border-gray-700 rounded-xl">
+            <div className="max-w-sm">
+              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-400" />
+              <p className="text-lg font-medium text-gray-300">Waiting for friends...</p>
+              <p className="text-sm mt-2">Share the link to invite them to this room.</p>
+              <p className="font-mono text-xs mt-4 bg-black/20 p-2 rounded select-all">{props.roomCode}</p>
+            </div>
+          </div>
+        )}
+
+        {remoteUsers.length === 0 && !isConnected && (
+          <div className="col-span-1 md:col-span-2 lg:col-span-3 flex items-center justify-center p-8 text-center text-gray-500 h-64">
+            <p>Connecting to server...</p>
           </div>
         )}
       </div>
@@ -374,14 +429,24 @@ const LiveMeeting = (props: {
         <button
           onClick={() => setMicOn(!micOn)}
           className={`h-12 w-12 rounded-full flex items-center justify-center transition-all ${!micOn ? 'bg-red-600 hover:bg-red-700' : 'bg-[#3c4043] hover:bg-[#4b4f52]'}`}
+          title="Toggle Microphone"
         >
           {micOn ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
         </button>
         <button
           onClick={() => setCameraOn(!cameraOn)}
           className={`h-12 w-12 rounded-full flex items-center justify-center transition-all ${!cameraOn ? 'bg-red-600 hover:bg-red-700' : 'bg-[#3c4043] hover:bg-[#4b4f52]'}`}
+          title="Toggle Camera"
         >
           {cameraOn ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
+        </button>
+
+        <button
+          onClick={() => setScreenShareOn(!screenShareOn)}
+          className={`h-12 w-12 rounded-full flex items-center justify-center transition-all ${screenShareOn ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-[#3c4043] hover:bg-[#4b4f52] text-gray-200'}`}
+          title="Share Screen"
+        >
+          <MonitorUp className="w-5 h-5" />
         </button>
 
         <div className="w-px h-8 bg-gray-600 mx-2" />
