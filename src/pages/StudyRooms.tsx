@@ -27,7 +27,7 @@ import AgoraRTC, {
  */
 const APP_ID = "bb21d68abe3449f9b90944ee33253fa5";
 // const TOKEN = null; // Replaced by dynamic token fetching
-const TOKEN_SERVER_URL = import.meta.env.VITE_AGORA_TOKEN_SERVER || "http://localhost:8080";
+const TOKEN_SERVER_URL = "https://kle-token-server.onrender.com";
 
 type ViewState = 'lobby' | 'prejoin' | 'meeting';
 
@@ -294,8 +294,8 @@ const LiveMeeting = (props: {
       } catch (error) {
         console.error("Token fetch error:", error);
         toast({
-          title: "Connection Failed",
-          description: "Could not fetch secure token from backend.",
+          title: "Setup Required",
+          description: "Could not connect to Token Server. If you are live, ensure the backend is deployed.",
           variant: "destructive",
         });
       }
