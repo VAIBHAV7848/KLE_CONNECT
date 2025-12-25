@@ -23,19 +23,18 @@ interface TeamMate {
   accent: string;
 }
 
-// Use the configured Vite base; fallback to the known deployed path
-const appBase = '/KLE_CONNECT/';
-const baseUrl = (import.meta as any)?.env?.BASE_URL || appBase;
-const qrImageUrl = new URL('paytm-om-ganesh.png', `${window.location.origin}${baseUrl}`).toString();
-
 // Helper to construct asset URLs with proper base path
-const assetUrl = (path: string) => new URL(path, `${window.location.origin}${baseUrl}`).toString();
+// In Vite, assets in /public are served from the base URL
+const assetUrl = (path: string) => {
+  const base = import.meta.env.BASE_URL || '/';
+  return `${base}${path}`;
+};
 
 const qrCodes: QrCodeOption[] = [
   {
     label: 'Buy Me a Coffee',
     note: 'Scan and pay any amount you are comfortable with.',
-    imageHint: qrImageUrl
+    imageHint: assetUrl('paytm-om-ganesh.png')
   }
 ];
 
@@ -45,7 +44,7 @@ const teammates: TeamMate[] = [
   {
     name: 'Omganesh Matiwade',
     role: 'Full Stack Developer',
-    image: assetUrl('team-1.jpg'),
+    image: assetUrl('om-ganesh.jpg'),
     github: 'https://github.com/Omganesh014',
     linkedin: 'https://www.linkedin.com/in/omganesh-r-matiwade-08a694330?utm_source=share_via&utm_content=profile&utm_medium=member_android',
     instagram: 'https://www.instagram.com/omganesh_014?igsh=MTRkbjE0MHpycno4aQ==',
@@ -54,7 +53,7 @@ const teammates: TeamMate[] = [
   {
     name: 'Vaibhav Chavanpatil',
     role: 'Backend Developer',
-    image: assetUrl('team-2.jpg'),
+    image: assetUrl('vaibhav-chavanpatil.jpg'),
     github: 'https://github.com/VAIBHAV7848',
     linkedin: 'https://www.linkedin.com/in/vaibhav-chavanpatil-a047b035a?utm_source=share_via&utm_content=profile&utm_medium=member_android',
     instagram: 'https://www.instagram.com/v_chavanpatil?igsh=NzJiNXlyYXF3N3d5',
@@ -63,7 +62,7 @@ const teammates: TeamMate[] = [
   {
     name: 'Darshan Kittur',
     role: 'UI/UX Designer',
-    image: assetUrl('team-3.jpg'),
+    image: assetUrl('darshan-kittur.jpg'),
     github: 'https://github.com/darshankittur',
     linkedin: 'https://www.linkedin.com/in/darshan-kittur-65532a326?utm_source=share_via&utm_content=profile&utm_medium=member_android',
     instagram: 'https://www.instagram.com/darshankittur_79?igsh=Z2JxZGtueWFvZnN3',
@@ -77,20 +76,24 @@ const TeamAvatar = ({ name, src, accent }: { name: string; src: string; accent: 
   const [failed, setFailed] = useState(false);
   const initials = getInitials(name);
 
-  if (failed || !src) {
+  if (!src || failed) {
     return (
       <div
-        className="w-24 h-24 rounded-full border border-border/60 flex items-center justify-center text-lg font-semibold"
-        style={{ background: `${accent}26` }}
+        className="w-24 h-24 rounded-full border-2 flex items-center justify-center text-xl font-bold text-white shadow-lg relative overflow-hidden"
+        style={{ 
+          background: `linear-gradient(135deg, ${accent}, ${accent}dd)`,
+          borderColor: accent
+        }}
         aria-label={name}
       >
-        {initials}
+        <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent" />
+        <span className="relative z-10">{initials}</span>
       </div>
     );
   }
 
   return (
-    <div className="w-24 h-24 rounded-full overflow-hidden border border-border/60 bg-muted/60">
+    <div className="w-24 h-24 rounded-full overflow-hidden border-2 shadow-lg bg-muted" style={{ borderColor: accent }}>
       <img
         src={src}
         alt={name}
