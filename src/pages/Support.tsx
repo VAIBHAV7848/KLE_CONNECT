@@ -28,6 +28,9 @@ const appBase = '/KLE_CONNECT/';
 const baseUrl = (import.meta as any)?.env?.BASE_URL || appBase;
 const qrImageUrl = new URL('paytm-om-ganesh.png', `${window.location.origin}${baseUrl}`).toString();
 
+// Helper to construct asset URLs with proper base path
+const assetUrl = (path: string) => new URL(path, `${window.location.origin}${baseUrl}`).toString();
+
 const qrCodes: QrCodeOption[] = [
   {
     label: 'Buy Me a Coffee',
@@ -42,28 +45,28 @@ const teammates: TeamMate[] = [
   {
     name: 'Omganesh Matiwade',
     role: 'Full Stack Developer',
-    image: '/team-1.jpg',
-    github: 'https://github.com/omganesh',
-    linkedin: 'https://www.linkedin.com/in/omganesh-matiwade',
-    instagram: 'https://www.instagram.com/omganesh',
+    image: assetUrl('team-1.jpg'),
+    github: 'https://github.com/Omganesh014',
+    linkedin: 'https://www.linkedin.com/in/omganesh-r-matiwade-08a694330?utm_source=share_via&utm_content=profile&utm_medium=member_android',
+    instagram: 'https://www.instagram.com/omganesh_014?igsh=MTRkbjE0MHpycno4aQ==',
     accent: 'hsl(199 89% 48%)'
   },
   {
     name: 'Vaibhav Chavanpatil',
     role: 'Backend Developer',
-    image: '/team-2.jpg',
-    github: 'https://github.com/vaibhavchavanpatil',
-    linkedin: 'https://www.linkedin.com/in/vaibhav-chavanpatil',
-    instagram: 'https://www.instagram.com/vaibhav_chavanpatil',
+    image: assetUrl('team-2.jpg'),
+    github: 'https://github.com/VAIBHAV7848',
+    linkedin: 'https://www.linkedin.com/in/vaibhav-chavanpatil-a047b035a?utm_source=share_via&utm_content=profile&utm_medium=member_android',
+    instagram: 'https://www.instagram.com/v_chavanpatil?igsh=NzJiNXlyYXF3N3d5',
     accent: 'hsl(263 70% 58%)'
   },
   {
     name: 'Darshan Kittur',
     role: 'UI/UX Designer',
-    image: '/team-3.jpg',
+    image: assetUrl('team-3.jpg'),
     github: 'https://github.com/darshankittur',
-    linkedin: 'https://www.linkedin.com/in/darshan-kittur',
-    instagram: 'https://www.instagram.com/darshan.kittur',
+    linkedin: 'https://www.linkedin.com/in/darshan-kittur-65532a326?utm_source=share_via&utm_content=profile&utm_medium=member_android',
+    instagram: 'https://www.instagram.com/darshankittur_79?igsh=Z2JxZGtueWFvZnN3',
     accent: 'hsl(35 90% 55%)'
   }
 ];
