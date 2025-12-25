@@ -388,7 +388,8 @@ const LiveMeeting = (props: {
 
         <button
           onClick={() => {
-            const link = `${window.location.origin}/#/study-rooms?channel=${props.roomCode}`;
+            // Fix: Include pathname to support subdirectories (like /KLE_CONNECT/)
+            const link = `${window.location.origin}${window.location.pathname}#/study-rooms?channel=${props.roomCode}`;
             navigator.clipboard.writeText(link);
             toast({ title: "Copied joining info", description: "Meeting link copied to clipboard" });
           }}
