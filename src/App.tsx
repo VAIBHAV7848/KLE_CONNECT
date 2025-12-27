@@ -1,7 +1,11 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { HashRouter as Router, Routes, Route } from "react-router-dom";
+import {
+  createHashRouter,
+  RouterProvider,
+  Outlet
+} from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import { AuthProvider } from "@/hooks/useAuth";
 
@@ -24,82 +28,128 @@ import ErrorBoundary from "./components/ErrorBoundary";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 
+const router = createHashRouter([
+  {
+    path: "/auth",
+    element: <Auth />,
+  },
+  {
+    path: "/",
+    element: (
+      <ProtectedRoute>
+        <Dashboard />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/ai-tutor",
+    element: (
+      <ProtectedRoute>
+        <AITutor />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/notes",
+    element: (
+      <ProtectedRoute>
+        <Notes />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/planner",
+    element: (
+      <ProtectedRoute>
+        <StudyPlanner />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/study-rooms",
+    element: (
+      <ProtectedRoute>
+        <StudyRooms />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/campus-map",
+    element: (
+      <ProtectedRoute>
+        <CampusMap />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/events",
+    element: (
+      <ProtectedRoute>
+        <Events />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/doubts",
+    element: (
+      <ProtectedRoute>
+        <Doubts />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/senior-connect",
+    element: (
+      <ProtectedRoute>
+        <SeniorConnect />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/student-help",
+    element: (
+      <ProtectedRoute>
+        <StudentHelp />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/support",
+    element: (
+      <ProtectedRoute>
+        <Support />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/settings",
+    element: (
+      <ProtectedRoute>
+        <SettingsPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "*",
+    element: <NotFound />,
+  },
+], {
+  future: {
+    v7_relativeSplatPath: true,
+    v7_fetcherPersist: true,
+    v7_normalizeFormMethod: true,
+    v7_partialHydration: true,
+    v7_skipActionErrorRevalidation: true,
+  },
+});
+
 const App = () => (
   <ErrorBoundary>
     <AuthProvider>
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <Router>
-          <AnimatePresence mode="wait">
-            <Routes>
-              <Route path="/auth" element={<Auth />} />
-
-              <Route path="/" element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              } />
-              <Route path="/ai-tutor" element={
-                <ProtectedRoute>
-                  <AITutor />
-                </ProtectedRoute>
-              } />
-              <Route path="/notes" element={
-                <ProtectedRoute>
-                  <Notes />
-                </ProtectedRoute>
-              } />
-              <Route path="/planner" element={
-                <ProtectedRoute>
-                  <StudyPlanner />
-                </ProtectedRoute>
-              } />
-              <Route path="/study-rooms" element={
-                <ProtectedRoute>
-                  <StudyRooms />
-                </ProtectedRoute>
-              } />
-              <Route path="/campus-map" element={
-                <ProtectedRoute>
-                  <CampusMap />
-                </ProtectedRoute>
-              } />
-              <Route path="/events" element={
-                <ProtectedRoute>
-                  <Events />
-                </ProtectedRoute>
-              } />
-              <Route path="/doubts" element={
-                <ProtectedRoute>
-                  <Doubts />
-                </ProtectedRoute>
-              } />
-              <Route path="/senior-connect" element={
-                <ProtectedRoute>
-                  <SeniorConnect />
-                </ProtectedRoute>
-              } />
-              <Route path="/student-help" element={
-                <ProtectedRoute>
-                  <StudentHelp />
-                </ProtectedRoute>
-              } />
-              <Route path="/support" element={
-                <ProtectedRoute>
-                  <Support />
-                </ProtectedRoute>
-              } />
-              <Route path="/settings" element={
-                <ProtectedRoute>
-                  <SettingsPage />
-                </ProtectedRoute>
-              } />
-              {/* Catch-all route */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </AnimatePresence>
-        </Router>
+        <RouterProvider router={router} future={{ v7_startTransition: true }} />
       </TooltipProvider>
     </AuthProvider>
   </ErrorBoundary>

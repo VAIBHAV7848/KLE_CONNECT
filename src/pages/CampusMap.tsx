@@ -1,96 +1,22 @@
-import { useRef, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { useRef, useEffect, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import PageLayout from '@/components/layout/PageLayout';
 import PageHeader from '@/components/ui/PageHeader';
-import { Map, MapPin, Building2 } from 'lucide-react';
+import { Map, MapPin, Building2, Globe, Navigation } from 'lucide-react';
 import pointsData from '@/data/campus_points.json';
 
-const CampusCanvasMap = () => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+// ... (retain CampusCanvasMap if it's there, or we can just ignore it since we aren't using it in the main component anymore, but I'll stick to editing the main component)
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const draw = () => {
-      if (!canvas) return;
-      const width = canvas.width;
-      const height = canvas.height;
-
-      // Clear canvas
-      ctx.clearRect(0, 0, width, height);
-
-      // Draw background grid
-      ctx.strokeStyle = '#333';
-      ctx.lineWidth = 0.5;
-      for (let i = 0; i < width; i += 20) {
-        ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, height); ctx.stroke();
-      }
-      for (let i = 0; i < height; i += 20) {
-        ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(width, i); ctx.stroke();
-      }
-
-      // Draw points
-      // Center the map: (0,0) in data should be center of canvas
-      const centerX = width / 2;
-      const centerY = height / 2;
-      const scale = 5; // Zoom factor
-
-      pointsData.forEach(p => {
-        const screenX = centerX + (p.x * scale);
-        const screenY = centerY + (p.z * scale); // Mapping Z to Y for top-down
-
-        ctx.beginPath();
-        ctx.arc(screenX, screenY, 3, 0, Math.PI * 2);
-        ctx.fillStyle = p.c || '#fff';
-        ctx.fill();
-
-        // Glow effect
-        ctx.shadowBlur = 5;
-        ctx.shadowColor = p.c || '#fff';
-      });
-      ctx.shadowBlur = 0;
-    };
-
-    // Handle resize
-    const resize = () => {
-      const parent = canvas.parentElement;
-      if (parent) {
-        canvas.width = parent.clientWidth;
-        canvas.height = parent.clientHeight;
-        draw();
-      }
-    };
-
-    window.addEventListener('resize', resize);
-    resize(); // Initial draw
-
-    // Optional: Simple animation loop if we want pulsing or movement
-    let animationId: number;
-    const animate = () => {
-      // Redraw if needed for animation
-      // For now, static draw is fine, just re-draw on resize
-    };
-
-    return () => window.removeEventListener('resize', resize);
-  }, []);
-
-  return <canvas ref={canvasRef} className="w-full h-full block" />;
-};
-
-/**
- * Campus Map - Interactive campus navigation
- */
 const CampusMap = () => {
+  const [viewMode, setViewMode] = useState<'map' | 'street'>('map');
+
   const locations = [
     { name: 'Main Library', type: 'Library', floor: 'Ground Floor', color: 'hsl(199 89% 48%)' },
-    { name: 'Computer Lab A', type: 'Lab', floor: '2nd Floor', color: 'hsl(142 76% 36%)' },
-    { name: 'Auditorium', type: 'Venue', floor: 'Ground Floor', color: 'hsl(263 70% 58%)' },
-    { name: 'Cafeteria', type: 'Food', floor: 'Ground Floor', color: 'hsl(45 93% 47%)' },
+    { name: 'Computer Lab A', type: 'Lab', floor: 'Main Block', color: 'hsl(142 76% 36%)' },
+    { name: 'Auditorium', type: 'Venue', floor: 'Mechanical Block', color: 'hsl(263 70% 58%)' },
+    { name: 'Cafeteria', type: 'Food', floor: 'Near Garden', color: 'hsl(45 93% 47%)' },
     { name: 'Sports Complex', type: 'Sports', floor: 'Outdoor', color: 'hsl(330 80% 55%)' },
-    { name: 'Admin Block', type: 'Office', floor: '1st Floor', color: 'hsl(15 90% 55%)' },
+    { name: 'Admin Block', type: 'Office', floor: 'Main Entrance', color: 'hsl(15 90% 55%)' },
   ];
 
   return (
@@ -98,23 +24,78 @@ const CampusMap = () => {
       <PageHeader
         icon={Map}
         title="Campus Map"
-        subtitle="Navigate your campus with ease"
+        subtitle="Locate your way around KLE Tech, Belagavi"
         gradient="linear-gradient(135deg, hsl(15 90% 55% / 0.3), hsl(15 90% 55% / 0.1))"
       />
 
-      {/* 2D Interactive Map */}
+      {/* Map Container */}
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.5 }}
-        className="glass rounded-2xl p-4 mb-6 relative overflow-hidden h-[500px] flex items-center justify-center border border-white/10"
+        layout
+        className="glass rounded-2xl p-2 mb-6 relative overflow-hidden h-[500px] flex items-center justify-center border border-white/10 shadow-2xl group"
       >
-        <div className="absolute top-4 left-4 z-10 pointer-events-none">
-          <h3 className="text-xl font-bold text-white mb-1">Campus Radar</h3>
-          <p className="text-sm text-gray-300">Top-down Digital Twin View</p>
-        </div>
+        <AnimatePresence mode="wait">
+          {viewMode === 'map' ? (
+            <motion.iframe
+              key="map"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3838.328374828131!2d74.48425267592984!3d15.83935278480749!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3bbf668f6eb689e1%3A0xe74e7604a56c459e!2sKLE%20Dr.%20M.%20S.%20Sheshgiri%20College%20of%20Engineering%20and%20Technology!5e0!3m2!1sen!2sin!4v1703672000000!5m2!1sen!2sin"
+              width="100%"
+              height="100%"
+              style={{ border: 0, borderRadius: '12px' }}
+              allowFullScreen={true}
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              className="w-full h-full grayscale-[0.3] hover:grayscale-0 transition-all duration-500"
+            />
+          ) : (
+            <motion.iframe
+              key="street"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              src="https://www.google.com/maps/embed?pb=!4v1766862401947!6m8!1m7!1sCAoSFkNJSE0wb2dLRUlDQWdJRDRpLXktWEE.!2m2!1d15.82035380132274!2d74.4985191981654!3f40!4f0!5f0.7820865974627469"
+              width="100%"
+              height="100%"
+              style={{ border: 0, borderRadius: '12px' }}
+              allowFullScreen={true}
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              className="w-full h-full"
+            />
+          )}
+        </AnimatePresence>
 
-        <CampusCanvasMap />
+        {/* View Toggle Control */}
+        {/* View Toggle Control */}
+        <div className="absolute bottom-4 right-4 z-10">
+          <motion.button
+            onClick={() => setViewMode(prev => prev === 'map' ? 'street' : 'map')}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className={`flex items-center gap-3 px-5 py-3 rounded-xl font-bold shadow-xl transition-all border ${viewMode === 'map'
+                ? 'bg-yellow-400 text-black border-yellow-500 hover:bg-yellow-300'
+                : 'bg-white text-black border-white hover:bg-gray-100'
+              }`}
+          >
+            {viewMode === 'map' ? (
+              <>
+                <div className="bg-black/10 p-1.5 rounded-full">
+                  <Navigation className="w-5 h-5 fill-current" />
+                </div>
+                <span className="font-display text-sm tracking-wide">Enter Street View</span>
+              </>
+            ) : (
+              <>
+                <div className="bg-black/10 p-1.5 rounded-full">
+                  <Map className="w-5 h-5" />
+                </div>
+                <span className="font-display text-sm tracking-wide">Return to Map</span>
+              </>
+            )}
+          </motion.button>
+        </div>
       </motion.div>
 
       {/* Quick Locations */}

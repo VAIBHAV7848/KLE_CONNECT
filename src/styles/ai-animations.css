@@ -1,0 +1,30 @@
+@layer utilities {
+    .cursor-blink {
+        display: inline-block;
+        width: 6px;
+        height: 16px;
+        background-color: theme('colors.primary.DEFAULT');
+        animation: blink 1s step-end infinite;
+        vertical-align: middle;
+        margin-left: 2px;
+    }
+
+    @keyframes blink {
+
+        0%,
+        100% {
+            opacity: 1;
+        }
+
+        50% {
+            opacity: 0;
+        }
+    }
+
+    .ai-bubble-gradient {
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+        backdrop-filter: blur(10px);
+    }
+}

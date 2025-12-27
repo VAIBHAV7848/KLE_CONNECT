@@ -94,13 +94,41 @@ const StudyRooms = () => {
 // ==========================================
 // 1. LOBBY VIEW (Home)
 // ==========================================
+// ==========================================
+// 1. LOBBY VIEW (Home)
+// ==========================================
 const Lobby = ({ onJoin }: { onJoin: (code: string) => void }) => {
   const [inputCode, setInputCode] = useState("");
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [newRoomName, setNewRoomName] = useState("");
+  const [newRoomTopic, setNewRoomTopic] = useState("");
 
-  const createInstantMeeting = () => {
-    // Generate a UUID for unique channel names
-    const code = crypto.randomUUID();
-    onJoin(code);
+  // Custom Room State
+  const [rooms, setRooms] = useState<{ id: string, name: string, topic: string, participants: number }[]>([]);
+
+  useEffect(() => {
+    // Load saved rooms or defaults
+    const saved = localStorage.getItem('custom-study-rooms');
+    if (saved) {
+      setRooms(JSON.parse(saved));
+    } else {
+      setRooms([]);
+    }
+  }, []);
+
+  const handleCreateRoom = () => {
+    if (!newRoomName.trim()) return;
+    const newRoom = {
+      id: crypto.randomUUID(),
+      name: newRoomName,
+      topic: newRoomTopic,
+      participants: 1 // Starts with you
+    };
+    const updated = [newRoom, ...rooms];
+    setRooms(updated);
+    localStorage.setItem('custom-study-rooms', JSON.stringify(updated));
+    setIsCreateOpen(false);
+    onJoin(newRoom.name); // Join immediately
   };
 
   return (
@@ -108,81 +136,129 @@ const Lobby = ({ onJoin }: { onJoin: (code: string) => void }) => {
       <PageHeader
         icon={GraduationCap}
         title="Study Rooms"
-        subtitle="High-quality video calls for study groups"
+        subtitle="Join live study sessions or create your own"
         gradient="linear-gradient(135deg, hsl(330 80% 55% / 0.3), hsl(330 80% 55% / 0.1))"
       />
 
-      <div className="flex flex-col md:flex-row gap-8 max-w-5xl mx-auto mt-12 items-center justify-center p-4">
-        {/* Hero Section */}
-        <div className="flex-1 space-y-6 text-center md:text-left">
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tight font-display text-foreground">
-            Premium Video Meetings. <br />
-            <span className="text-primary">Now Free for Students.</span>
-          </h1>
-          <p className="text-lg text-muted-foreground">
-            Connect, collaborate, and study together with secure video conferencing using Agora.
-          </p>
+      <div className="max-w-6xl mx-auto mt-8 px-4">
 
-          <div className="flex flex-col sm:flex-row gap-4 mt-8 justify-center md:justify-start">
-            <Button size="lg" className="h-12 px-8 text-base shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90" onClick={createInstantMeeting}>
-              <Video className="mr-2 w-5 h-5" />
-              New Meeting
+        {/* Controls */}
+        <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4 mb-8">
+          <div>
+            <h2 className="text-2xl font-bold font-display">Live Rooms</h2>
+            <p className="text-muted-foreground">Happening now across campus</p>
+          </div>
+
+          <div className="flex gap-2 w-full md:w-auto">
+            <div className="relative flex-1 md:w-64">
+              <input
+                placeholder="Enter room code..."
+                className="w-full h-10 px-3 rounded-lg bg-muted text-sm border border-transparent focus:border-primary outline-none"
+                value={inputCode}
+                onChange={e => setInputCode(e.target.value)}
+              />
+            </div>
+            <Button
+              disabled={!inputCode}
+              onClick={() => onJoin(inputCode)}
+              variant="secondary"
+            >
+              Join
             </Button>
+            <Button onClick={() => setIsCreateOpen(true)} className="gap-2 bg-primary text-white">
+              <Video className="w-4 h-4" /> Create Room
+            </Button>
+          </div>
+        </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <div className="relative w-full sm:w-64">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                  <Users className="w-4 h-4" />
+        {/* Room Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {rooms.map((room) => (
+            <div key={room.id} className="glass p-5 rounded-2xl border border-white/5 hover:border-primary/30 transition-all group relative overflow-hidden">
+              <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2 py-1 rounded-full bg-red-500/10 text-red-400 text-xs font-medium border border-red-500/20">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
                 </span>
-                <input
-                  type="text"
-                  placeholder="Enter a code or link"
-                  className="h-12 pl-10 pr-4 rounded-lg bg-background border border-input focus:ring-2 focus:ring-primary/20 outline-none w-full transition-all"
-                  value={inputCode}
-                  onChange={(e) => setInputCode(e.target.value)}
-                />
+                <span>LIVE</span>
               </div>
-              <Button
-                variant="outline"
-                className="h-12 px-6 hover:bg-accent/10"
-                disabled={!inputCode.trim()}
-                onClick={() => onJoin(inputCode.trim())}
-              >
-                Join
-              </Button>
-            </div>
-          </div>
 
-          <div className="pt-8 border-t border-border/40 w-full max-w-md mx-auto md:mx-0">
-            <p className="text-sm text-muted-foreground mb-2 flex items-center justify-center md:justify-start gap-2">
-              <Info className="w-4 h-4" />
-              Learn more about our study rooms
-            </p>
-          </div>
-        </div>
+              <div className="mb-4">
+                <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">{room.topic}</span>
+                <h3 className="text-xl font-bold mt-1 group-hover:text-primary transition-colors">{room.name}</h3>
+              </div>
 
-        {/* Illustration / Image */}
-        <div className="flex-1 w-full max-w-md hidden md:block">
-          <div className="aspect-square rounded-full bg-gradient-to-tr from-primary/20 via-accent/10 to-transparent p-12 relative animate-slow-spin">
-            <div className="absolute inset-0 flex items-center justify-center">
-              {/* Mock Grid */}
-              <div className="grid grid-cols-2 gap-4 w-64 rotate-[-6deg]">
-                <div className="h-32 bg-card rounded-2xl shadow-xl border border-white/10 flex items-center justify-center">
-                  <Video className="w-8 h-8 text-muted-foreground/30" />
+              <div className="flex items-center justify-between mt-6">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Users className="w-4 h-4" />
+                  <span>{room.participants} studying</span>
                 </div>
-                <div className="h-32 bg-primary/20 rounded-2xl shadow-xl flex items-center justify-center">
-                  <Users className="w-8 h-8 text-primary" />
-                </div>
-                <div className="h-32 bg-accent/20 rounded-2xl shadow-xl flex items-center justify-center">
-                  <Mic className="w-8 h-8 text-accent" />
-                </div>
-                <div className="h-32 bg-card rounded-2xl shadow-xl border border-white/10 flex items-center justify-center">
-                  <Settings className="w-8 h-8 text-muted-foreground/30" />
-                </div>
+                <Button size="sm" onClick={() => onJoin(room.name)}>Join Room</Button>
               </div>
             </div>
-          </div>
+          ))}
+
+          {rooms.length === 0 && (
+            <div className="col-span-full py-12 text-center border-2 border-dashed border-border rounded-xl">
+              <div className="w-16 h-16 bg-muted/50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Video className="w-8 h-8 text-muted-foreground" />
+              </div>
+              <h3 className="text-lg font-medium">No live rooms right now</h3>
+              <p className="text-muted-foreground mb-4">Be the first to start a study session!</p>
+              <Button onClick={() => setIsCreateOpen(true)} variant="outline">Create a Room</Button>
+            </div>
+          )}
         </div>
+
+        {/* Create Room Modal (Simple Overlay for now) */}
+        {isCreateOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <div className="bg-card w-full max-w-md p-6 rounded-2xl border border-white/10 shadow-2xl animate-in zoom-in-95 duration-200">
+              <h3 className="text-xl font-bold mb-4">Create New Room</h3>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Room Name</label>
+                  <input
+                    autoFocus
+                    className="w-full p-3 rounded-lg bg-muted border border-transparent focus:border-primary outline-none"
+                    placeholder="e.g. Exam Prep Group"
+                    value={newRoomName}
+                    onChange={e => setNewRoomName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Subject / Topic</label>
+                  <input
+                    className="w-full p-3 rounded-lg bg-muted border border-transparent focus:border-primary outline-none"
+                    placeholder="e.g. Data Structures"
+                    value={newRoomTopic}
+                    onChange={e => setNewRoomTopic(e.target.value)}
+                  />
+                  {/* Engineering Suggestions */}
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    {["Data Structures", "VLSI Design", "Thermodynamics", "Machine Learning", "Control Systems"].map(sub => (
+                      <button
+                        key={sub}
+                        onClick={() => {
+                          setNewRoomTopic(sub);
+                          if (!newRoomName) setNewRoomName(`${sub} Study Group`);
+                        }}
+                        className="text-xs px-2 py-1 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                      >
+                        {sub}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex justify-end gap-3 mt-6">
+                  <Button variant="ghost" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
+                  <Button onClick={handleCreateRoom} disabled={!newRoomName.trim() || !newRoomTopic.trim()}>Create & Join</Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
     </PageLayout>
   );
@@ -323,6 +399,7 @@ const LiveMeeting = (props: {
 
   const { localMicrophoneTrack } = useLocalMicrophoneTrack(micOn);
   const { localCameraTrack } = useLocalCameraTrack(cameraOn);
+  // Screen Share Hook
   const { screenTrack, error: screenError } = useLocalScreenTrack(screenShareOn, {}, "disable");
 
   // Handle Screen Share Stop (via browser UI)
@@ -334,7 +411,10 @@ const LiveMeeting = (props: {
     }
   }, [screenShareOn, screenTrack]);
 
-  usePublish([localMicrophoneTrack, localCameraTrack, screenShareOn ? screenTrack : null]);
+  // Publish Logic: Swap Camera with Screen if Sharing
+  // Note: Standard Agora only allows 1 video track per user. We must turn off cam video to show screen.
+  const tracksToPublish = [localMicrophoneTrack, screenShareOn ? screenTrack : localCameraTrack].filter(Boolean);
+  usePublish(tracksToPublish);
 
   const remoteUsers = useRemoteUsers();
 
