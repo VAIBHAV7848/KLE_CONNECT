@@ -145,27 +145,18 @@ const SettingsPage = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="glass rounded-2xl p-6 border border-primary/20 bg-primary/5"
+          className="glass rounded-2xl p-6 border border-primary/20 bg-primary/5 mb-6"
         >
           <div className="flex items-center gap-3 mb-4">
             <Shield className="w-5 h-5 text-primary" />
-            <h2 className="text-lg font-semibold text-foreground font-display">Live Demo Configuration</h2>
+            <h2 className="text-lg font-semibold text-foreground font-display">System Security</h2>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Google Gemini API Key</label>
-            <p className="text-xs text-muted-foreground mb-2">Required for AI Tutor to function in this live demo. Saved locally.</p>
-            <div className="flex gap-2">
-              <input
-                type="password"
-                placeholder="AIza..."
-                className="flex-1 bg-background/50 border border-border rounded-lg px-3 py-2 text-sm outline-none focus:border-primary"
-                defaultValue={localStorage.getItem('google-gemini-key') || ''}
-                onChange={(e) => {
-                  localStorage.setItem('google-gemini-key', e.target.value);
-                  if (!e.target.value) localStorage.removeItem('google-gemini-key');
-                }}
-              />
-            </div>
+            <p className="text-sm font-medium text-foreground">AI Token Proxy Active</p>
+            <p className="text-xs text-muted-foreground mb-2">
+              All AI requests are now securely proxied through a backend server.
+              Your API keys are never exposed in the browser or via Git history.
+            </p>
           </div>
         </motion.div>
         {settingsSections.map((section, sectionIndex) => (
