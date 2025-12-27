@@ -10,6 +10,15 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
   },
   plugins: [react()],
+  build: {
+    rollupOptions: {
+      output: {
+        entryFileNames: `assets/[name]-[hash]-v3.js`,
+        chunkFileNames: `assets/[name]-[hash]-v3.js`,
+        assetFileNames: `assets/[name]-[hash]-v3.[ext]`
+      }
+    }
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

@@ -50,6 +50,14 @@ const router = createHashRouter([
     ),
   },
   {
+    path: "/ai_tutor",
+    element: (
+      <ProtectedRoute>
+        <AITutor />
+      </ProtectedRoute>
+    ),
+  },
+  {
     path: "/notes",
     element: (
       <ProtectedRoute>
