@@ -4,6 +4,9 @@
 @tailwind components;
 @tailwind utilities;
 
+@import './styles/ai-animations.css';
+
+
 @layer base {
   :root {
     --background: 222 47% 6%;
@@ -40,15 +43,15 @@
     --gradient-primary: linear-gradient(135deg, hsl(199 89% 48%), hsl(263 70% 58%));
     --gradient-accent: linear-gradient(135deg, hsl(263 70% 58%), hsl(330 80% 55%));
     --gradient-surface: linear-gradient(180deg, hsl(222 47% 10%), hsl(222 47% 6%));
-    
+
     --glass-bg: hsla(222, 47%, 10%, 0.7);
     --glass-border: hsla(217, 33%, 25%, 0.5);
     --glass-shadow: 0 8px 32px hsla(0, 0%, 0%, 0.4);
-    
+
     --dock-bg: hsla(222, 47%, 8%, 0.85);
     --dock-border: hsla(217, 33%, 30%, 0.3);
     --dock-shadow: 0 4px 30px hsla(0, 0%, 0%, 0.5), inset 0 1px 0 hsla(217, 33%, 40%, 0.1);
-    
+
     --sidebar-background: 222 47% 8%;
     --sidebar-foreground: 210 40% 98%;
     --sidebar-primary: 199 89% 48%;
@@ -57,6 +60,56 @@
     --sidebar-accent-foreground: 210 40% 98%;
     --sidebar-border: 217 33% 17%;
     --sidebar-ring: 199 89% 48%;
+  }
+
+  .light-mode {
+    --background: 210 40% 98%;
+    --foreground: 222 47% 6%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 6%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 6%;
+
+    --primary: 199 89% 48%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 263 70% 58%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 199 89% 48%;
+
+    --glass-bg: hsla(0, 0%, 100%, 0.7);
+    --glass-border: hsla(217, 33%, 80%, 0.5);
+    --glass-shadow: 0 8px 32px hsla(0, 0%, 0%, 0.1);
+
+    --dock-bg: hsla(0, 0%, 100%, 0.85);
+    --dock-border: hsla(217, 33%, 80%, 0.3);
+    --dock-shadow: 0 4px 30px hsla(0, 0%, 0%, 0.1), inset 0 1px 0 hsla(217, 33%, 100%, 0.5);
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 222 47% 6%;
+    --sidebar-primary: 199 89% 48%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 210 40% 96.1%;
+    --sidebar-accent-foreground: 222 47% 6%;
+    --sidebar-border: 214.3 31.8% 91.4%;
+  }
+
+  .compact-mode {
+    font-size: 14px;
   }
 }
 
@@ -109,6 +162,7 @@
     padding: 1px;
     border-radius: inherit;
     background: var(--gradient-primary);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;

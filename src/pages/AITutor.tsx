@@ -2,28 +2,110 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import PageLayout from '@/components/layout/PageLayout';
 import PageHeader from '@/components/ui/PageHeader';
-import { Bot, Send, Sparkles, User, GraduationCap, X } from 'lucide-react';
+import { Bot, Send, Sparkles, User, Menu, Plus, MessageSquare, Trash2, X, ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import ReactMarkdown from 'react-markdown';
+import OpenAI from 'openai';
+const generateId = () => Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
+import { cn } from '@/lib/utils';
+import {
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+
 // Mock typing animation configuration
 const TYPING_SPEED = { min: 5, max: 10 }; // milliseconds per character
 const NETWORK_DELAY = 800; // milliseconds
+
 interface Message {
   role: 'user' | 'assistant';
   content: string;
+  timestamp: number;
+}
+
+interface Conversation {
+  id: string;
+  title: string;
+  createdAt: number;
 }
 
 /**
  * AI Tutor - Premium conversational interface with mock streaming for demo
  */
 const AITutor = () => {
+  // --- State Management ---
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const isNewChatRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom
+  // --- Persistence Logic (LocalStorage) ---
+  useEffect(() => {
+    // Load conversations on mount
+    const savedConvos = localStorage.getItem('aitutor-conversations');
+    if (savedConvos) {
+      setConversations(JSON.parse(savedConvos));
+    }
+  }, []);
+
+  useEffect(() => {
+    // Save conversations when they change
+    localStorage.setItem('aitutor-conversations', JSON.stringify(conversations));
+  }, [conversations]);
+
+  useEffect(() => {
+    // Load messages when switching conversations
+    if (currentConversationId) {
+      // If we just created this chat locally, don't overwrite the state from empty storage!
+      if (isNewChatRef.current) {
+        isNewChatRef.current = false;
+        return;
+      }
+
+      const savedMessages = localStorage.getItem(`aitutor-messages-${currentConversationId}`);
+      if (savedMessages) {
+        setMessages(JSON.parse(savedMessages));
+      } else {
+        setMessages([]);
+      }
+    } else {
+      // Clear messages if no conversation selected
+      if (messages.length > 0) setMessages([]);
+    }
+  }, [currentConversationId]);
+
+  const saveMessagesToStorage = (chatId: string, newMessages: Message[]) => {
+    localStorage.setItem(`aitutor-messages-${chatId}`, JSON.stringify(newMessages));
+  };
+
+  // --- Sidebar Actions ---
+  const createNewChat = () => {
+    setCurrentConversationId(null);
+    setMessages([]);
+    setInput('');
+  };
+
+  const deleteConversation = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    const updated = conversations.filter(c => c.id !== id);
+    setConversations(updated);
+    localStorage.removeItem(`aitutor-messages-${id}`);
+    if (currentConversationId === id) {
+      createNewChat();
+    }
+  };
+
+  const selectConversation = (id: string) => {
+    setCurrentConversationId(id);
+  };
+
+  // --- Auto-scroll ---
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -32,55 +114,144 @@ const AITutor = () => {
     scrollToBottom();
   }, [messages, isLoading]);
 
-  // Simulated AI Response Generator (Mock Streaming)
-  const generateResponse = async (query: string) => {
+  // --- Core Logic (Existing MOCK AI + New History) ---
+
+  // --- Real AI Logic (OpenAI integration) ---
+  const generateResponse = async (query: string, chatId: string, history: Message[]) => {
     setIsLoading(true);
+    console.log("AI Request started. Query:", query);
 
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 800));
+    try {
+      const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+      if (!apiKey) {
+        console.error("OpenAI API Key Missing!");
+        const errorMessage = "⚠️ **Setup Required**\n\nPlease add your OpenAI API Key to the `.env` file.";
+        setMessages(prev => [...prev, { role: 'assistant', content: errorMessage, timestamp: Date.now() }]);
+        return;
+      }
 
-    let responseText = "I can help you with that! As an **AI Tutor**, I can explain complex concepts, solve problems, or create study plans for you. \n\nHere is a quick overview:\n1. **Concept Clarity**: I can break down large topics.\n2. **Practice**: Ask me for quiz questions.\n3. **Planning**: I can help structure your revision.\n\nWhat specifically would you like to work on right now?";
+      const openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
 
-    // Simple context-aware responses (Mock Logic)
-    const lowerQuery = query.toLowerCase();
-    if (lowerQuery.includes('binary')) {
-      responseText = "### Binary Search Trees (BST)\n\n**Binary Search Trees** are a fundamental data structure. \n\nIn a BST:\n- The **left child** is always *smaller* than the parent.\n- The **right child** is always *larger*.\n\n```javascript\n// Simple Node Structure\nclass Node {\n  constructor(value) {\n    this.value = value;\n    this.left = null;\n    this.right = null;\n  }\n}\n```\n\nThis property makes searching very efficient - **O(log n)** average case. Would you like to see a traversal example?";
-    } else if (lowerQuery.includes('tcp') || lowerQuery.includes('ip')) {
-      responseText = "### TCP/IP Protocol Suite\n\n**TCP/IP** is the backbone of the internet.\n\n* **TCP (Transmission Control Protocol)**: Ensures reliable transmission. It breaks data into packets and reassembles them.\n* **IP (Internet Protocol)**: Handles addressing and routing packets to the correct destination.\n\nTogether, they specify how data should be packetized, addressed, transmitted, routed, and received.";
-    } else if (lowerQuery.includes('big o')) {
-      responseText = "### Big O Notation\n\n**Big O Notation** describes algorothmic complexity.\n\n| Notation | Name | Speed |\n|----------|------|-------|\n| **O(1)** | Constant | ⚡ Fast |\n| **O(log n)** | Logarithmic | 🚀 Good |\n| **O(n)** | Linear | 🚶 Fair |\n| **O(n²)** | Quadratic | 🐢 Slow |\n\nIt helps us estimate scalability.";
-    }
+      // Build payload
+      const apiMessages = [
+        {
+          role: 'system',
+          content: 'You are the KLE AI Tutor, a friendly and enthusiastic academic companion for students. \n\nStyle Guide:\n- Use emojis occasionally to keep the tone light 🎓✨.\n- Format with clear Markdown (bolding key terms, lists).\n- ALWAYS end your response with a follow-up question or a "What would you like to explore next?" prompt to keep the student engaged.\n- Be encouraging and supportive.'
+        },
+        ...history.map(m => ({ role: m.role, content: m.content }))
+      ];
 
-    // Stream the response character by character
-    setIsLoading(false);
-    setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+      console.log("Sending to OpenAI:", apiMessages);
 
-    let currentText = '';
-    const chars = responseText.split('');
+      // 1. Initial placeholder
+      setMessages(prev => [...prev, { role: 'assistant', content: '', timestamp: Date.now() }]);
 
-    // Faster typing for code blocks
-    for (let i = 0; i < chars.length; i++) {
-      const delay = Math.random() * 10 + 5;
-      await new Promise(resolve => setTimeout(resolve, delay));
-      currentText += chars[i];
+      // 2. Stream
+      const stream = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: apiMessages as any,
+        stream: true,
+        temperature: 0.7
+      });
+
+      let fullResponse = "";
+      let chunkCount = 0;
+
+      for await (const chunk of stream) {
+        chunkCount++;
+        const content = chunk.choices[0]?.delta?.content || "";
+        fullResponse += content;
+
+        if (chunkCount % 5 === 0 || content) { // Update UI every few chunks or if there's content
+          setMessages(prev => {
+            const updated = [...prev];
+            const lastIdx = updated.length - 1;
+            if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
+              updated[lastIdx] = { ...updated[lastIdx], content: fullResponse };
+            }
+            return updated;
+          });
+        }
+      }
+
+      console.log(`Stream finished. Chunks: ${chunkCount}, Length: ${fullResponse.length}`);
+
+      if (!fullResponse) {
+        fullResponse = "I'm sorry, I couldn't generate a response. Please try again.";
+      }
+
+      // Final update
       setMessages(prev => {
         const updated = [...prev];
-        updated[updated.length - 1] = { ...updated[updated.length - 1], content: currentText };
+        const lastIdx = updated.length - 1;
+        if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
+          updated[lastIdx] = { ...updated[lastIdx], content: fullResponse };
+        }
         return updated;
+      });
+
+    } catch (error: any) {
+      console.error("CRITICAL AI ERROR:", error);
+
+      let errorMsg = "**AI Service Error**\n\n";
+
+      if (error.status === 401) {
+        errorMsg += "Invalid API Key. Please check your `.env` file.";
+      } else if (error.status === 429) {
+        errorMsg += "Rate limit exceeded or out of quota. Please check your OpenAI billing.";
+      } else {
+        errorMsg += `${error.message || "An unexpected error occurred while connecting to OpenAI."}`;
+      }
+
+      setMessages(prev => {
+        const updated = [...prev];
+        const lastIdx = updated.length - 1;
+        if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
+          updated[lastIdx] = { ...updated[lastIdx], content: errorMsg };
+        } else {
+          updated.push({ role: 'assistant', content: errorMsg, timestamp: Date.now() });
+        }
+        return updated;
+      });
+    } finally {
+      setIsLoading(false);
+      setMessages(prev => {
+        saveMessagesToStorage(chatId, prev);
+        return prev;
       });
     }
   };
 
   const handleSend = async () => {
+    console.log("handleSend triggered with input:", input);
     if (!input.trim() || isLoading) return;
-    const userMsg = input.trim();
+    const userMsgContent = input.trim();
+    const timestamp = Date.now();
 
-    // Add User Message
-    setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+    // 1. Determine Chat ID (New or Existing)
+    let activeId = currentConversationId;
+
+    if (!activeId) {
+      activeId = generateId();
+      isNewChatRef.current = true; // Flag this as a new chat to prevent useEffect overwrite
+      const newConvo: Conversation = {
+        id: activeId,
+        title: userMsgContent.slice(0, 30) + (userMsgContent.length > 30 ? '...' : ''),
+        createdAt: timestamp,
+      };
+      setConversations(prev => [newConvo, ...prev]);
+      setCurrentConversationId(activeId);
+    }
+
+    // 2. Add User Message
+    const newMessage: Message = { role: 'user', content: userMsgContent, timestamp };
+    const updatedMessages = [...messages, newMessage];
+    setMessages(updatedMessages);
     setInput('');
+    saveMessagesToStorage(activeId, updatedMessages);
 
-    // Trigger AI Response
-    await generateResponse(userMsg);
+    // 3. Trigger AI Response
+    await generateResponse(userMsgContent, activeId, updatedMessages);
   };
 
   const suggestions = [
@@ -90,22 +261,87 @@ const AITutor = () => {
     "Quiz me on Operating Systems"
   ];
 
+  // --- Components ---
+
+  const Sidebar = () => (
+    <div className="flex flex-col h-full bg-card/30 backdrop-blur-xl border-r border-border/50">
+      <div className="p-4">
+        <Button
+          onClick={createNewChat}
+          className="w-full justify-start gap-2 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20"
+          variant="ghost"
+        >
+          <Plus className="w-4 h-4" />
+          New Chat
+        </Button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-2 space-y-1 custom-scrollbar">
+        {conversations.length === 0 && (
+          <div className="text-center text-xs text-muted-foreground p-4">
+            No history yet.
+          </div>
+        )}
+        {conversations.map(chat => (
+          <div
+            key={chat.id}
+            onClick={() => selectConversation(chat.id)}
+            className={cn(
+              "group flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all hover:bg-muted/50 text-sm",
+              currentConversationId === chat.id ? "bg-muted font-medium text-foreground" : "text-muted-foreground"
+            )}
+          >
+            <MessageSquare className="w-4 h-4 shrink-0" />
+            <span className="truncate flex-1 text-left">{chat.title}</span>
+            <button
+              onClick={(e) => deleteConversation(e, chat.id)}
+              className="opacity-0 group-hover:opacity-100 hover:text-destructive transition-opacity p-1"
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <PageLayout>
-      <div className="flex flex-col h-[calc(100vh-140px)]">
-        <PageHeader
-          icon={Bot}
-          title="AI Tutor"
-          subtitle="Your personal 24/7 study companion"
-          gradient="linear-gradient(135deg, hsl(263 70% 58% / 0.3), hsl(263 70% 58% / 0.1))"
-        />
+      <div className="flex h-[calc(100vh-140px)] gap-4 overflow-hidden">
 
-        {/* Chat Area */}
-        <div className="flex-1 overflow-hidden flex flex-col glass rounded-2xl relative">
+        {/* Desktop Sidebar */}
+        <div className="hidden md:block w-64 glass rounded-2xl overflow-hidden shrink-0">
+          <Sidebar />
+        </div>
+
+        {/* Mobile Sidebar (Drawer) */}
+        <div className="md:hidden absolute top-24 left-4 z-50">
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="outline" size="icon" className="glass">
+                <Menu className="w-4 h-4" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="p-0 w-72 pt-10">
+              <Sidebar />
+            </SheetContent>
+          </Sheet>
+        </div>
+
+        {/* Main Chat Area */}
+        <div className="flex-1 flex flex-col glass rounded-2xl relative overflow-hidden">
+          <div className="p-4 md:p-6 pb-2 md:pb-6">
+            <PageHeader
+              icon={Bot}
+              title="AI Tutor"
+              subtitle="Your personal 24/7 study companion"
+              gradient="linear-gradient(135deg, hsl(263 70% 58% / 0.3), hsl(263 70% 58% / 0.1))"
+            />
+          </div>
 
           {/* Messages List */}
           <div className="flex-1 overflow-y-auto p-4 space-y-6">
-            {messages.length === 0 ? (
+            {!currentConversationId && messages.length === 0 ? (
               // Empty State
               <div className="h-full flex flex-col items-center justify-center text-center p-8 opacity-80">
                 <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center mb-6 animate-pulse">
@@ -121,8 +357,6 @@ const AITutor = () => {
                       key={s}
                       onClick={() => {
                         setInput(s);
-                        // Optional: auto-send
-                        // handleSend();
                       }}
                       className="text-sm p-3 rounded-xl bg-muted/50 hover:bg-primary/10 hover:border-primary/30 border border-transparent transition-all text-left truncate"
                     >
@@ -133,59 +367,53 @@ const AITutor = () => {
               </div>
             ) : (
               <>
-                {messages.map((msg, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, y: 10, scale: 0.98 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div className={`flex gap-3 max-w-[85%] ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-                      {/* Avatar */}
-                      <div className={`min-w-8 w-8 h-8 rounded-full flex items-center justify-center mt-1 border ${msg.role === 'user'
-                        ? 'bg-primary/20 border-primary/30'
-                        : 'bg-indigo-500/20 border-indigo-500/30'
-                        }`}>
-                        {msg.role === 'user' ? <User className="w-4 h-4 text-primary" /> : <Bot className="w-4 h-4 text-indigo-500" />}
-                      </div>
+                {messages.map((msg, index) => {
+                  const isUser = msg.role === 'user';
+                  const isLastAssistantMessage = !isUser && index === messages.length - 1;
 
-                      {/* Bubble */}
-                      <div className={`p-4 rounded-2xl text-sm leading-relaxed shadow-sm overflow-hidden ${msg.role === 'user'
-                        ? 'bg-primary text-primary-foreground rounded-tr-none'
-                        : 'glass-card border border-border/50 rounded-tl-none'
-                        }`}>
-                        <div
-                          className={`prose prose-sm max-w-none ${msg.role === 'user'
-                            ? 'prose-invert'
-                            : 'dark:prose-invert prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground'
-                            }`}
-                        >
-                          <ReactMarkdown>{msg.content}</ReactMarkdown>
+                  return (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      className={cn("flex w-full mb-4", isUser ? "justify-end" : "justify-start")}
+                    >
+                      <div className={cn(
+                        "flex gap-3 max-w-[85%] md:max-w-[75%]",
+                        isUser ? "flex-row-reverse" : "flex-row"
+                      )}>
+                        {/* Avatar */}
+                        <div className={cn(
+                          "min-w-8 w-8 h-8 rounded-full flex items-center justify-center mt-1 border shrink-0 shadow-sm",
+                          isUser ? "bg-primary/20 border-primary/30" : "bg-indigo-500/20 border-indigo-500/30"
+                        )}>
+                          {isUser ? <User className="w-4 h-4 text-primary" /> : <Bot className="w-4 h-4 text-indigo-500" />}
+                        </div>
+
+                        {/* Bubble */}
+                        <div className={cn(
+                          "p-4 rounded-2xl text-sm leading-relaxed shadow-md transition-all hover:shadow-lg",
+                          isUser
+                            ? "bg-primary text-primary-foreground rounded-tr-none shadow-primary/10"
+                            : "ai-bubble-gradient border border-border/50 rounded-tl-none shadow-black/5"
+                        )}>
+                          <div className={cn(
+                            "prose prose-sm max-w-none break-words",
+                            isUser ? "prose-invert" : "dark:prose-invert prose-p:text-foreground/90"
+                          )}>
+                            <ReactMarkdown>{msg.content}</ReactMarkdown>
+                            {/* Blinking Cursor for active stream */}
+                            {isLastAssistantMessage && isLoading && (
+                              <span className="cursor-blink"></span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </motion.div>
-                ))}
+                    </motion.div>
+                  );
+                })}
 
-                {/* Typing Indicator */}
-                {isLoading && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="flex justify-start"
-                  >
-                    <div className="flex gap-3 max-w-[85%]">
-                      <div className="min-w-8 w-8 h-8 rounded-full bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center mt-1">
-                        <Bot className="w-4 h-4 text-indigo-500" />
-                      </div>
-                      <div className="glass-card border border-border/50 px-4 py-3 rounded-2xl rounded-tl-none flex items-center gap-1">
-                        <span className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                        <span className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                        <span className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce"></span>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
+
               </>
             )}
             <div ref={messagesEndRef} />

@@ -1,15 +1,69 @@
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import PageLayout from '@/components/layout/PageLayout';
 import PageHeader from '@/components/ui/PageHeader';
 import { Settings, User, Bell, Shield, Palette, LogOut } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
+
+interface SettingState {
+  pushNotifications: boolean;
+  emailNotifications: boolean;
+  studyReminders: boolean;
+  darkMode: boolean;
+  compactMode: boolean;
+}
+
+const DEFAULT_SETTINGS: SettingState = {
+  pushNotifications: true,
+  emailNotifications: false,
+  studyReminders: true,
+  darkMode: true,
+  compactMode: false,
+};
 
 /**
  * Settings - App configuration and preferences
  */
 const SettingsPage = () => {
   const { signOut } = useAuth();
+
+  // Initialize state from localStorage or defaults
+  const [settings, setSettings] = useState<SettingState>(() => {
+    const saved = localStorage.getItem('app-settings');
+    return saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
+  });
+
+  // Persist settings and apply themes
+  useEffect(() => {
+    localStorage.setItem('app-settings', JSON.stringify(settings));
+
+    // Apply Dark Mode (Default is dark, so if !darkMode, add light-mode)
+    if (!settings.darkMode) {
+      document.documentElement.classList.add('light-mode');
+    } else {
+      document.documentElement.classList.remove('light-mode');
+    }
+
+    // Apply Compact Mode
+    if (settings.compactMode) {
+      document.documentElement.classList.add('compact-mode');
+    } else {
+      document.documentElement.classList.remove('compact-mode');
+    }
+  }, [settings]);
+
+  const handleToggle = (key: keyof SettingState) => {
+    setSettings(prev => ({ ...prev, [key]: !prev[key] }));
+    toast.success('Settings updated');
+  };
+
+  const handleLinkClick = (label: string) => {
+    toast.info(`${label} coming soon!`, {
+      description: "This feature is currently under development."
+    });
+  };
 
   const settingsSections = [
     {
@@ -24,9 +78,24 @@ const SettingsPage = () => {
       title: 'Notifications',
       icon: Bell,
       settings: [
-        { label: 'Push Notifications', description: 'Receive push notifications', type: 'toggle', enabled: true },
-        { label: 'Email Notifications', description: 'Get updates via email', type: 'toggle', enabled: false },
-        { label: 'Study Reminders', description: 'Daily study session reminders', type: 'toggle', enabled: true },
+        {
+          label: 'Push Notifications',
+          description: 'Receive push notifications',
+          type: 'toggle',
+          key: 'pushNotifications' as keyof SettingState
+        },
+        {
+          label: 'Email Notifications',
+          description: 'Get updates via email',
+          type: 'toggle',
+          key: 'emailNotifications' as keyof SettingState
+        },
+        {
+          label: 'Study Reminders',
+          description: 'Daily study session reminders',
+          type: 'toggle',
+          key: 'studyReminders' as keyof SettingState
+        },
       ]
     },
     {
@@ -41,8 +110,18 @@ const SettingsPage = () => {
       title: 'Appearance',
       icon: Palette,
       settings: [
-        { label: 'Dark Mode', description: 'Enable dark theme', type: 'toggle', enabled: true },
-        { label: 'Compact Mode', description: 'Reduce spacing and padding', type: 'toggle', enabled: false },
+        {
+          label: 'Dark Mode',
+          description: 'Enable dark theme',
+          type: 'toggle',
+          key: 'darkMode' as keyof SettingState
+        },
+        {
+          label: 'Compact Mode',
+          description: 'Reduce spacing and padding',
+          type: 'toggle',
+          key: 'compactMode' as keyof SettingState
+        },
       ]
     },
   ];
@@ -85,11 +164,19 @@ const SettingsPage = () => {
                     <p className="text-foreground font-medium">{setting.label}</p>
                     <p className="text-sm text-muted-foreground">{setting.description}</p>
                   </div>
-                  {setting.type === 'toggle' && (
-                    <Switch defaultChecked={setting.enabled} />
+                  {setting.type === 'toggle' && setting.key && (
+                    <Switch
+                      checked={settings[setting.key]}
+                      onCheckedChange={() => handleToggle(setting.key!)}
+                    />
                   )}
                   {setting.type === 'link' && (
-                    <span className="text-sm text-primary cursor-pointer hover:underline">Edit →</span>
+                    <span
+                      className="text-sm text-primary cursor-pointer hover:underline"
+                      onClick={() => handleLinkClick(setting.label)}
+                    >
+                      Edit →
+                    </span>
                   )}
                 </div>
               ))}

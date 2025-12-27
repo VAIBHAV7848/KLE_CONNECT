@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import PageLayout from '@/components/layout/PageLayout';
@@ -23,36 +24,53 @@ import {
 const Dashboard = () => {
   const { user, loading, signOut } = useAuth();
 
-  const stats = [
-    { label: 'Study Hours', value: '24.5', icon: Clock, change: '+12%' },
-    { label: 'Tasks Done', value: '47', icon: Target, change: '+8%' },
-    { label: 'Streak Days', value: '12', icon: TrendingUp, change: '+3' },
-  ];
+  // --- Real-time Stats from LocalStorage ---
+  const [stats, setStats] = useState([
+    { label: 'AI Chats', value: '0', icon: Bot, change: 'Start Now' },
+    { label: 'Study Hours', value: '0', icon: Clock, change: 'Track' },
+    { label: 'Tasks', value: '0', icon: Target, change: 'Plan' },
+  ]);
+
+  useEffect(() => {
+    // 1. Get AI Sessions Count
+    const savedConvos = localStorage.getItem('aitutor-conversations');
+    const aiCount = savedConvos ? JSON.parse(savedConvos).length : 0;
+
+    setStats([
+      { label: 'AI Sessions', value: aiCount.toString(), icon: Bot, change: aiCount > 0 ? 'Active' : 'Start now' },
+      { label: 'Study Hours', value: '12.5', icon: Clock, change: '+2.5h' }, // Mock for now
+      { label: 'Pending Tasks', value: '3', icon: Target, change: '-1' },      // Mock for now
+    ]);
+  }, []);
 
   const quickActions = [
     {
       icon: Bot,
       title: 'AI Tutor',
       description: 'Get instant help with your assignments and concepts',
-      gradient: 'linear-gradient(135deg, hsl(263 70% 58% / 0.3), hsl(263 70% 58% / 0.1))'
+      gradient: 'linear-gradient(135deg, hsl(263 70% 58% / 0.3), hsl(263 70% 58% / 0.1))',
+      path: '/ai-tutor'
     },
     {
       icon: BookOpen,
       title: 'Notes & PYQs',
       description: 'Access curated study materials and past papers',
-      gradient: 'linear-gradient(135deg, hsl(142 76% 36% / 0.3), hsl(142 76% 36% / 0.1))'
+      gradient: 'linear-gradient(135deg, hsl(142 76% 36% / 0.3), hsl(142 76% 36% / 0.1))',
+      path: '/notes'
     },
     {
       icon: Brain,
       title: 'Study Planner',
       description: 'Plan your study sessions and track progress',
-      gradient: 'linear-gradient(135deg, hsl(45 93% 47% / 0.3), hsl(45 93% 47% / 0.1))'
+      gradient: 'linear-gradient(135deg, hsl(45 93% 47% / 0.3), hsl(45 93% 47% / 0.1))',
+      path: '/planner'
     },
     {
       icon: GraduationCap,
       title: 'Study Rooms',
       description: 'Join virtual study sessions with classmates',
-      gradient: 'linear-gradient(135deg, hsl(330 80% 55% / 0.3), hsl(330 80% 55% / 0.1))'
+      gradient: 'linear-gradient(135deg, hsl(330 80% 55% / 0.3), hsl(330 80% 55% / 0.1))',
+      path: '/study-rooms'
     },
   ];
 
@@ -103,7 +121,6 @@ const Dashboard = () => {
                   size="sm"
                   onClick={async () => {
                     await signOut();
-                    // Force refresh or redirect slightly after to ensure state clears
                     window.location.href = '/#/auth';
                   }}
                 >
@@ -130,7 +147,7 @@ const Dashboard = () => {
         className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8"
       >
         {stats.map((stat, index) => (
-          <div key={stat.label} className="glass rounded-2xl p-5 flex items-center gap-4">
+          <div key={stat.label} className="glass rounded-2xl p-5 flex items-center gap-4 hover:bg-white/5 transition-colors">
             <div
               className="w-12 h-12 rounded-xl flex items-center justify-center"
               style={{ background: 'linear-gradient(135deg, hsl(199 89% 48% / 0.2), hsl(199 89% 48% / 0.05))' }}
@@ -141,7 +158,7 @@ const Dashboard = () => {
               <p className="text-2xl font-bold text-foreground font-display">{stat.value}</p>
               <p className="text-sm text-muted-foreground">{stat.label}</p>
             </div>
-            <span className="ml-auto text-xs text-primary font-medium">{stat.change}</span>
+            <span className="ml-auto text-xs text-primary font-medium px-2 py-1 rounded-full bg-primary/10">{stat.change}</span>
           </div>
         ))}
       </motion.div>
@@ -158,14 +175,15 @@ const Dashboard = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {quickActions.map((action, index) => (
-          <ModuleCard
-            key={action.title}
-            icon={action.icon}
-            title={action.title}
-            description={action.description}
-            gradient={action.gradient}
-            delay={0.3 + index * 0.1}
-          />
+          <Link to={action.path} key={action.title}>
+            <ModuleCard
+              icon={action.icon}
+              title={action.title}
+              description={action.description}
+              gradient={action.gradient}
+              delay={0.3 + index * 0.1}
+            />
+          </Link>
         ))}
       </div>
 
