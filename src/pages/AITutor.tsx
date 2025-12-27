@@ -2,13 +2,14 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import PageLayout from '@/components/layout/PageLayout';
 import PageHeader from '@/components/ui/PageHeader';
-import { Bot, Send, Sparkles, User, Menu, Plus, MessageSquare, Trash2, X, ChevronLeft } from 'lucide-react';
+import { Bot, Send, Sparkles, User, Menu, Plus, MessageSquare, Trash2, X, ChevronLeft, Key, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import ReactMarkdown from 'react-markdown';
-import OpenAI from 'openai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 const generateId = () => Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 import {
   Sheet,
   SheetContent,
@@ -42,6 +43,12 @@ const AITutor = () => {
 
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [apiKey, setApiKey] = useState<string | null>(() => {
+    return localStorage.getItem('google-gemini-key') || import.meta.env.VITE_GEMINI_API_KEY || null;
+  });
+  const [showSetup, setShowSetup] = useState(!apiKey);
+  const [tempKey, setTempKey] = useState('');
+
   const isNewChatRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -119,89 +126,52 @@ const AITutor = () => {
   // --- Real AI Logic (OpenAI integration) ---
   const generateResponse = async (query: string, chatId: string, history: Message[]) => {
     setIsLoading(true);
-    console.log("AI Request started. Query:", query);
 
     try {
-      const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
       if (!apiKey) {
-        console.error("OpenAI API Key Missing!");
-        const errorMessage = "⚠️ **Setup Required**\n\nPlease add your OpenAI API Key to the `.env` file.";
+        const errorMessage = "⚠️ **AI Key Required**\n\nPlease set up your Google Gemini API Key to continue.";
         setMessages(prev => [...prev, { role: 'assistant', content: errorMessage, timestamp: Date.now() }]);
+        setShowSetup(true);
         return;
       }
 
-      const openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({
+        model: "gemini-1.5-flash",
+        systemInstruction: "You are the KLE AI Tutor, a friendly and enthusiastic academic companion for students. Style Guide: Use emojis occasionally 🎓✨. Format with clear Markdown. ALWAYS end with a follow-up question."
+      });
 
-      // Build payload
-      const apiMessages = [
-        {
-          role: 'system',
-          content: 'You are the KLE AI Tutor, a friendly and enthusiastic academic companion for students. \n\nStyle Guide:\n- Use emojis occasionally to keep the tone light 🎓✨.\n- Format with clear Markdown (bolding key terms, lists).\n- ALWAYS end your response with a follow-up question or a "What would you like to explore next?" prompt to keep the student engaged.\n- Be encouraging and supportive.'
-        },
-        ...history.map(m => ({ role: m.role, content: m.content }))
-      ];
+      // Prepare history for Gemini
+      const chat = model.startChat({
+        history: history.slice(0, -1).map(m => ({
+          role: m.role === 'user' ? 'user' : 'model',
+          parts: [{ text: m.content }],
+        })),
+      });
 
-      console.log("Sending to OpenAI:", apiMessages);
-
-      // 1. Initial placeholder
+      // Placeholder for message
       setMessages(prev => [...prev, { role: 'assistant', content: '', timestamp: Date.now() }]);
 
-      // 2. Stream
-      const stream = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: apiMessages as any,
-        stream: true,
-        temperature: 0.7
-      });
-
+      const result = await chat.sendMessageStream(query);
       let fullResponse = "";
-      let chunkCount = 0;
 
-      for await (const chunk of stream) {
-        chunkCount++;
-        const content = chunk.choices[0]?.delta?.content || "";
-        fullResponse += content;
+      for await (const chunk of result.stream) {
+        const chunkText = chunk.text();
+        fullResponse += chunkText;
 
-        if (chunkCount % 5 === 0 || content) { // Update UI every few chunks or if there's content
-          setMessages(prev => {
-            const updated = [...prev];
-            const lastIdx = updated.length - 1;
-            if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
-              updated[lastIdx] = { ...updated[lastIdx], content: fullResponse };
-            }
-            return updated;
-          });
-        }
+        setMessages(prev => {
+          const updated = [...prev];
+          const lastIdx = updated.length - 1;
+          if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
+            updated[lastIdx] = { ...updated[lastIdx], content: fullResponse };
+          }
+          return updated;
+        });
       }
-
-      console.log(`Stream finished. Chunks: ${chunkCount}, Length: ${fullResponse.length}`);
-
-      if (!fullResponse) {
-        fullResponse = "I'm sorry, I couldn't generate a response. Please try again.";
-      }
-
-      // Final update
-      setMessages(prev => {
-        const updated = [...prev];
-        const lastIdx = updated.length - 1;
-        if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
-          updated[lastIdx] = { ...updated[lastIdx], content: fullResponse };
-        }
-        return updated;
-      });
 
     } catch (error: any) {
       console.error("CRITICAL AI ERROR:", error);
-
-      let errorMsg = "**AI Service Error**\n\n";
-
-      if (error.status === 401) {
-        errorMsg += "Invalid API Key. Please check your `.env` file.";
-      } else if (error.status === 429) {
-        errorMsg += "Rate limit exceeded or out of quota. Please check your OpenAI billing.";
-      } else {
-        errorMsg += `${error.message || "An unexpected error occurred while connecting to OpenAI."}`;
-      }
+      let errorMsg = `**AI Service Error**\n\n${error.message || "An unexpected error occurred while connecting to Gemini."}`;
 
       setMessages(prev => {
         const updated = [...prev];
@@ -330,14 +300,92 @@ const AITutor = () => {
 
         {/* Main Chat Area */}
         <div className="flex-1 flex flex-col glass rounded-2xl relative overflow-hidden">
-          <div className="p-4 md:p-6 pb-2 md:pb-6">
+          <div className="p-4 md:p-6 pb-2 md:pb-6 flex items-start justify-between gap-4">
             <PageHeader
               icon={Bot}
-              title="AI Tutor"
-              subtitle="Your personal 24/7 study companion"
+              title="GEMINI AI TUTOR"
+              subtitle="Your 24/7 AI-powered study companion"
               gradient="linear-gradient(135deg, hsl(263 70% 58% / 0.3), hsl(263 70% 58% / 0.1))"
             />
+            <Button
+              variant="outline"
+              size="sm"
+              className="glass gap-2 hover:bg-primary/10 mt-1"
+              onClick={() => setShowSetup(true)}
+            >
+              <Key className="w-3.5 h-3.5" />
+              {apiKey ? "Change Key" : "Set API Key"}
+            </Button>
           </div>
+
+          {/* Setup Overlay */}
+          <AnimatePresence>
+            {showSetup && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md"
+              >
+                <motion.div
+                  initial={{ scale: 0.9, y: 20 }}
+                  animate={{ scale: 1, y: 0 }}
+                  className="glass p-8 rounded-3xl max-w-md w-full shadow-2xl border-primary/20"
+                >
+                  <div className="flex flex-col items-center text-center">
+                    <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-6">
+                      <Key className="w-8 h-8 text-primary" />
+                    </div>
+                    <h3 className="text-2xl font-bold mb-2 font-display">Unlock the AI Tutor</h3>
+                    <p className="text-muted-foreground mb-8 text-sm">
+                      To keep this app free for everyone, please use your own Gemini API key.
+                      It's fast, free for students, and stays only in your browser.
+                    </p>
+
+                    <div className="w-full space-y-4">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider ml-1">
+                          Paste your Gemini API Key
+                        </label>
+                        <input
+                          type="password"
+                          value={tempKey}
+                          onChange={(e) => setTempKey(e.target.value)}
+                          placeholder="AIzaSy..."
+                          className="w-full bg-background/50 border border-border rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                        />
+                      </div>
+
+                      <Button
+                        onClick={() => {
+                          if (!tempKey.startsWith('AIza')) {
+                            toast.error("Invalid API Key format");
+                            return;
+                          }
+                          localStorage.setItem('google-gemini-key', tempKey);
+                          setApiKey(tempKey);
+                          setShowSetup(false);
+                          toast.success("AI Tutor Unlocked!");
+                        }}
+                        className="w-full h-12 rounded-xl bg-primary text-primary-foreground font-bold hover:scale-[1.02] transition-transform"
+                      >
+                        Start Learning
+                      </Button>
+
+                      <a
+                        href="https://aistudio.google.com/app/apikey"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 text-xs text-primary hover:underline pt-2 font-medium"
+                      >
+                        Get your free key from Google AI Studio <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Messages List */}
           <div className="flex-1 overflow-y-auto p-4 space-y-6">
