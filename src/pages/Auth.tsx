@@ -131,16 +131,16 @@ const Auth = () => {
       return;
     }
 
-    // Auto-format phone number to include +91 if missing
-    let formattedNumber = phoneNumber.trim();
-    if (!formattedNumber.startsWith('+')) {
-      // Default to India (+91) if no country code provided
-      if (formattedNumber.length === 10) {
-        formattedNumber = `+91${formattedNumber}`;
-      } else {
-        // Fallback: Just prepend +91 for now if it looks like a local number
-        formattedNumber = `+91${formattedNumber}`;
-      }
+    // Auto-format phone number: Remove all spaces, dashes, and extra chars
+    let formattedNumber = phoneNumber.replace(/\D/g, '');
+
+    // Add +91 if it's 10 digits and doesn't have it
+    if (formattedNumber.length === 10) {
+      formattedNumber = `+91${formattedNumber}`;
+    } else if (!phoneNumber.startsWith('+')) {
+      formattedNumber = `+${formattedNumber}`;
+    } else {
+      formattedNumber = `+${formattedNumber}`;
     }
 
     // Basic validation before sending to Firebase
