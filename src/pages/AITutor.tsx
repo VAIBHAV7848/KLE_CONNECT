@@ -122,10 +122,10 @@ const AITutor = () => {
   const generateResponse = async (query: string, chatId: string, history: Message[]) => {
     setIsLoading(true);
 
-    try {
-      // Use internal Vercel Serverless Function
-      const apiUrl = "/api/ai";
+    // Use internal Vercel Serverless Function
+    const apiUrl = "/api/ai";
 
+    try {
       const response = await fetch(apiUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -152,7 +152,7 @@ const AITutor = () => {
 
     } catch (error: any) {
       console.error("BACKEND CALL ERROR:", error);
-      let errorMsg = `**AI Connection Error**\n\nUnable to reach the AI server at ${import.meta.env.VITE_BACKEND_URL || "http://localhost:3000"}. \n\n${error.message}`;
+      let errorMsg = `**AI Connection Error**\n\nUnable to reach the AI server at ${apiUrl}. \n\n${error.message}`;
 
       setMessages(prev => [...prev, { role: 'assistant', content: errorMsg, timestamp: Date.now() }]);
     } finally {
