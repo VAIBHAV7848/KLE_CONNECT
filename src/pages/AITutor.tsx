@@ -123,10 +123,10 @@ const AITutor = () => {
     setIsLoading(true);
 
     try {
-      // Use relative path for Vercel/Production, fallback to env for local dev
+      // Use unified token-server backend for both dev and production
       const isProd = import.meta.env.PROD;
       const backendUrl = isProd
-        ? "/api/chat"
+        ? "/api/ai"  // Production: Vercel serverless or deployed token-server
         : (import.meta.env.VITE_BACKEND_URL || "http://localhost:3000/api/ai");
 
       const response = await fetch(backendUrl, {
@@ -346,7 +346,49 @@ const AITutor = () => {
                             "prose prose-sm max-w-none break-words",
                             isUser ? "prose-invert" : "dark:prose-invert prose-p:text-foreground/90"
                           )}>
-                            <ReactMarkdown>{msg.content}</ReactMarkdown>
+                            {/* @ts-ignore - ReactMarkdown v10 components typing issue */}
+                            <ReactMarkdown
+                              components={{
+                                // Headings with better spacing
+                                h1: ({ node, ...props }: any) => <h1 className="text-xl font-bold mb-3 mt-4 text-primary" {...props} />,
+                                h2: ({ node, ...props }: any) => <h2 className="text-lg font-semibold mb-2 mt-3 text-primary" {...props} />,
+                                h3: ({ node, ...props }: any) => <h3 className="text-base font-semibold mb-2 mt-2" {...props} />,
+
+                                // Paragraphs with spacing
+                                p: ({ node, ...props }: any) => <p className="mb-3 last:mb-0 leading-relaxed" {...props} />,
+
+                                // Lists with better styling
+                                ul: ({ node, ...props }: any) => <ul className="list-disc list-inside mb-3 space-y-1 ml-2" {...props} />,
+                                ol: ({ node, ...props }: any) => <ol className="list-decimal list-inside mb-3 space-y-1 ml-2" {...props} />,
+                                li: ({ node, ...props }: any) => <li className="leading-relaxed" {...props} />,
+
+                                // Code blocks with syntax highlighting style
+                                code: ({ node, inline, ...props }: any) =>
+                                  inline ? (
+                                    <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono text-primary" {...props} />
+                                  ) : (
+                                    <code className="block bg-muted/50 p-3 rounded-lg my-2 text-xs font-mono overflow-x-auto border border-border/30" {...props} />
+                                  ),
+
+                                // Blockquotes
+                                blockquote: ({ node, ...props }: any) => (
+                                  <blockquote className="border-l-4 border-primary/30 pl-4 italic my-3 text-muted-foreground" {...props} />
+                                ),
+
+                                // Links
+                                a: ({ node, ...props }: any) => (
+                                  <a className="text-primary hover:underline font-medium" target="_blank" rel="noopener noreferrer" {...props} />
+                                ),
+
+                                // Strong/Bold
+                                strong: ({ node, ...props }: any) => <strong className="font-bold text-foreground" {...props} />,
+
+                                // Emphasis/Italic
+                                em: ({ node, ...props }: any) => <em className="italic" {...props} />,
+                              }}
+                            >
+                              {msg.content}
+                            </ReactMarkdown>
                             {/* Blinking Cursor for active stream */}
                             {isLastAssistantMessage && isLoading && (
                               <span className="cursor-blink"></span>

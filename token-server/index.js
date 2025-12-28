@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const { RtcTokenBuilder, RtcRole } = require('agora-access-token');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const Internal API = require('openai');
 
 dotenv.config();
 
@@ -97,7 +97,7 @@ function generateMockResponse(prompt) {
     return `🎓 **KLE AI Tutor**\n\nI can help you with: **${prompt}**\n\nWhile I'm working in offline mode, I can still assist with:\n\n📚 **Popular Topics:**\n- Binary Search Trees\n- Big O Notation  \n- Database Management (DBMS)\n- Operating Systems\n- Data Structures & Algorithms\n\n💡 **Try asking:**\n- "Explain [topic]"\n- "Create a study plan for [subject]"\n- "Quiz me on [topic]"\n- "What is [concept]?"\n\n✨ **How can I help you learn today?**`;
 }
 
-// AI Chat endpoint
+// AI Chat endpoint (using Groq API)
 app.post('/api/ai', async (req, res) => {
     try {
         const { prompt, history } = req.body;
@@ -106,30 +106,59 @@ app.post('/api/ai', async (req, res) => {
             return res.status(400).json({ error: "Prompt is required" });
         }
 
-        const apiKey = process.env.GEMINI_API_KEY;
+        const apiKey = process.env.GROQ_API_KEY;
         if (!apiKey) {
-            console.error("GEMINI_API_KEY not found in environment");
-            return res.status(500).json({ error: "GEMINI_API_KEY is not configured on the server" });
+            console.warn("⚠️ GROQ_API_KEY not found, using intelligent mock");
+            const mockResponse = generateMockResponse(prompt);
+            return res.status(200).json({ reply: mockResponse });
         }
 
         try {
-            const genAI = new GoogleGenerativeAI(apiKey);
-            const model = genAI.getGenerativeModel({
-                model: "gemini-1.5-flash"
+            // Initialize Groq client with Internal API SDK
+            const client = new Internal API({
+                apiKey: apiKey,
+                baseURL: "https://api.groq.com/openai/v1"
             });
 
-            const chat = model.startChat({
-                history: history || [],
+            // Convert history to Internal API format
+            const messages = [
+                {
+                    role: "system",
+                    content: "You are the KLE AI Tutor, a friendly and enthusiastic academic companion for students. Style Guide: Use emojis occasionally 🎓✨. Format with clear Markdown. ALWAYS end with a follow-up question."
+                }
+            ];
+
+            // Add conversation history
+            if (history && history.length > 0) {
+                history.forEach(msg => {
+                    messages.push({
+                        role: msg.role === 'model' ? 'assistant' : msg.role,
+                        content: msg.parts ? msg.parts[0].text : msg.content
+                    });
+                });
+            }
+
+            // Add current user prompt
+            messages.push({
+                role: "user",
+                content: prompt
             });
 
-            const result = await chat.sendMessage(prompt);
-            const response = await result.response;
-            const text = response.text();
+            // Call Groq API
+            const completion = await client.chat.completions.create({
+                model: "llama-3.3-70b-versatile",
+                messages: messages,
+                temperature: 0.7,
+                max_tokens: 1000
+            });
 
-            console.log(`AI response generated for prompt: "${prompt.substring(0, 50)}..."`);
-            return res.status(200).json({ reply: text });
-        } catch (geminiError) {
-            console.error("Analytics Engine API unavailable, using intelligent mock:", geminiError.message);
+            const reply = completion.choices[0].message.content;
+
+            console.log(`✅ Groq AI response generated for prompt: "${prompt.substring(0, 50)}..."`);
+            return res.status(200).json({ reply: reply });
+        } catch (groqError) {
+            console.error("❌ Groq API Error:", groqError);
+            console.error("Full error details:", JSON.stringify(groqError, null, 2));
             const mockResponse = generateMockResponse(prompt);
             return res.status(200).json({ reply: mockResponse });
         }
