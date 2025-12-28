@@ -4,7 +4,7 @@ import path from "path";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
-  base: "/KLE_CONNECT/",
+  base: mode === 'production' && process.env.GITHUB_ACTIONS ? "/KLE_CONNECT/" : "/",
   server: {
     host: "::",
     port: 8080,
