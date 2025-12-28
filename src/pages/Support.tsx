@@ -63,7 +63,7 @@ const teammates: TeamMate[] = [
     name: 'Darshan Kittur',
     role: 'UI/UX Designer',
     image: assetUrl('darshan-kittur.jpg'),
-    github: 'https://github.com/darshankittur',
+    github: 'https://github.com/darshankittur79',
     linkedin: 'https://www.linkedin.com/in/darshan-kittur-65532a326?utm_source=share_via&utm_content=profile&utm_medium=member_android',
     instagram: 'https://www.instagram.com/darshankittur_79?igsh=Z2JxZGtueWFvZnN3',
     accent: 'hsl(35 90% 55%)'
