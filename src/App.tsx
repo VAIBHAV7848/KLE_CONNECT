@@ -8,6 +8,7 @@ import {
 } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import { AuthProvider } from "@/hooks/useAuth";
+import { Analytics } from "@vercel/analytics/react";
 
 // Pages
 import Dashboard from "./pages/Dashboard";
@@ -158,6 +159,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <RouterProvider router={router} future={{ v7_startTransition: true }} />
+        <Analytics />
       </TooltipProvider>
     </AuthProvider>
   </ErrorBoundary>
