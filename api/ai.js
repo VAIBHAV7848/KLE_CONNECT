@@ -1,8 +1,8 @@
-const Internal API = require('openai');
+import Internal API from 'openai';
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
     // Enable CORS
-    res.setHeader('Access-Control-Allow-Credentials', true);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
     res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
@@ -21,8 +21,10 @@ module.exports = async (req, res) => {
 
         const apiKey = process.env.GROQ_API_KEY;
         if (!apiKey) {
-            return res.status(200).json({
-                reply: "⚠️ **System Error**: GROQ_API_KEY not found in Vercel environment variables."
+            console.error("GROQ_API_KEY is missing in environment variables");
+            return res.status(500).json({
+                error: "Configuration Error",
+                reply: "⚠️ **System Error**: GROQ_API_KEY not found in Vercel environment variables. Please check your Vercel project settings."
             });
         }
 
@@ -34,7 +36,7 @@ module.exports = async (req, res) => {
         const messages = [
             {
                 role: "system",
-                content: "You are the KLE AI Tutor, a friendly academic companion. Style Guide: Use emojis 🎓✨. Format with clear Markdown. ALWAYS end with a follow-up question."
+                content: "You are the KLE AI Tutor, a friendly academic companion for students at KLE University. Style Guide: Use emojis occasionally 🎓✨. Format with clear Markdown. ALWAYS end with a follow-up question."
             }
         ];
 
@@ -42,7 +44,7 @@ module.exports = async (req, res) => {
             history.forEach(msg => {
                 messages.push({
                     role: msg.role === 'model' ? 'assistant' : msg.role,
-                    content: msg.parts ? msg.parts[0].text : msg.content
+                    content: msg.parts?.[0]?.text || msg.content || ""
                 });
             });
         }
@@ -56,9 +58,9 @@ module.exports = async (req, res) => {
             max_tokens: 1000
         });
 
-        res.status(200).json({ reply: completion.choices[0].message.content });
+        return res.status(200).json({ reply: completion.choices[0].message.content });
     } catch (error) {
         console.error("Vercel AI Error:", error);
-        res.status(500).json({ error: "AI processing failed", details: error.message });
+        return res.status(500).json({ error: "AI processing failed", details: error.message });
     }
-};
+}
