@@ -123,13 +123,12 @@ const AITutor = () => {
     setIsLoading(true);
 
     try {
-      // Use unified token-server backend for both dev and production
-      const isProd = import.meta.env.PROD;
-      const backendUrl = isProd
-        ? "/api/ai"  // Production: Vercel serverless or deployed token-server
-        : (import.meta.env.VITE_BACKEND_URL || "http://localhost:3000/api/ai");
+      // Use unified token-server backend (Render deployment)
+      // Hardcoded for GitHub Pages deployment since .env is not available
+      const backendUrl = "https://kle-token-server-2n1o.onrender.com";
+      const apiUrl = `${backendUrl}/api/ai`;
 
-      const response = await fetch(backendUrl, {
+      const response = await fetch(apiUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
