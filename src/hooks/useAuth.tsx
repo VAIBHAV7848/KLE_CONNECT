@@ -93,13 +93,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const setUpRecaptcha = (elementId: string) => {
-    const recaptchaVerifier = new RecaptchaVerifier(auth, elementId, {
+    if (window.recaptchaVerifier) {
+      window.recaptchaVerifier.clear();
+    }
+
+    window.recaptchaVerifier = new RecaptchaVerifier(auth, elementId, {
       'size': 'invisible',
       'callback': () => {
-        // reCAPTCHA solved, allow signInWithPhoneNumber.
+        // reCAPTCHA solved
       }
     });
-    return recaptchaVerifier;
+    return window.recaptchaVerifier;
   };
 
   const signInWithPhone = async (phoneNumber: string, appVerifier: RecaptchaVerifier) => {
