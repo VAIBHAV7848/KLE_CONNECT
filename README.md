@@ -25,7 +25,13 @@
    npm install
    ```
 
-3. **Run the development server**:
+3. **Copy env template and fill values**:
+   ```sh
+   cp .env.example .env
+   # add Supabase keys, AI endpoint, Agora APP_ID, token server URL
+   ```
+
+4. **Run the development server**:
    ```sh
    npm run dev
    ```
@@ -38,8 +44,15 @@
 - **Tailwind CSS**
 - **Shadcn UI**
 - **Firebase** (Authentication & Hosting)
+- **Groq (LLM)** via `/api/ai`
 
 ## Deployment
 
-This project is configured for deployment on Firebase Hosting.
-Run `npm run build` followed by `firebase deploy` to publish.
+Primary: Firebase Hosting (static) + Vercel-style serverless route `/api/ai` for Groq.
+Run `npm run build` followed by `firebase deploy` for the frontend. Deploy `/api/ai` on your serverless host (e.g., Vercel) and set `VITE_AI_API_URL` to that URL.
+
+### Environment variables
+
+- Supabase: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`
+- AI backend: `VITE_AI_API_URL` (points to `/api/ai` you deploy), `GROQ_API_KEY` on the serverless host
+- Agora Study Rooms: `VITE_AGORA_APP_ID`, `VITE_TOKEN_SERVER_URL`

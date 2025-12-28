@@ -8,6 +8,17 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    proxy: {
+      "/api": {
+        target: process.env.VITE_AI_API_URL || "http://localhost:3000",
+        changeOrigin: true,
+      },
+      "/token": {
+        target: process.env.VITE_TOKEN_SERVER_URL || "http://localhost:3000",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/token/, "/token"),
+      }
+    }
   },
   plugins: [react()],
   build: {

@@ -26,9 +26,8 @@ import AgoraRTC, {
 /**
  * CONFIGURATION
  */
-const APP_ID = "35f1e777bff540a9ad19c9b6fa3c2bc2";
-// const TOKEN = null; // Replaced by dynamic token fetching
-const TOKEN_SERVER_URL = "https://kle-token-server.onrender.com";
+const APP_ID = import.meta.env.VITE_AGORA_APP_ID || "";
+const TOKEN_SERVER_URL = import.meta.env.VITE_TOKEN_SERVER_URL || "";
 
 type ViewState = 'lobby' | 'prejoin' | 'meeting';
 
@@ -349,18 +348,39 @@ const LiveMeeting = (props: {
   const [micOn, setMicOn] = useState(props.initialMic);
   const [cameraOn, setCameraOn] = useState(props.initialCam);
   const [screenShareOn, setScreenShareOn] = useState(false);
+  const [tokenStatus, setTokenStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
 
   const { toast } = useToast();
 
   // Connection Hooks
   const [token, setToken] = useState<string | null>(null);
   const [uid] = useState<number>(() => Math.floor(Math.random() * 1000000));
+  const appIdMissing = !APP_ID;
 
-  // Fetch Token from Backend (DISABLED FOR DIRECT CONNECTION)
-  // To restore security: Uncomment this useEffect and ensure backend is running.
-  /*
   useEffect(() => {
     const fetchToken = async () => {
+      setTokenStatus('loading');
+
+      if (appIdMissing) {
+        setTokenStatus('error');
+        toast({
+          title: "Agora APP_ID missing",
+          description: "Set VITE_AGORA_APP_ID in .env to join rooms.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!TOKEN_SERVER_URL) {
+        setTokenStatus('error');
+        toast({
+          title: "Token server not configured",
+          description: "Set VITE_TOKEN_SERVER_URL in .env to join securely.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       try {
         const response = await fetch(`${TOKEN_SERVER_URL}/token`, {
           method: "POST",
@@ -372,29 +392,29 @@ const LiveMeeting = (props: {
         
         const data = await response.json();
         setToken(data.token);
+        setTokenStatus('ready');
       } catch (error) {
         console.error("Token fetch error:", error);
-        // Explicitly alert the user to the failure cause
-        // alert(`Connection Failed: ...`); 
+        setTokenStatus('error');
         toast({
           title: "Connection Error",
-          description: "Could not connect to server. Retrying...",
+          description: "Could not fetch token. Check token server.",
           variant: "destructive",
         });
       }
     };
 
     if (props.roomCode) {
+      setToken(null);
       fetchToken();
     }
-  }, [props.roomCode, uid, toast]);
-  */
+  }, [props.roomCode, uid, toast, appIdMissing]);
 
-  // DIRECT CONNECTION MODE (No Security)
-  // Ensure your Agora Project is set to "APP ID ONLY" in the console.
+  const joinReady = Boolean(props.roomCode && token && !appIdMissing && tokenStatus === 'ready');
+
   const { isConnected } = useJoin(
-    { appid: APP_ID, channel: props.roomCode, token: null, uid: uid },
-    true // Always ready to join
+    { appid: APP_ID, channel: props.roomCode, token: token || undefined, uid: uid },
+    joinReady
   );
 
   const { localMicrophoneTrack } = useLocalMicrophoneTrack(micOn);
@@ -438,6 +458,14 @@ const LiveMeeting = (props: {
               CONNECTING
             </div>
           )}
+          <div className="flex items-center gap-2 text-[11px] text-gray-300">
+            <span className="px-2 py-1 rounded-md border border-white/10 bg-white/5">
+              Token: {tokenStatus}
+            </span>
+            <span className="px-2 py-1 rounded-md border border-white/10 bg-white/5">
+              APP_ID: {appIdMissing ? 'missing' : 'ok'}
+            </span>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <Users className="w-4 h-4 text-gray-400" />
@@ -447,6 +475,13 @@ const LiveMeeting = (props: {
 
       {/* Video Grid */}
       <div className="flex-1 p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto bg-[#202124] pt-20 pb-24">
+        {!joinReady && (
+          <div className="col-span-1 md:col-span-2 lg:col-span-3 text-center text-yellow-200 bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3">
+            {tokenStatus === 'loading' && 'Fetching secure token...'}
+            {tokenStatus === 'error' && 'Token unavailable. Check token server and APP_ID.'}
+            {appIdMissing && 'Agora APP_ID missing. Set VITE_AGORA_APP_ID.'}
+          </div>
+        )}
         {/* You (Camera) */}
         {!screenShareOn && (
           <div className="relative bg-[#3c4043] rounded-xl overflow-hidden border-2 border-blue-500/0 aspect-video group shadow-lg">

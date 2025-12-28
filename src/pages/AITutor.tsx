@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import PageLayout from '@/components/layout/PageLayout';
 import PageHeader from '@/components/ui/PageHeader';
-import { Bot, Send, Sparkles, User, Menu, Plus, MessageSquare, Trash2, X, ChevronLeft, Key, ExternalLink } from 'lucide-react';
+import { Bot, Send, Sparkles, User, Menu, Plus, MessageSquare, Trash2, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import ReactMarkdown from 'react-markdown';
@@ -43,6 +43,10 @@ const AITutor = () => {
 
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [status, setStatus] = useState<'idle' | 'requesting' | 'error'>('idle');
+  const [lastError, setLastError] = useState<string | null>(null);
+
+  const aiEndpoint = import.meta.env.VITE_AI_API_URL || "/api/ai";
 
   const isNewChatRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -121,12 +125,11 @@ const AITutor = () => {
   // --- Real AI Logic (Internal API integration) ---
   const generateResponse = async (query: string, chatId: string, history: Message[]) => {
     setIsLoading(true);
-
-    // Use internal Vercel Serverless Function
-    const apiUrl = "/api/ai";
+    setStatus('requesting');
+    setLastError(null);
 
     try {
-      const response = await fetch(apiUrl, {
+      const response = await fetch(aiEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -149,11 +152,15 @@ const AITutor = () => {
         content: data.reply,
         timestamp: Date.now()
       }]);
+      setStatus('idle');
 
     } catch (error: any) {
       console.error("BACKEND CALL ERROR:", error);
-      let errorMsg = `**AI Connection Error**\n\nUnable to reach the AI server at ${apiUrl}. \n\n${error.message}`;
+      let errorMsg = `**AI Connection Error**\n\nUnable to reach the AI server at ${aiEndpoint}. \n\n${error.message}`;
 
+      setLastError(error.message);
+      toast.error("AI request failed");
+      setStatus('error');
       setMessages(prev => [...prev, { role: 'assistant', content: errorMsg, timestamp: Date.now() }]);
     } finally {
       setIsLoading(false);
@@ -279,6 +286,23 @@ const AITutor = () => {
               subtitle="Your personal 24/7 study companion"
               gradient="linear-gradient(135deg, hsl(263 70% 58% / 0.3), hsl(263 70% 58% / 0.1))"
             />
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <span className={cn(
+                "px-2 py-1 rounded-lg border text-[11px]",
+                status === 'requesting' && "border-yellow-500/40 text-yellow-200 bg-yellow-500/10",
+                status === 'error' && "border-red-500/40 text-red-200 bg-red-500/10",
+                status === 'idle' && "border-emerald-500/40 text-emerald-200 bg-emerald-500/10"
+              )}>
+                {status === 'requesting' && 'Contacting AI...'}
+                {status === 'idle' && 'Ready'}
+                {status === 'error' && 'Error — check logs'}
+              </span>
+              {lastError && (
+                <span className="px-2 py-1 rounded bg-destructive/10 text-destructive text-[11px] truncate max-w-sm" title={lastError}>
+                  {lastError}
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Messages List */}
@@ -433,7 +457,7 @@ const AITutor = () => {
                 disabled={!input.trim() || isLoading}
                 className="h-[50px] w-[50px] rounded-xl bg-primary hover:bg-primary/90 shrink-0"
               >
-                <Send className="w-5 h-5" />
+                {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
               </Button>
             </div>
             <p className="text-center text-[10px] text-muted-foreground mt-2">
