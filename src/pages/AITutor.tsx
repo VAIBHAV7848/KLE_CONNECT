@@ -123,10 +123,8 @@ const AITutor = () => {
     setIsLoading(true);
 
     try {
-      // Use unified token-server backend (Render deployment)
-      // Hardcoded for GitHub Pages deployment since .env is not available
-      const backendUrl = "https://kle-token-server-2n1o.onrender.com";
-      const apiUrl = `${backendUrl}/api/ai`;
+      // Use internal Vercel Serverless Function
+      const apiUrl = "/api/ai";
 
       const response = await fetch(apiUrl, {
         method: "POST",
