@@ -30,3 +30,4 @@ dist-ssr
 .env.production
 .env.development
 .env.test.env
+supabase/.temp/
