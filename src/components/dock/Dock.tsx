@@ -6,6 +6,7 @@ import {
   Bot,
   BookOpen,
   Brain,
+  Sparkles,
   GraduationCap,
   Map,
   Calendar,
@@ -31,6 +32,12 @@ const navigationItems = [
     label: 'AI Tutor', 
     to: '/ai-tutor',
     gradient: 'linear-gradient(135deg, hsl(263 70% 58% / 0.3), hsl(263 70% 58% / 0.1))'
+  },
+  { 
+    icon: Sparkles, 
+    label: 'ThinkLM', 
+    to: '/thinklm',
+    gradient: 'linear-gradient(135deg, hsl(45 93% 47% / 0.3), hsl(199 89% 48% / 0.1))'
   },
   { 
     icon: BookOpen, 

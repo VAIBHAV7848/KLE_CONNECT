@@ -14,6 +14,7 @@ import { Analytics } from "@vercel/analytics/react";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
 import AITutor from "./pages/AITutor";
+import ThinkLM from "./pages/ThinkLM";
 import Notes from "./pages/Notes";
 import StudyPlanner from "./pages/StudyPlanner";
 import StudyRooms from "./pages/StudyRooms";
@@ -26,7 +27,6 @@ import SettingsPage from "./pages/Settings";
 import Support from "./pages/Support";
 import NotFound from "./pages/NotFound";
 import ErrorBoundary from "./components/ErrorBoundary";
-
 import ProtectedRoute from "./components/ProtectedRoute";
 
 const router = createHashRouter([
@@ -55,6 +55,14 @@ const router = createHashRouter([
     element: (
       <ProtectedRoute>
         <AITutor />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/thinklm",
+    element: (
+      <ProtectedRoute>
+        <ThinkLM />
       </ProtectedRoute>
     ),
   },

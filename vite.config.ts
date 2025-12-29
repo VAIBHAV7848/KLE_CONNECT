@@ -7,18 +7,28 @@ export default defineConfig(({ mode }) => ({
   base: mode === 'production' && process.env.GITHUB_ACTIONS ? "/KLE_CONNECT/" : "/",
   server: {
     host: "::",
-    port: 8080,
-    proxy: {
-      "/api": {
-        target: process.env.VITE_AI_API_URL || "http://localhost:3000",
-        changeOrigin: true,
-      },
-      "/token": {
-        target: process.env.VITE_TOKEN_SERVER_URL || "http://localhost:3000",
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/token/, "/token"),
+    port: 5173,
+    proxy: (() => {
+      const proxies: Record<string, any> = {};
+      const aiTarget = process.env.VITE_AI_API_URL;
+      const tokenTarget = process.env.VITE_TOKEN_SERVER_URL;
+
+      // Only add dev proxies when pointing to local services
+      if (aiTarget && /localhost|127\.0\.0\.1/.test(aiTarget)) {
+        proxies["/api"] = {
+          target: aiTarget,
+          changeOrigin: true,
+        };
       }
-    }
+      if (tokenTarget && /localhost|127\.0\.0\.1/.test(tokenTarget)) {
+        proxies["/token"] = {
+          target: tokenTarget,
+          changeOrigin: true,
+          rewrite: (p: string) => p.replace(/^\/token/, "/token"),
+        };
+      }
+      return proxies;
+    })()
   },
   plugins: [react()],
   build: {
