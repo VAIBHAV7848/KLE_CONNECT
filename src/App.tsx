@@ -24,6 +24,7 @@ import Doubts from "./pages/Doubts";
 import SeniorConnect from "./pages/SeniorConnect";
 import StudentHelp from "./pages/StudentHelp";
 import SettingsPage from "./pages/Settings";
+import Admin from "./pages/Admin";
 import Support from "./pages/Support";
 import NotFound from "./pages/NotFound";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -39,6 +40,14 @@ const router = createHashRouter([
     element: (
       <ProtectedRoute>
         <Dashboard />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/admin",
+    element: (
+      <ProtectedRoute>
+        <Admin />
       </ProtectedRoute>
     ),
   },
