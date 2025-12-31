@@ -642,11 +642,16 @@ const LiveMeeting = (props: {
               <div className="absolute inset-0 flex items-center justify-center bg-[#202124]">
                 <div className="text-center">
                   <div className="relative">
-                    <Avatar className="w-24 h-24 mx-auto border-4 border-[#3c4043] shadow-2xl relative z-10">
+                    <Avatar className={`w-24 h-24 mx-auto border-4 relative z-10 transition-all duration-300 ${!micOn ? 'border-red-500/50 grayscale-[0.5]' : 'border-[#3c4043]'}`}>
                       <AvatarImage src={avatarUrl} />
                       <AvatarFallback>{userEmail.substring(0, 2).toUpperCase()}</AvatarFallback>
                     </Avatar>
                     <SpeakingAura track={localMicrophoneTrack} isActive={micOn} />
+                    {!micOn && (
+                      <div className="absolute bottom-0 right-1 bg-red-600 rounded-full p-2 border-2 border-[#202124] z-20 shadow-lg">
+                        <MicOff className="w-4 h-4 text-white" />
+                      </div>
+                    )}
                   </div>
                   <p className="mt-4 text-gray-400 font-medium">{userEmail}</p>
                 </div>
@@ -697,11 +702,16 @@ const LiveMeeting = (props: {
               <div className="absolute inset-0 flex items-center justify-center bg-[#202124]">
                 <div className="text-center relative">
                   <div className="relative">
-                    <Avatar className="w-20 h-20 mx-auto border-4 border-[#3c4043] relative z-10 transition-transform hover:scale-105 duration-300">
+                    <Avatar className={`w-20 h-20 mx-auto border-4 relative z-10 transition-all duration-300 ${!user.hasAudio ? 'border-red-500/50 grayscale-[0.5]' : 'border-[#3c4043]'}`}>
                       <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${user.uid}`} />
                       <AvatarFallback>U{user.uid}</AvatarFallback>
                     </Avatar>
                     <SpeakingAura track={user.audioTrack} isActive={user.hasAudio} />
+                    {!user.hasAudio && (
+                      <div className="absolute bottom-0 right-0 bg-red-600 rounded-full p-1.5 border-2 border-[#202124] z-20 shadow-lg">
+                        <MicOff className="w-3.5 h-3.5 text-white" />
+                      </div>
+                    )}
                   </div>
                   <p className="mt-3 text-sm text-gray-400 font-medium">Student {user.uid}</p>
                 </div>
