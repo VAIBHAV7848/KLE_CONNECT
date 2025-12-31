@@ -7,14 +7,12 @@ import { motion } from 'framer-motion';
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     const { user, loading, isAdmin } = useAuth();
     const [isLockdownActive, setIsLockdownActive] = useState(false);
-    const [checkingLockdown, setCheckingLockdown] = useState(true);
 
     useEffect(() => {
         // Check global lockdown status
         const checkLockdown = () => {
             const lockdownStatus = localStorage.getItem('emergency_lockdown');
             setIsLockdownActive(lockdownStatus === 'true');
-            setCheckingLockdown(false);
         };
 
         checkLockdown();
@@ -37,7 +35,8 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
         };
     }, []);
 
-    if (loading || checkingLockdown) {
+    // FIRST: Check if loading
+    if (loading) {
         return (
             <div className="h-screen w-full flex items-center justify-center bg-background">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -45,10 +44,12 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
         );
     }
 
+    // SECOND: Check if user is logged in - if not, redirect to login
     if (!user) {
         return <Navigate to="/auth" replace />;
     }
 
+    // THIRD: Only NOW check lockdown (user is already authenticated)
     // Block non-admin users during lockdown
     if (isLockdownActive && !isAdmin) {
         return (
