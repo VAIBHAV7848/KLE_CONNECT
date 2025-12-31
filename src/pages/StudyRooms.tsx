@@ -588,11 +588,30 @@ const LiveMeeting = (props: {
     rtcClient.enableAudioVolumeIndicator();
   }, [rtcClient]);
 
+  // Screen Share Error Handling
+  useEffect(() => {
+    if (screenError) {
+      console.error("🖥️ Screen Share Fail:", screenError);
+      setScreenShareOn(false);
+
+      // Senior Dev Tip: Screen share often fails on mobile or if user cancels
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      toast({
+        title: isMobile ? "Mobile Limitation" : "Screen Share Cancelled",
+        description: isMobile
+          ? "Browsers on mobile devices do not support screen sharing. Please use a desktop."
+          : "Could not start screen share. Make sure you haven't blocked the permission.",
+        variant: isMobile ? "default" : "destructive"
+      });
+    }
+  }, [screenError]);
+
   // Handle Screen Share Stop (via browser UI)
   useEffect(() => {
     if (screenShareOn && screenTrack) {
       screenTrack.on("track-ended", () => {
         setScreenShareOn(false);
+        toast({ title: "Screen share ended" });
       });
     }
   }, [screenShareOn, screenTrack]);
@@ -610,9 +629,20 @@ const LiveMeeting = (props: {
     }
   }, [cameraOn, localCameraTrack]);
 
-  // Always publish the tracks once ready, let setEnabled handle the muting
-  // This is the Senior Dev way to ensure status syncing is instantaneous
-  const tracksToPublish = [localMicrophoneTrack, screenShareOn ? screenTrack : localCameraTrack].filter(Boolean);
+  // Always publish the tracks once ready
+  // Senior Dev Tip: Swapping tracks in usePublish can be unstable on some browsers.
+  // We explicitly disable the camera state when screen sharing to prevent multi-track conflicts.
+  useEffect(() => {
+    if (screenShareOn) {
+      setCameraOn(false);
+    }
+  }, [screenShareOn]);
+
+  const tracksToPublish = [
+    localMicrophoneTrack,
+    screenShareOn ? screenTrack : (cameraOn ? localCameraTrack : null)
+  ].filter(Boolean);
+
   usePublish(tracksToPublish);
 
   const remoteUsers = useRemoteUsers();
