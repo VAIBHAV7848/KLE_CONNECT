@@ -48,17 +48,31 @@ const ThinkLM = () => {
   const mainAiUrl = (import.meta.env.VITE_AI_API_URL || '/api/ai').trim();
   const supabaseKey = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '').trim();
 
-  // Load persistence
+  // --- Persistence Logic ---
   useEffect(() => {
     const savedMaterials = localStorage.getItem('thinklm-materials');
-    const savedQA = localStorage.getItem('thinklm-qa');
-    if (savedMaterials) setMaterials(JSON.parse(savedMaterials));
-    if (savedQA) setHistory(JSON.parse(savedQA));
+    const savedHistory = localStorage.getItem('thinklm-history');
+
+    if (savedMaterials) {
+      setMaterials(JSON.parse(savedMaterials));
+    } else {
+      // Seed Data: Academic Guidelines
+      const seed = [{
+        id: 'seed-01',
+        title: 'KLE Syllabus & Academic Guidelines.pdf',
+        file_type: 'application/pdf',
+        created_at: Date.now()
+      }];
+      setMaterials(seed);
+      localStorage.setItem('thinklm-materials', JSON.stringify(seed));
+    }
+
+    if (savedHistory) setHistory(JSON.parse(savedHistory));
   }, []);
 
   const saveHistory = (newHistory: QAItem[]) => {
     setHistory(newHistory);
-    localStorage.setItem('thinklm-qa', JSON.stringify(newHistory));
+    localStorage.setItem('thinklm-history', JSON.stringify(newHistory));
   };
 
   const saveMaterials = (newMats: Material[]) => {
@@ -388,12 +402,13 @@ If you don't know the exact contents, provide a highly educational response base
                     </div>
                   </div>
                   <div className="p-8 prose prose-sm prose-invert max-w-none">
+                    {/* @ts-ignore - Version mismatch in library types */}
                     <ReactMarkdown
                       components={{
-                        h1: ({ node, ...props }) => <h1 className="text-xl font-bold mb-4 text-primary" {...props} />,
-                        h2: ({ node, ...props }) => <h2 className="text-lg font-semibold mb-3 text-primary/80" {...props} />,
-                        p: ({ node, ...props }) => <p className="leading-relaxed mb-4 text-gray-300" {...props} />,
-                        ul: ({ node, ...props }) => <ul className="list-disc ml-4 space-y-2 mb-4" {...props} />,
+                        h1: ({ ...props }) => <h1 className="text-xl font-bold mb-4 text-primary" {...props} />,
+                        h2: ({ ...props }) => <h2 className="text-lg font-semibold mb-3 text-primary/80" {...props} />,
+                        p: ({ ...props }) => <p className="leading-relaxed mb-4 text-gray-300" {...props} />,
+                        ul: ({ ...props }) => <ul className="list-disc ml-4 space-y-2 mb-4" {...props} />,
                       }}
                     >
                       {answer}

@@ -367,7 +367,7 @@ const AITutor = () => {
                             "prose prose-sm max-w-none break-words",
                             isUser ? "prose-invert" : "dark:prose-invert prose-p:text-foreground/90"
                           )}>
-                            {/* @ts-ignore - ReactMarkdown v10 components typing issue */}
+                            {/* @ts-ignore - Version mismatch in library types */}
                             <ReactMarkdown
                               components={{
                                 // Headings with better spacing

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import PageLayout from '@/components/layout/PageLayout';
 import ModuleCard from '@/components/ui/ModuleCard';
@@ -16,7 +16,9 @@ import {
   Target,
   LogIn,
   User,
-  ShieldCheck
+  ShieldCheck,
+  Bell,
+  X
 } from 'lucide-react';
 
 /**
@@ -73,20 +75,64 @@ const Dashboard = () => {
     { label: 'Tasks', value: '0', icon: Target, change: 'Plan' },
   ]);
 
+  const [announcement, setAnnouncement] = useState<{ message: string; timestamp: number } | null>(null);
+
   useEffect(() => {
     // 1. Get AI Sessions Count
     const savedConvos = localStorage.getItem('aitutor-conversations');
     const aiCount = savedConvos ? JSON.parse(savedConvos).length : 0;
 
+    // 2. Get Pending Tasks from Planner
+    const savedTasks = localStorage.getItem('study-planner-tasks');
+    const taskCount = savedTasks ? JSON.parse(savedTasks).filter((t: any) => !t.completed).length : 0;
+
     setStats([
       { label: 'AI Sessions', value: aiCount.toString(), icon: Bot, change: aiCount > 0 ? 'Active' : 'Start now' },
-      { label: 'Study Hours', value: '12.5', icon: Clock, change: '+2.5h' }, // Mock for now
-      { label: 'Pending Tasks', value: '3', icon: Target, change: '-1' },      // Mock for now
+      { label: 'Study Hours', value: '12.5', icon: Clock, change: '+2.5h' }, // Simulation
+      { label: 'Pending Tasks', value: taskCount.toString(), icon: Target, change: taskCount > 0 ? 'Action needed' : 'Clear' },
     ]);
+
+    // 3. Load Global Announcement
+    const savedMsg = localStorage.getItem('campus_announcement');
+    if (savedMsg) {
+      setAnnouncement(JSON.parse(savedMsg));
+    }
   }, []);
 
   return (
     <PageLayout>
+      {/* Global Announcement Banner */}
+      <AnimatePresence>
+        {announcement && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden mb-6"
+          >
+            <div className="bg-primary/10 border border-primary/20 rounded-2xl p-4 flex items-center justify-between gap-4 backdrop-blur-sm">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
+                  <Bell className="w-5 h-5 text-primary animate-ring" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-primary/60 mb-0.5">Campus Announcement</p>
+                  <p className="text-sm font-medium text-foreground">{announcement.message}</p>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
+                onClick={() => setAnnouncement(null)}
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Welcome Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}

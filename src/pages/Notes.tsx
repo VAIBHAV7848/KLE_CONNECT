@@ -20,8 +20,35 @@ const Notes = () => {
     if (saved) {
       setNotes(JSON.parse(saved));
     } else {
-      // Default Seed Data
-      setNotes([]);
+      // High-Quality Seed Data for Engineers
+      const seedNotes = [
+        {
+          id: '1',
+          title: 'DSA: Comprehensive Revision Guide',
+          subject: 'Data Structures',
+          link: 'https://www.geeksforgeeks.org/data-structures/',
+          rating: 4.9,
+          downloads: 1240
+        },
+        {
+          id: '2',
+          title: 'Unit 4: Neural Networks PYQs',
+          subject: 'AI & Machine Learning',
+          link: 'https://archive.org/details/artificialintelligencepastpapers',
+          rating: 4.8,
+          downloads: 850
+        },
+        {
+          id: '3',
+          title: 'DBMS SQL Cheat Sheet (Semester 5)',
+          subject: 'Database Systems',
+          link: 'https://web.stanford.edu/class/cs145/cheatsheet.pdf',
+          rating: 5.0,
+          downloads: 3100
+        }
+      ];
+      setNotes(seedNotes);
+      localStorage.setItem('kle-connect-notes', JSON.stringify(seedNotes));
     }
   }, []);
 

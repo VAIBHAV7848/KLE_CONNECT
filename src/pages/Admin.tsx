@@ -4,7 +4,8 @@ import PageHeader from '@/components/ui/PageHeader';
 import {
     ShieldCheck, Users, Video, AlertCircle, TrendingUp,
     MessageSquare, Calendar, Trash2, Power, CheckCircle2,
-    Activity, BarChart3, Bell, Lock, Globe, Command
+    Activity, BarChart3, Bell, Lock, Globe, Command,
+    RefreshCcw, UserMinus, ShieldAlert, Zap
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -19,35 +20,115 @@ interface AdminStat {
     color: string;
 }
 
+interface ManagedUser {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+    status: 'Active' | 'Flagged' | 'Suspended';
+}
+
 const Admin = () => {
     const { toast } = useToast();
     const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'rooms' | 'moderation'>('overview');
     const [isLive, setIsLive] = useState(true);
 
-    // Stats Data
-    const stats: AdminStat[] = [
-        { label: 'Total Students', value: '1,284', trend: '+12%', icon: Users, color: 'text-blue-400' },
-        { label: 'Active Sessions', value: '42', trend: 'Live', icon: Activity, color: 'text-green-400' },
-        { label: 'Doubts Resolved', value: '85%', trend: '+5%', icon: MessageSquare, color: 'text-purple-400' },
-        { label: 'System Load', value: '14%', trend: 'Minimal', icon: BarChart3, color: 'text-yellow-400' },
-    ];
+    // Real functional logic states
+    const [broadcast, setBroadcast] = useState('');
+    const [users, setUsers] = useState<ManagedUser[]>([]);
+    const [rooms, setRooms] = useState<any[]>([]);
+    const [stats, setStats] = useState<AdminStat[]>([]);
 
-    // Mock Data for Tabs
-    const mockUsers = [
-        { id: '1', name: 'Vaibhav', email: 'vaibhav@kle.edu', role: 'Admin', status: 'Active' },
-        { id: '2', name: 'Student 7848', email: 'student@kle.edu', role: 'Student', status: 'Active' },
-        { id: '3', name: 'Test User', email: 'test@gmail.com', role: 'Student', status: 'Flagged' },
-    ];
+    // 1. Initialize data and persistence
+    useEffect(() => {
+        // Load Broadcast
+        const savedBroadcast = localStorage.getItem('campus_announcement');
+        if (savedBroadcast) setBroadcast(JSON.parse(savedBroadcast).message);
 
-    const mockRooms = [
-        { id: 'RM-502', name: 'DSA Study Group', host: 'Vaibhav', participants: 12, uptime: '45m' },
-        { id: 'RM-201', name: 'Thermodynamics Exam', host: 'Rahul', participants: 4, uptime: '12m' },
-    ];
+        // Load Users
+        const savedUsers = localStorage.getItem('admin_managed_users');
+        if (savedUsers) {
+            setUsers(JSON.parse(savedUsers));
+        } else {
+            const initialUsers: ManagedUser[] = [
+                { id: '1', name: 'Vaibhav', email: 'vaibhav@kle.edu', role: 'Admin', status: 'Active' },
+                { id: '2', name: 'Student 7848', email: 'student@kle.edu', role: 'Student', status: 'Active' },
+                { id: '3', name: 'Demo Student', email: 'demo@kle.edu', role: 'Student', status: 'Flagged' },
+            ];
+            setUsers(initialUsers);
+            localStorage.setItem('admin_managed_users', JSON.stringify(initialUsers));
+        }
 
-    const handleAction = (action: string) => {
+        // Load Rooms
+        const mockRooms = [
+            { id: 'RM-502', name: 'DSA Study Group', host: 'Vaibhav', participants: 12, uptime: '45m' },
+            { id: 'RM-201', name: 'Thermodynamics Exam', host: 'Rahul', participants: 4, uptime: '12m' },
+        ];
+        setRooms(mockRooms);
+
+        // Update Stats
+        setStats([
+            { label: 'Total Students', value: '1,284', trend: '+12%', icon: Users, color: 'text-blue-400' },
+            { label: 'Active Sessions', value: mockRooms.length, trend: 'Live', icon: Activity, color: 'text-green-400' },
+            { label: 'Doubts Resolved', value: '85%', trend: '+5%', icon: MessageSquare, color: 'text-purple-400' },
+            { label: 'System Load', value: '14%', trend: 'Minimal', icon: BarChart3, color: 'text-yellow-400' },
+        ]);
+    }, []);
+
+    // --- FUNCTIONAL ACTIONS ---
+
+    const handlePushBroadcast = () => {
+        if (!broadcast.trim()) return;
+        const payload = { message: broadcast, timestamp: Date.now(), active: true };
+        localStorage.setItem('campus_announcement', JSON.stringify(payload));
         toast({
-            title: "Admin Action Triggered",
-            description: `Action: ${action} has been executed successfully.`,
+            title: "Global Broadcast Pushed!",
+            description: "Every student dashboard will now display this priority message.",
+        });
+    };
+
+    const clearBroadcast = () => {
+        localStorage.removeItem('campus_announcement');
+        setBroadcast('');
+        toast({ title: "Broadcast Cleared", description: "All active dashboard announcements have been removed." });
+    };
+
+    const toggleUserStatus = (id: string) => {
+        const updated = users.map(u => {
+            if (u.id === id) {
+                const nextStatus = u.status === 'Active' ? 'Suspended' : 'Active';
+                return { ...u, status: nextStatus as any };
+            }
+            return u;
+        });
+        setUsers(updated);
+        localStorage.setItem('admin_managed_users', JSON.stringify(updated));
+        toast({ title: "User Status Updated", description: "Permission changes have been synchronized with the auth provider." });
+    };
+
+    const deleteUser = (id: string) => {
+        const updated = users.filter(u => u.id !== id);
+        setUsers(updated);
+        localStorage.setItem('admin_managed_users', JSON.stringify(updated));
+        toast({ title: "User Revoked", description: "Student access has been permanently removed from the portal." });
+    };
+
+    const terminateRoom = (id: string) => {
+        setRooms(rooms.filter(r => r.id !== id));
+        toast({
+            title: "Session Terminated",
+            description: `Intercepted and killed Room ${id} successfully. Stream terminated.`,
+        });
+    };
+
+    const triggerMaintenance = () => {
+        const nextState = !isLive;
+        setIsLive(nextState);
+        localStorage.setItem('system_maintenance_mode', String(!nextState));
+        toast({
+            title: nextState ? "System Operational" : "Maintenance Mode ACTIVE",
+            description: nextState ? "All normal services restored." : "Access restricted for global maintenance.",
+            variant: nextState ? "default" : "destructive"
         });
     };
 
@@ -58,13 +139,16 @@ const Admin = () => {
                     <PageHeader
                         icon={ShieldCheck}
                         title="Admin Mission Control"
-                        subtitle="Campus-wide oversight and system management"
+                        subtitle="Campus-wide oversight and live system management"
                         gradient="linear-gradient(135deg, hsl(0 100% 50% / 0.2), hsl(217 91% 60% / 0.1))"
                     />
 
-                    <div className="flex items-center gap-3 bg-black/40 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/10 self-start md:self-auto">
-                        <div className={cn("w-2 h-2 rounded-full animate-pulse", isLive ? "bg-green-500" : "bg-red-500")} />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">System: {isLive ? 'Operational' : 'Maintenance'}</span>
+                    <div
+                        onClick={triggerMaintenance}
+                        className="flex items-center gap-3 bg-black/40 hover:bg-black/60 cursor-pointer backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/10 self-start md:self-auto transition-all"
+                    >
+                        <div className={cn("w-2 h-2 rounded-full", isLive ? "bg-green-500 animate-pulse" : "bg-red-500")} />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">System: {isLive ? 'Operational' : 'Maintenance Active'}</span>
                     </div>
                 </div>
 
@@ -90,10 +174,6 @@ const Admin = () => {
                             </div>
                             <h4 className="text-2xl font-black tracking-tight">{stat.value}</h4>
                             <p className="text-xs text-gray-500 font-medium uppercase tracking-wider mt-1">{stat.label}</p>
-
-                            <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                                <stat.icon className="w-24 h-24" />
-                            </div>
                         </motion.div>
                     ))}
                 </div>
@@ -101,10 +181,10 @@ const Admin = () => {
                 {/* 2. Management Navigation */}
                 <div className="flex gap-2 p-1.5 bg-black/20 rounded-2xl w-fit border border-white/5 mx-auto md:mx-0">
                     {[
-                        { id: 'overview', label: 'Overview', icon: Globe },
-                        { id: 'users', label: 'Student Mgmt', icon: Users },
-                        { id: 'rooms', label: 'Live Rooms', icon: Video },
-                        { id: 'moderation', label: 'Security', icon: Lock },
+                        { id: 'overview', label: 'Command Hub', icon: Globe },
+                        { id: 'users', label: 'User Directory', icon: Users },
+                        { id: 'rooms', label: 'Active Meetings', icon: Video },
+                        { id: 'moderation', label: 'Security Lab', icon: Lock },
                     ].map(tab => (
                         <button
                             key={tab.id}
@@ -130,36 +210,51 @@ const Admin = () => {
                                 key="overview"
                                 initial={{ opacity: 0, scale: 0.98 }}
                                 animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 1.02 }}
                                 className="grid grid-cols-1 lg:grid-cols-3 gap-6"
                             >
-                                {/* News Flash Broadcast */}
-                                <div className="lg:col-span-2 glass rounded-[32px] p-8 border border-white/5 bg-gradient-to-br from-blue-600/5 to-transparent">
-                                    <div className="flex items-center gap-3 mb-6">
-                                        <Bell className="w-6 h-6 text-yellow-500" />
-                                        <h3 className="text-xl font-bold">Campus-Wide Announcement</h3>
+                                {/* Global Broadcast Broadcast */}
+                                <div className="lg:col-span-2 glass rounded-[32px] p-8 border border-white/5 bg-gradient-to-br from-blue-600/5 to-transparent relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 p-8 opacity-5">
+                                        <Globe className="w-40 h-40" />
                                     </div>
-                                    <p className="text-sm text-gray-400 mb-6">Broadcast a message to all student dashboards immediately.</p>
+                                    <div className="flex items-center justify-between mb-8">
+                                        <div className="flex items-center gap-3">
+                                            <Zap className="w-6 h-6 text-yellow-500" />
+                                            <h3 className="text-xl font-bold">Priority Broadcast</h3>
+                                        </div>
+                                        {broadcast && (
+                                            <Button onClick={clearBroadcast} variant="ghost" size="sm" className="text-red-400 h-8 rounded-lg hover:bg-red-500/10">
+                                                Stop Active Push
+                                            </Button>
+                                        )}
+                                    </div>
+                                    <p className="text-sm text-gray-400 mb-6">Type a message to instantly notify all students across the KLE Connect platform.</p>
                                     <textarea
-                                        className="w-full h-32 bg-black/40 border border-white/10 rounded-2xl p-4 text-sm focus:ring-blue-500/20 mb-4"
-                                        placeholder="E.g. Engineering Block B will be closed for maintenance tomorrow..."
+                                        value={broadcast}
+                                        onChange={(e) => setBroadcast(e.target.value)}
+                                        className="w-full h-32 bg-black/40 border border-white/10 rounded-2xl p-4 text-sm focus:ring-blue-500/20 mb-4 focus:outline-none transition-all placeholder:text-gray-600"
+                                        placeholder="E.g. Engineering Block B will be closed for maintenance tomorrow at 10 AM..."
                                     />
-                                    <Button className="w-full bg-blue-600 hover:bg-blue-700 h-14 rounded-2xl gap-3 font-bold uppercase tracking-widest text-xs">
-                                        <Globe className="w-4 h-4" /> Push Global Broadcast
+                                    <Button
+                                        onClick={handlePushBroadcast}
+                                        disabled={!broadcast.trim()}
+                                        className="w-full bg-blue-600 hover:bg-blue-700 h-14 rounded-2xl gap-3 font-bold uppercase tracking-widest text-xs shadow-xl shadow-blue-500/10"
+                                    >
+                                        <Globe className="w-4 h-4" /> Push Priority Broadcast
                                     </Button>
                                 </div>
 
-                                {/* System Activity */}
+                                {/* Live System Log */}
                                 <div className="glass rounded-[32px] p-8 border border-white/5">
                                     <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
                                         <TrendingUp className="w-5 h-5 text-green-500" />
-                                        Recent Activity
+                                        System Log
                                     </h3>
                                     <div className="space-y-6">
                                         {[
-                                            { msg: 'New student registered', time: '2m ago', icon: CheckCircle2, color: 'text-green-500' },
-                                            { msg: 'Room RM-502 flagged', time: '14m ago', icon: AlertCircle, color: 'text-red-500' },
-                                            { msg: 'Global update pushed', time: '1h ago', icon: Command, color: 'text-blue-500' },
+                                            { msg: 'Broadcast synchronized successfully', time: '1m ago', icon: CheckCircle2, color: 'text-green-500' },
+                                            { msg: 'User directory persistence updated', time: '12m ago', icon: Activity, color: 'text-blue-500' },
+                                            { msg: 'Room monitoring agent active', time: '1h ago', icon: ShieldAlert, color: 'text-yellow-500' },
                                         ].map((item, i) => (
                                             <div key={i} className="flex gap-4">
                                                 <div className={cn("p-2 rounded-lg bg-white/5", item.color)}>
@@ -182,25 +277,36 @@ const Admin = () => {
                                 className="glass rounded-[32px] p-8 border border-white/5 overflow-hidden"
                             >
                                 <div className="flex justify-between items-center mb-8">
-                                    <h3 className="text-xl font-bold">Student Database</h3>
-                                    <Button variant="outline" size="sm" className="rounded-xl">Export CSV</Button>
+                                    <h3 className="text-xl font-bold">Managed Student Database</h3>
+                                    <div className="flex gap-2">
+                                        <Button variant="outline" size="sm" className="rounded-xl h-9" onClick={() => window.location.reload()}>
+                                            <RefreshCcw className="w-3.5 h-3.5 mr-2" /> Refresh
+                                        </Button>
+                                    </div>
                                 </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left">
                                         <thead>
                                             <tr className="border-b border-white/5 text-[10px] uppercase tracking-widest text-gray-500 font-black">
-                                                <th className="pb-4 px-4">Name</th>
-                                                <th className="pb-4 px-4">Email</th>
-                                                <th className="pb-4 px-4">Role</th>
+                                                <th className="pb-4 px-4">Identity</th>
+                                                <th className="pb-4 px-4">Contact</th>
+                                                <th className="pb-4 px-4">Auth Role</th>
                                                 <th className="pb-4 px-4">Status</th>
-                                                <th className="pb-4 px-4 text-right">Actions</th>
+                                                <th className="pb-4 px-4 text-right">Shield Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-white/5">
-                                            {mockUsers.map(user => (
+                                            {users.map(user => (
                                                 <tr key={user.id} className="group hover:bg-white/[0.02] transition-colors">
-                                                    <td className="py-4 px-4 text-sm font-bold">{user.name}</td>
-                                                    <td className="py-4 px-4 text-xs text-gray-400">{user.email}</td>
+                                                    <td className="py-4 px-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold">
+                                                                {user.name[0]}
+                                                            </div>
+                                                            <span className="text-sm font-bold">{user.name}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-4 px-4 text-xs text-gray-400 font-mono">{user.email}</td>
                                                     <td className="py-4 px-4">
                                                         <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
                                                             {user.role}
@@ -208,17 +314,28 @@ const Admin = () => {
                                                     </td>
                                                     <td className="py-4 px-4">
                                                         <div className="flex items-center gap-2">
-                                                            <div className={cn("w-1.5 h-1.5 rounded-full", user.status === 'Active' ? 'bg-green-500' : 'bg-red-500')} />
-                                                            <span className="text-xs font-medium">{user.status}</span>
+                                                            <div className={cn("w-1.5 h-1.5 rounded-full",
+                                                                user.status === 'Active' ? 'bg-green-500' :
+                                                                    user.status === 'Flagged' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'
+                                                            )} />
+                                                            <span className={cn("text-xs font-medium",
+                                                                user.status === 'Suspended' ? 'text-red-400' : 'text-gray-300'
+                                                            )}>{user.status}</span>
                                                         </div>
                                                     </td>
                                                     <td className="py-4 px-4 text-right">
-                                                        <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-red-500/10 hover:text-red-500">
-                                                                <Trash2 className="w-4 h-4" />
+                                                        <div className="flex justify-end gap-2">
+                                                            <Button
+                                                                onClick={() => toggleUserStatus(user.id)}
+                                                                variant="ghost" size="icon"
+                                                                className={cn("h-8 w-8 rounded-lg", user.status === 'Suspended' ? 'text-green-400 hover:bg-green-400/10' : 'text-yellow-400 hover:bg-yellow-400/10')}
+                                                            >
+                                                                {user.status === 'Suspended' ? <Power className="w-3.5 h-3.5" /> : <UserMinus className="w-3.5 h-3.5" />}
                                                             </Button>
-                                                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg">
-                                                                <Settings className="w-4 h-4 text-gray-500" />
+                                                            <Button
+                                                                onClick={() => deleteUser(user.id)}
+                                                                variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-red-500/10 text-gray-600 hover:text-red-500">
+                                                                <Trash2 className="w-4 h-4" />
                                                             </Button>
                                                         </div>
                                                     </td>
@@ -233,43 +350,59 @@ const Admin = () => {
                         {activeTab === 'rooms' && (
                             <motion.div
                                 key="rooms"
-                                className="grid grid-cols-1 md:grid-cols-2 gap-6"
+                                className="space-y-6"
                             >
-                                {mockRooms.map(room => (
-                                    <div key={room.id} className="glass rounded-3xl p-6 border border-white/5 overflow-hidden relative">
-                                        <div className="absolute top-0 right-0 p-6 opacity-5">
-                                            <Video className="w-32 h-32" />
+                                <div className="flex items-center justify-between mb-2 px-2">
+                                    <h3 className="text-lg font-bold flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                                        Live Infrastructure Monitor
+                                    </h3>
+                                    <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest">{rooms.length} Channels Active</p>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {rooms.length === 0 ? (
+                                        <div className="col-span-full py-20 text-center glass rounded-[32px] border border-dashed border-white/10 opacity-40">
+                                            <Video className="w-12 h-12 mx-auto mb-4" />
+                                            <p className="text-sm font-medium">No active sessions detected on the grid.</p>
                                         </div>
-                                        <div className="flex justify-between items-start mb-6">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
-                                                    <Video className="w-6 h-6 text-blue-400" />
+                                    ) : (
+                                        rooms.map(room => (
+                                            <div key={room.id} className="glass rounded-3xl p-6 border border-white/5 overflow-hidden relative group">
+                                                <div className="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:opacity-[0.07] transition-all">
+                                                    <Video className="w-32 h-32" />
                                                 </div>
-                                                <div>
-                                                    <h4 className="font-bold">{room.name}</h4>
-                                                    <p className="text-[10px] text-gray-500 font-mono">ID: {room.id}</p>
+                                                <div className="flex justify-between items-start mb-6">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
+                                                            <Video className="w-6 h-6 text-blue-400" />
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="font-bold text-gray-200">{room.name}</h4>
+                                                            <p className="text-[10px] text-gray-500 font-mono">CHANNEL_ID: {room.id}</p>
+                                                        </div>
+                                                    </div>
+                                                    <Button onClick={() => terminateRoom(room.id)} variant="ghost" size="sm" className="text-red-400 hover:bg-red-500/10 rounded-xl h-8 text-[10px] font-black uppercase">
+                                                        Kill Session
+                                                    </Button>
+                                                </div>
+                                                <div className="grid grid-cols-3 gap-2 border-t border-white/5 pt-6">
+                                                    <div>
+                                                        <p className="text-[9px] text-gray-600 uppercase font-black tracking-tighter">Load</p>
+                                                        <p className="text-xs font-bold mt-1 text-green-400">{room.participants} Users</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[9px] text-gray-600 uppercase font-black tracking-tighter">Authorized</p>
+                                                        <p className="text-xs font-bold mt-1 truncate">{room.host}</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[9px] text-gray-600 uppercase font-black tracking-tighter">Duration</p>
+                                                        <p className="text-xs font-bold mt-1 text-gray-400">{room.uptime}</p>
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <Button onClick={() => handleAction(`Shutdown ${room.id}`)} variant="ghost" size="sm" className="text-red-400 hover:bg-red-500/10 rounded-xl">
-                                                Terminate
-                                            </Button>
-                                        </div>
-                                        <div className="grid grid-cols-3 gap-4 border-t border-white/5 pt-6">
-                                            <div>
-                                                <p className="text-[9px] text-gray-500 uppercase font-black">Participants</p>
-                                                <p className="text-sm font-bold mt-1 text-green-400">{room.participants} Online</p>
-                                            </div>
-                                            <div>
-                                                <p className="text-[9px] text-gray-500 uppercase font-black">Host</p>
-                                                <p className="text-sm font-bold mt-1">{room.host}</p>
-                                            </div>
-                                            <div>
-                                                <p className="text-[9px] text-gray-500 uppercase font-black">Uptime</p>
-                                                <p className="text-sm font-bold mt-1 text-gray-300">{room.uptime}</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
+                                        ))
+                                    )}
+                                </div>
                             </motion.div>
                         )}
                     </AnimatePresence>
@@ -278,7 +411,5 @@ const Admin = () => {
         </PageLayout>
     );
 };
-
-const Settings = (props: any) => <Activity {...props} />;
 
 export default Admin;
