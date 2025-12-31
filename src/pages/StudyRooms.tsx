@@ -288,7 +288,7 @@ const PreJoinRoom = (props: {
   const avatarUrl = `https://api.dicebear.com/7.x/initials/svg?seed=${userEmail}`;
 
   // Local Tracks Hook for Preview
-  const { localMicrophoneTrack } = useLocalMicrophoneTrack(props.micOn);
+  const { localMicrophoneTrack } = useLocalMicrophoneTrack(props.micOn, { AEC: true, ANS: true, AGC: true });
   const { localCameraTrack } = useLocalCameraTrack(props.cameraOn);
 
   return (
@@ -466,7 +466,7 @@ const LiveMeeting = (props: {
     joinReady
   );
 
-  const { localMicrophoneTrack } = useLocalMicrophoneTrack(micOn);
+  const { localMicrophoneTrack } = useLocalMicrophoneTrack(micOn, { AEC: true, ANS: true, AGC: true });
   const { localCameraTrack } = useLocalCameraTrack(cameraOn);
   // Screen Share Hook
   const { screenTrack, error: screenError } = useLocalScreenTrack(screenShareOn, {}, "disable");
@@ -554,11 +554,10 @@ const LiveMeeting = (props: {
         {screenShareOn && screenTrack && (
           <div className="relative bg-[#3c4043] rounded-xl overflow-hidden border-2 border-blue-500 aspect-video group shadow-lg col-span-2 row-span-2">
             <LocalUser
-              audioTrack={localMicrophoneTrack}
               cameraOn={false}
               micOn={micOn}
               videoTrack={screenTrack}
-              cover="https://www.agora.io/en/wp-content/uploads/2022/10/3d-spatial-audio-icon.svg"
+              cover={avatarUrl}
             >
               <div className="absolute bottom-3 left-3 bg-blue-600 px-2 py-1 rounded text-sm font-medium z-10 flex items-center gap-2">
                 <MonitorUp className="w-3 h-3" /> You are presenting
