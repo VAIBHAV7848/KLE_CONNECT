@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import PageLayout from '@/components/layout/PageLayout';
 import PageHeader from '@/components/ui/PageHeader';
 import {
@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { database } from '@/lib/firebase';
 import { ref, set, onValue } from 'firebase/database';
+import { sanitizeInput, RateLimiter } from '@/lib/security';
 
 interface AdminStat {
     label: string;
@@ -41,6 +42,10 @@ const Admin = () => {
     const [users, setUsers] = useState<ManagedUser[]>([]);
     const [rooms, setRooms] = useState<any[]>([]);
     const [stats, setStats] = useState<AdminStat[]>([]);
+
+    // Rate limiters for security
+    const broadcastLimiter = useRef(new RateLimiter(10, 60000)); // 10 broadcasts per minute
+    const lockdownLimiter = useRef(new RateLimiter(5, 60000)); // 5 lockdown toggles per minute
 
     // 1. Initialize data and persistence
     useEffect(() => {
@@ -92,7 +97,21 @@ const Admin = () => {
 
     const handlePushBroadcast = () => {
         if (!broadcast.trim()) return;
-        const payload = { message: broadcast, timestamp: Date.now(), active: true };
+
+        // Rate limiting check
+        if (!broadcastLimiter.current.isAllowed('broadcast')) {
+            toast({
+                title: "Rate Limit Exceeded",
+                description: "Too many broadcasts. Please wait a minute.",
+                variant: "destructive"
+            });
+            return;
+        }
+
+        // Sanitize input to prevent XSS
+        const sanitizedMessage = sanitizeInput(broadcast);
+
+        const payload = { message: sanitizedMessage, timestamp: Date.now(), active: true };
         localStorage.setItem('campus_announcement', JSON.stringify(payload));
         toast({
             title: "Global Broadcast Pushed!",
@@ -146,6 +165,16 @@ const Admin = () => {
     };
 
     const toggleLockdown = async () => {
+        // Rate limiting check
+        if (!lockdownLimiter.current.isAllowed('lockdown')) {
+            toast({
+                title: "Rate Limit Exceeded",
+                description: "Too many lockdown attempts. Please wait a minute.",
+                variant: "destructive"
+            });
+            return;
+        }
+
         const nextState = !isLockdownActive;
         setIsLockdownActive(nextState);
 

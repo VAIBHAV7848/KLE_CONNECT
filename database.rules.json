@@ -1,0 +1,12 @@
+{
+    "rules": {
+        "system": {
+            "lockdown": {
+                ".read": true,
+                ".write": "auth != null && (auth.token.email == 'jayashriingale720@gmail.com' || auth.token.email == 'jayashriinagle720@gmail.com')"
+            }
+        },
+        ".read": false,
+        ".write": false
+    }
+}
