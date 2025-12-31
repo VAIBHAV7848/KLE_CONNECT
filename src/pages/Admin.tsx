@@ -83,6 +83,9 @@ const Admin = () => {
             { label: 'Doubts Resolved', value: '85%', trend: '+5%', icon: MessageSquare, color: 'text-purple-400' },
             { label: 'System Load', value: '14%', trend: 'Minimal', icon: BarChart3, color: 'text-yellow-400' },
         ]);
+
+        // Cleanup Firebase listener on unmount
+        return () => unsubscribe();
     }, []);
 
     // --- FUNCTIONAL ACTIONS ---

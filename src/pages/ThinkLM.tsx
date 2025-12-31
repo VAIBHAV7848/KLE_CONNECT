@@ -401,16 +401,8 @@ If you don't know the exact contents, provide a highly educational response base
                       <span className="text-xs font-bold uppercase tracking-widest text-blue-400">Synthesized Insights</span>
                     </div>
                   </div>
-                  <div className="p-8 prose prose-sm prose-invert max-w-none">
-                    {/* @ts-ignore - Version mismatch in library types */}
-                    <ReactMarkdown
-                      components={{
-                        h1: ({ ...props }) => <h1 className="text-xl font-bold mb-4 text-primary" {...props} />,
-                        h2: ({ ...props }) => <h2 className="text-lg font-semibold mb-3 text-primary/80" {...props} />,
-                        p: ({ ...props }) => <p className="leading-relaxed mb-4 text-gray-300" {...props} />,
-                        ul: ({ ...props }) => <ul className="list-disc ml-4 space-y-2 mb-4" {...props} />,
-                      }}
-                    >
+                  <div className="p-8 prose prose-sm prose-invert max-w-none markdown-content">
+                    <ReactMarkdown>
                       {answer}
                     </ReactMarkdown>
 
