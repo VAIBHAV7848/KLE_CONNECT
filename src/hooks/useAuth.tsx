@@ -136,6 +136,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
   };
 
+  const ADMIN_EMAILS = [
+    'jayashriinagle720@gmail.com',
+    'jayashriingale720@gmail.com'
+  ];
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -147,7 +152,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUpRecaptcha,
       signInWithPhone,
       signOut,
-      isAdmin: user?.email === 'jayashriinagle720@gmail.com' || localStorage.getItem('admin_session') === 'true'
+      isAdmin: !!user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase().trim())
     }}>
       {children}
     </AuthContext.Provider>
