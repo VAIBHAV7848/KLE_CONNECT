@@ -467,6 +467,7 @@ const LiveMeeting = (props: {
   onLeave: () => void
 }) => {
   const { user } = useAuth();
+  const [stageUid, setStageUid] = useState<string | number | null>(null);
   const [micOn, setMicOn] = useState(props.initialMic);
   const [cameraOn, setCameraOn] = useState(props.initialCam);
   const [screenShareOn, setScreenShareOn] = useState(false);
@@ -596,209 +597,247 @@ const LiveMeeting = (props: {
     }
   }, [screenShareOn, screenTrack]);
 
-  // Publish Logic: Swap Camera with Screen if Sharing
-  // Note: Standard Agora only allows 1 video track per user. We must turn off cam video to show screen.
-  const tracksToPublish = [localMicrophoneTrack, screenShareOn ? screenTrack : localCameraTrack].filter(Boolean);
+  // Professional Audio Sync: Ensure unmublished state is broadcasted
+  // Passing null to usePublish effectively unpublishes the track immediately
+  const tracksToPublish = [
+    micOn ? localMicrophoneTrack : null,
+    screenShareOn ? screenTrack : (cameraOn ? localCameraTrack : null)
+  ].filter(Boolean);
+
   usePublish(tracksToPublish);
 
   const remoteUsers = useRemoteUsers();
 
+  // Auto-Spotlight Screen Shares
+  useEffect(() => {
+    const remoteScreenShare = remoteUsers.find(u => u.hasVideo);
+    if (remoteScreenShare) {
+      setStageUid(remoteScreenShare.uid);
+    } else if (screenShareOn) {
+      setStageUid('local_screen');
+    }
+  }, [remoteUsers, screenShareOn]);
+
   return (
-    <div className="h-screen w-full bg-[#202124] text-white flex flex-col overflow-hidden fixed top-0 left-0 z-50">
-      {/* Top Bar */}
-      <div className="h-16 flex items-center justify-between px-6 bg-black/40 backdrop-blur-md z-10 absolute top-0 w-full">
+    <div className="h-screen w-full bg-[#202124] text-white flex flex-col overflow-hidden fixed inset-0 z-50 font-sans">
+      {/* 1. Header */}
+      <div className="h-16 flex items-center justify-between px-6 bg-black/40 backdrop-blur-xl z-30 border-b border-white/5">
         <div className="flex items-center gap-3">
-          <span className="text-lg font-medium tracking-wide font-mono">{props.roomCode.substring(0, 8)}...</span>
-          {isConnected ? (
-            <div className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-md font-mono border border-green-500/20 flex items-center gap-1">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-              </span>
-              ● LIVE
+          <div className="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-2xl border border-white/10">
+            <GraduationCap className="w-5 h-5 text-blue-400" />
+            <span className="text-sm font-bold tracking-tight truncate max-w-[150px] md:max-w-none text-blue-50/90">{props.roomCode}</span>
+          </div>
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-green-500/10 rounded-full border border-green-500/20">
+            <div className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
             </div>
-          ) : (
-            <div className="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded-md font-mono border border-yellow-500/20 flex items-center gap-1">
-              <Loader2 className="w-3 h-3 animate-spin" />
-              CONNECTING
+            <span className="text-[10px] font-black tracking-widest text-green-400">LIVE</span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <div className="hidden md:flex items-center gap-2 text-xs font-bold text-gray-400 bg-white/5 px-3 py-1.5 rounded-full border border-white/10">
+            <Users className="w-4 h-4" />
+            <span>{remoteUsers.length + 1} PARTICIPANTS</span>
+          </div>
+          <button
+            onClick={() => {
+              const link = `${window.location.origin}${window.location.pathname}#/study-rooms?channel=${props.roomCode}`;
+              navigator.clipboard.writeText(link);
+              toast({ title: "Invite link copied" });
+            }}
+            className="p-2.5 rounded-xl bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 transition-all border border-blue-500/20"
+          >
+            <Copy className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* 2. Main Content Area (Theatre Layout) */}
+      <div className={`flex-1 flex flex-col lg:flex-row p-4 gap-4 overflow-hidden bg-[#202124]`}>
+
+        {/* Stage Area */}
+        {(stageUid || screenShareOn) ? (
+          <div className="flex-[3] relative flex items-center justify-center bg-black/20 rounded-3xl border border-white/5 overflow-hidden shadow-2xl">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={String(stageUid)}
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 1.02 }}
+                className="w-full h-full relative"
+              >
+                {stageUid === 'local_screen' || screenShareOn ? (
+                  <LocalUser
+                    cameraOn={false}
+                    micOn={micOn}
+                    videoTrack={screenTrack}
+                    className="w-full h-full object-contain"
+                  />
+                ) : (
+                  stageUid === 'local' ? (
+                    <LocalUser
+                      cameraOn={cameraOn}
+                      micOn={micOn}
+                      videoTrack={localCameraTrack}
+                      className="w-full h-full"
+                    />
+                  ) : (
+                    <RemoteUser
+                      user={remoteUsers.find(u => u.uid === stageUid)!}
+                      className="w-full h-full"
+                      playAudio={true}
+                    />
+                  )
+                )}
+
+                {/* Stage Controls Overlay */}
+                <div className="absolute top-6 left-6 flex gap-3">
+                  <div className="bg-blue-600 px-4 py-2 rounded-2xl shadow-2xl border border-blue-400/50 flex items-center gap-2">
+                    <MonitorUp className="w-4 h-4" />
+                    <span className="text-[10px] font-black uppercase tracking-widest">
+                      {stageUid === 'local_screen' ? 'Your Presentation' : 'Spotlight View'}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setStageUid(null)}
+                    className="bg-black/60 hover:bg-black/80 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/10 text-[10px] font-black uppercase tracking-widest transition-all"
+                  >
+                    Close Stage
+                  </button>
+                </div>
+              </motion.div>
+            </AnimatePresence>
+          </div>
+        ) : null}
+
+        {/* Participant List (Filmstrip or Grid) */}
+        <div className={`flex-1 overflow-y-auto custom-scrollbar transition-all duration-700 ${stageUid ? 'lg:w-80 flex flex-row lg:flex-col gap-4' : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-7xl mx-auto'}`}>
+
+          {/* You */}
+          {!screenShareOn && (
+            <div
+              onClick={() => setStageUid(stageUid === 'local' ? null : 'local')}
+              className={`relative bg-[#3c4043] rounded-3xl overflow-hidden border-2 transition-all cursor-pointer group shadow-2xl aspect-video ${stageUid === 'local' ? 'border-blue-500 scale-95 opacity-40' : 'border-white/5 hover:border-blue-500/50'}`}
+            >
+              {!cameraOn ? (
+                <div className="absolute inset-0 flex items-center justify-center bg-[#1a1b1e]">
+                  <div className="text-center relative">
+                    <div className="relative">
+                      <Avatar className={`w-24 h-24 mx-auto border-4 relative z-10 transition-all duration-500 ${!micOn ? 'border-red-500/40 grayscale shadow-none' : 'border-[#3c4043] shadow-blue-500/20 shadow-2xl'}`}>
+                        <AvatarImage src={avatarUrl} />
+                        <AvatarFallback>ME</AvatarFallback>
+                      </Avatar>
+                      <SpeakingAura track={localMicrophoneTrack} isActive={micOn} />
+                      {!micOn && (
+                        <div className="absolute bottom-0 right-1 bg-red-600 rounded-full p-2 border-2 border-[#1a1b1e] z-20 shadow-2xl animate-in zoom-in">
+                          <MicOff className="w-4 h-4 text-white" strokeWidth={3} />
+                        </div>
+                      )}
+                    </div>
+                    <p className="mt-4 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">You</p>
+                  </div>
+                </div>
+              ) : (
+                <LocalUser cameraOn={cameraOn} micOn={micOn} videoTrack={localCameraTrack} cover={avatarUrl} />
+              )}
+              <div className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-xl px-3 py-1.5 rounded-xl text-[10px] font-black z-10 flex items-center gap-2 border border-white/10 tracking-[0.1em] uppercase">
+                <VolumeBar track={localMicrophoneTrack} isActive={micOn} />
+                <span>You</span>
+              </div>
+            </div>
+          )}
+
+          {/* Remote Students */}
+          {remoteUsers.map((u) => (
+            <div
+              key={u.uid}
+              onClick={() => setStageUid(stageUid === u.uid ? null : u.uid)}
+              className={`relative bg-[#3c4043] rounded-3xl overflow-hidden border-2 transition-all cursor-pointer group shadow-2xl aspect-video ${stageUid === u.uid ? 'border-blue-500 scale-95 opacity-40' : 'border-white/5 hover:border-blue-500/50'}`}
+            >
+              {/* Audio Sync Hook */}
+              <div className="hidden"><RemoteUser user={u} playAudio={true} /></div>
+
+              {(!u.hasVideo) ? (
+                <div className="absolute inset-0 flex items-center justify-center bg-[#1a1b1e]">
+                  <div className="text-center relative">
+                    <div className="relative">
+                      <Avatar className={`w-20 h-20 mx-auto border-4 relative z-10 transition-all duration-500 ${!u.hasAudio ? 'border-red-500/40 grayscale' : 'border-[#3c4043] shadow-2xl'}`}>
+                        <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${u.uid}`} />
+                        <AvatarFallback>U</AvatarFallback>
+                      </Avatar>
+                      <SpeakingAura track={u.audioTrack} isActive={u.hasAudio} />
+                      {!u.hasAudio && (
+                        <div className="absolute bottom-0 right-0 bg-red-600 rounded-full p-1.5 border-2 border-[#1a1b1e] z-20 shadow-2xl animate-in zoom-in">
+                          <MicOff className="w-3 h-3 text-white" strokeWidth={3} />
+                        </div>
+                      )}
+                    </div>
+                    <p className="mt-3 text-[10px] font-black uppercase tracking-[0.15em] text-gray-500">Student {u.uid}</p>
+                  </div>
+                </div>
+              ) : (
+                <RemoteUser user={u} cover={`https://api.dicebear.com/7.x/initials/svg?seed=${u.uid}`} />
+              )}
+
+              <div className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-xl px-3 py-1.5 rounded-xl text-[10px] font-black z-10 flex items-center gap-2 border border-white/10 tracking-[0.1em] uppercase group-hover:bg-blue-600/80 transition-all">
+                <UserVolumeIndicator track={u.audioTrack} micOn={u.hasAudio} />
+                <span>ID: {String(u.uid).substring(0, 4)}</span>
+                {!u.hasAudio && <span className="text-red-400 opacity-60 text-[8px] ml-1">OFF</span>}
+              </div>
+            </div>
+          ))}
+
+          {/* Empty State */}
+          {remoteUsers.length === 0 && isConnected && !screenShareOn && (
+            <div className="col-span-full border-4 border-dashed border-white/5 rounded-[40px] flex items-center justify-center p-12 bg-white/[0.01]">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-blue-500/10 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-blue-500/20">
+                  <Loader2 className="w-8 h-8 animate-spin text-blue-400/60" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-400 mb-2 uppercase tracking-widest">Awaiting Peers</h3>
+                <p className="text-[10px] text-gray-600 font-black tracking-widest uppercase">Room: {props.roomCode}</p>
+              </div>
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <Users className="w-4 h-4 text-gray-400" />
-          <span className="text-sm text-gray-300">{remoteUsers.length + 1}</span>
+      </div>
+
+      {/* 3. Controls Bar */}
+      <div className="h-24 bg-gradient-to-t from-black/80 to-transparent flex items-center justify-center gap-4 px-6 z-40">
+        <div className="flex items-center gap-4 bg-black/40 backdrop-blur-3xl px-6 py-4 rounded-[32px] border border-white/10 shadow-2xl">
+          <button
+            onClick={() => setMicOn(!micOn)}
+            className={`h-14 w-14 rounded-2xl flex items-center justify-center transition-all duration-300 ${!micOn ? 'bg-red-600 shadow-red-500/40 shadow-xl scale-110' : 'bg-[#3c4043] hover:bg-white/10'}`}
+          >
+            {micOn ? <Mic className="w-6 h-6" strokeWidth={1.5} /> : <MicOff className="w-6 h-6 text-white" strokeWidth={2.5} />}
+          </button>
+
+          <button
+            onClick={() => setCameraOn(!cameraOn)}
+            className={`h-14 w-14 rounded-2xl flex items-center justify-center transition-all duration-300 ${!cameraOn ? 'bg-red-600 shadow-red-500/40 shadow-xl scale-110' : 'bg-[#3c4043] hover:bg-white/10'}`}
+          >
+            {cameraOn ? <Video className="w-6 h-6" strokeWidth={1.5} /> : <VideoOff className="w-6 h-6 text-white" strokeWidth={2.5} />}
+          </button>
+
+          <div className="w-px h-10 bg-white/10 mx-2" />
+
+          <button
+            onClick={() => setScreenShareOn(!screenShareOn)}
+            className={`h-14 w-14 rounded-2xl flex items-center justify-center transition-all duration-300 ${screenShareOn ? 'bg-blue-600 shadow-blue-500/40 shadow-xl scale-110' : 'bg-[#3c4043] hover:bg-white/10 text-gray-400'}`}
+          >
+            <MonitorUp className="w-6 h-6" strokeWidth={1.5} />
+          </button>
+
+          <button
+            onClick={props.onLeave}
+            className="h-14 px-8 rounded-2xl bg-red-600 hover:bg-red-700 transition-all font-black text-xs uppercase tracking-widest flex items-center gap-3 ml-4"
+          >
+            <PhoneOff className="w-5 h-5" />
+            <span className="hidden sm:inline">Terminate Session</span>
+          </button>
         </div>
-      </div>
-
-      {/* Video Grid */}
-      <div className="flex-1 p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto bg-[#202124] pt-20 pb-24">
-        {!joinReady && (
-          <div className="col-span-1 md:col-span-2 lg:col-span-3 text-center text-yellow-200 bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3">
-            {tokenStatus === 'loading' && 'Fetching secure token...'}
-            {tokenStatus === 'error' && 'Token unavailable. Check token server and APP_ID.'}
-            {appIdMissing && 'Agora APP_ID missing. Set VITE_AGORA_APP_ID.'}
-          </div>
-        )}
-        {/* You (Camera) */}
-        {!screenShareOn && (
-          <div className="relative bg-[#3c4043] rounded-xl overflow-hidden border-2 border-blue-500/0 aspect-video group shadow-lg">
-            {!cameraOn ? (
-              <div className="absolute inset-0 flex items-center justify-center bg-[#202124]">
-                <div className="text-center">
-                  <div className="relative">
-                    <Avatar className={`w-24 h-24 mx-auto border-4 relative z-10 transition-all duration-300 ${!micOn ? 'border-red-500/50 grayscale-[0.5]' : 'border-[#3c4043]'}`}>
-                      <AvatarImage src={avatarUrl} />
-                      <AvatarFallback>{userEmail.substring(0, 2).toUpperCase()}</AvatarFallback>
-                    </Avatar>
-                    <SpeakingAura track={localMicrophoneTrack} isActive={micOn} />
-                    {!micOn && (
-                      <div className="absolute bottom-0 right-1 bg-red-600 rounded-full p-2 border-2 border-[#202124] z-20 shadow-lg">
-                        <MicOff className="w-4 h-4 text-white" />
-                      </div>
-                    )}
-                  </div>
-                  <p className="mt-4 text-gray-400 font-medium">{userEmail}</p>
-                </div>
-              </div>
-            ) : (
-              <LocalUser
-                cameraOn={cameraOn}
-                micOn={micOn}
-                videoTrack={localCameraTrack}
-                cover={avatarUrl}
-              />
-            )}
-            <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-lg text-sm font-medium z-10 flex items-center gap-2 border border-white/10">
-              <VolumeBar track={localMicrophoneTrack} isActive={micOn} />
-              <span>You</span>
-            </div>
-          </div>
-        )}
-
-        {/* You (Screen Share) */}
-        {screenShareOn && screenTrack && (
-          <div className="relative bg-[#3c4043] rounded-xl overflow-hidden border-2 border-blue-500 aspect-video group shadow-lg col-span-2 row-span-2">
-            <LocalUser
-              cameraOn={false}
-              micOn={micOn}
-              videoTrack={screenTrack}
-              cover={avatarUrl}
-            >
-              <div className="absolute bottom-3 left-3 bg-blue-600 px-2 py-1 rounded text-sm font-medium z-10 flex items-center gap-2">
-                <MonitorUp className="w-3 h-3" /> You are presenting
-              </div>
-            </LocalUser>
-          </div>
-        )}
-
-        {/* Others */}
-        {remoteUsers.map((user) => (
-          <div key={user.uid} className="relative bg-[#3c4043] rounded-xl overflow-hidden aspect-video shadow-lg">
-            {/* 
-              Senior Dev Tip: Always render a hidden RemoteUser component to ensure 
-              the Agora SDK subscribes to and plays the audio track correctly. 
-            */}
-            <div className="hidden">
-              <RemoteUser user={user} playAudio={true} />
-            </div>
-
-            {!user.hasVideo ? (
-              <div className="absolute inset-0 flex items-center justify-center bg-[#202124]">
-                <div className="text-center relative">
-                  <div className="relative">
-                    <Avatar className={`w-20 h-20 mx-auto border-4 relative z-10 transition-all duration-300 ${!user.hasAudio ? 'border-red-500/50 grayscale-[0.5]' : 'border-[#3c4043]'}`}>
-                      <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${user.uid}`} />
-                      <AvatarFallback>U{user.uid}</AvatarFallback>
-                    </Avatar>
-                    <SpeakingAura track={user.audioTrack} isActive={user.hasAudio} />
-                    {!user.hasAudio && (
-                      <div className="absolute bottom-0 right-0 bg-red-600 rounded-full p-1.5 border-2 border-[#202124] z-20 shadow-lg">
-                        <MicOff className="w-3.5 h-3.5 text-white" />
-                      </div>
-                    )}
-                  </div>
-                  <p className="mt-3 text-sm text-gray-400 font-medium">Student {user.uid}</p>
-                </div>
-              </div>
-            ) : (
-              <RemoteUser cover={`https://api.dicebear.com/7.x/initials/svg?seed=${user.uid}`} user={user} />
-            )}
-
-            <div className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-lg text-sm font-medium z-10 flex items-center gap-2 border border-white/10 shadow-xl">
-              <UserVolumeIndicator track={user.audioTrack} micOn={user.hasAudio} />
-              <span className="tracking-tight">Student {user.uid}</span>
-              {!user.hasAudio && (
-                <span className="text-[10px] text-red-400 font-bold uppercase ml-1 opacity-80">Muted</span>
-              )}
-            </div>
-          </div>
-        ))}
-
-        {remoteUsers.length === 0 && isConnected && (
-          <div className="col-span-1 md:col-span-2 lg:col-span-3 flex items-center justify-center p-8 text-center text-gray-500 h-64 border-2 border-dashed border-gray-700 rounded-xl">
-            <div className="max-w-sm">
-              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-400" />
-              <p className="text-lg font-medium text-gray-300">Waiting for friends...</p>
-              <p className="text-sm mt-2">Share the link to invite them to this room.</p>
-              <p className="font-mono text-xs mt-4 bg-black/20 p-2 rounded select-all">{props.roomCode}</p>
-            </div>
-          </div>
-        )}
-
-        {remoteUsers.length === 0 && !isConnected && (
-          <div className="col-span-1 md:col-span-2 lg:col-span-3 flex items-center justify-center p-8 text-center text-gray-500 h-64">
-            <p>Connecting to server...</p>
-          </div>
-        )}
-      </div>
-
-      {/* Bottom Bar */}
-      <div className="h-20 bg-[#202124] flex items-center justify-center gap-4 px-4 z-20 absolute bottom-0 w-full shadow-2xl border-t border-white/5">
-        <button
-          onClick={() => setMicOn(!micOn)}
-          className={`h-12 w-12 rounded-full flex items-center justify-center transition-all ${!micOn ? 'bg-red-600 hover:bg-red-700' : 'bg-[#3c4043] hover:bg-[#4b4f52]'}`}
-          title="Toggle Microphone"
-        >
-          {micOn ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
-        </button>
-        <button
-          onClick={() => setCameraOn(!cameraOn)}
-          className={`h-12 w-12 rounded-full flex items-center justify-center transition-all ${!cameraOn ? 'bg-red-600 hover:bg-red-700' : 'bg-[#3c4043] hover:bg-[#4b4f52]'}`}
-          title="Toggle Camera"
-        >
-          {cameraOn ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
-        </button>
-
-        <button
-          onClick={() => setScreenShareOn(!screenShareOn)}
-          className={`h-12 w-12 rounded-full flex items-center justify-center transition-all ${screenShareOn ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-[#3c4043] hover:bg-[#4b4f52] text-gray-200'}`}
-          title="Share Screen"
-        >
-          <MonitorUp className="w-5 h-5" />
-        </button>
-
-        <div className="w-px h-8 bg-gray-600 mx-2" />
-
-        <button
-          onClick={() => {
-            // Fix: Include pathname to support subdirectories (like /KLE_CONNECT/)
-            const link = `${window.location.origin}${window.location.pathname}#/study-rooms?channel=${props.roomCode}`;
-            navigator.clipboard.writeText(link);
-            toast({ title: "Copied joining info", description: "Meeting link copied to clipboard" });
-          }}
-          className="h-12 w-12 rounded-full bg-[#3c4043] hover:bg-[#4b4f52] flex items-center justify-center text-blue-400 transition-colors"
-          title="Copy Link"
-        >
-          <Copy className="w-5 h-5" />
-        </button>
-
-        <button
-          onClick={props.onLeave}
-          className="h-12 px-8 rounded-full bg-red-600 hover:bg-red-700 flex items-center font-medium gap-2 transition-colors ml-4"
-        >
-          <PhoneOff className="w-5 h-5" />
-          <span className="hidden sm:inline">Leave call</span>
-        </button>
       </div>
     </div>
   );
