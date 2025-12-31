@@ -3,36 +3,23 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Loader2, ShieldAlert } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { database } from '@/lib/firebase';
+import { ref, onValue } from 'firebase/database';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     const { user, loading, isAdmin } = useAuth();
     const [isLockdownActive, setIsLockdownActive] = useState(false);
 
     useEffect(() => {
-        // Check global lockdown status
-        const checkLockdown = () => {
-            const lockdownStatus = localStorage.getItem('emergency_lockdown');
-            setIsLockdownActive(lockdownStatus === 'true');
-        };
+        // Listen to Firebase Realtime Database for global lockdown status
+        const lockdownRef = ref(database, 'system/lockdown');
+        const unsubscribe = onValue(lockdownRef, (snapshot) => {
+            const status = snapshot.val();
+            setIsLockdownActive(status === true);
+        });
 
-        checkLockdown();
-
-        // Listen for lockdown changes (for real-time updates on same device)
-        const handleStorageChange = (e: StorageEvent) => {
-            if (e.key === 'emergency_lockdown') {
-                setIsLockdownActive(e.newValue === 'true');
-            }
-        };
-
-        window.addEventListener('storage', handleStorageChange);
-
-        // Poll every 2 seconds for lockdown status changes
-        const interval = setInterval(checkLockdown, 2000);
-
-        return () => {
-            window.removeEventListener('storage', handleStorageChange);
-            clearInterval(interval);
-        };
+        // Cleanup listener on unmount
+        return () => unsubscribe();
     }, []);
 
     // FIRST: Check if loading

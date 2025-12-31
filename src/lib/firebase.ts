@@ -1,11 +1,13 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getAnalytics } from "firebase/analytics";
+import { getDatabase } from "firebase/database";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
     apiKey: "<GOOGLE_KEY_HIDDEN>",
     authDomain: "kle-connect.firebaseapp.com",
+    databaseURL: "https://kle-connect-default-rtdb.firebaseio.com",
     projectId: "kle-connect",
     storageBucket: "kle-connect.firebasestorage.app",
     messagingSenderId: "939070940474",
@@ -18,3 +20,4 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 export const analytics = getAnalytics(app);
+export const database = getDatabase(app);

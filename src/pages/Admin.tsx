@@ -11,6 +11,8 @@ import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { database } from '@/lib/firebase';
+import { ref, set, onValue } from 'firebase/database';
 
 interface AdminStat {
     label: string;
@@ -67,11 +69,12 @@ const Admin = () => {
         ];
         setRooms(mockRooms);
 
-        // Load Lockdown State
-        const savedLockdown = localStorage.getItem('emergency_lockdown');
-        if (savedLockdown === 'true') {
-            setIsLockdownActive(true);
-        }
+        // Load Lockdown State from Firebase (GLOBAL)
+        const lockdownRef = ref(database, 'system/lockdown');
+        const unsubscribe = onValue(lockdownRef, (snapshot) => {
+            const status = snapshot.val();
+            setIsLockdownActive(status === true);
+        });
 
         // Update Stats
         setStats([
@@ -139,23 +142,26 @@ const Admin = () => {
         });
     };
 
-    const toggleLockdown = () => {
+    const toggleLockdown = async () => {
         const nextState = !isLockdownActive;
         setIsLockdownActive(nextState);
-        localStorage.setItem('emergency_lockdown', String(nextState));
+
+        // Write to Firebase Realtime Database (GLOBAL)
+        const lockdownRef = ref(database, 'system/lockdown');
+        await set(lockdownRef, nextState);
 
         if (nextState) {
             // Activate Lockdown
             toast({
                 title: "🚨 EMERGENCY LOCKDOWN ACTIVATED",
-                description: "All student accounts suspended. Sessions terminated. Only admins can access the platform.",
+                description: "All student accounts suspended globally. Sessions terminated. Only admins can access the platform.",
                 variant: "destructive"
             });
         } else {
             // Deactivate Lockdown
             toast({
                 title: "✅ LOCKDOWN DEACTIVATED",
-                description: "Normal operations restored. All student accounts reactivated.",
+                description: "Normal operations restored globally. All student accounts reactivated.",
             });
         }
     };
