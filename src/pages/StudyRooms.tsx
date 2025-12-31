@@ -96,39 +96,43 @@ const VolumeBar = ({ track, isActive }: { track: any, isActive: boolean }) => {
   const [level, setLevel] = useState(0);
 
   useEffect(() => {
-    // Senior Dev Fix: If not active or no track, we show the mute icon.
-    // If we have a track but it's not subscribed, volume will be 0.
     if (!isActive || !track) {
       setLevel(0);
       return;
     }
+    // Update every 50ms for that high-refresh "Live" feel
     const interval = setInterval(() => {
       try {
-        setLevel(track.getVolumeLevel() * 100);
+        const rawVol = track.getVolumeLevel();
+        // Senior Dev Tip: Sound perception is logarithmic. Use a power function + boost.
+        // We also add a tiny bit of random 'jitter' when speaking to make it look organic.
+        const boosted = Math.pow(rawVol, 0.5) * 100;
+        setLevel(boosted);
       } catch (e) {
         setLevel(0);
       }
-    }, 100);
+    }, 50);
     return () => clearInterval(interval);
   }, [track, isActive]);
 
-  // If the user has disabled their mic, show the red icon.
   if (!isActive || !track) return <MicOff className="w-3 h-3 text-red-500" strokeWidth={2.5} />;
 
-  const normalizedVol = Math.min(100, level * 5); // Increased sensitivity
-
   return (
-    <div className="flex gap-0.5 items-end h-3 w-4">
-      {[0.6, 1, 0.8].map((factor, i) => (
-        <motion.div
-          key={i}
-          animate={{
-            height: `${Math.max(20, normalizedVol * factor)}%`
-          }}
-          transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="w-1 bg-green-500 rounded-full"
-        />
-      ))}
+    <div className="flex gap-0.5 items-end h-[14px] w-5">
+      {[0.6, 1.2, 0.8].map((factor, i) => {
+        // Add dynamic jitter for that "Dancing" effect
+        const jitter = level > 2 ? (Math.random() * 10 - 5) : 0;
+        const height = level > 1 ? Math.min(100, (level * factor) + jitter) : 20;
+
+        return (
+          <motion.div
+            key={i}
+            animate={{ height: `${Math.max(20, height)}%` }}
+            transition={{ type: "spring", stiffness: 500, damping: 15 }} // Snappy!
+            className="w-1.5 bg-green-500 rounded-full shadow-[0_0_8px_rgba(34,197,94,0.4)]"
+          />
+        );
+      })}
     </div>
   );
 };
