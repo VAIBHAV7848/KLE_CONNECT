@@ -359,13 +359,17 @@ const LiveMeeting = (props: {
 
   useEffect(() => {
     const fetchToken = async () => {
+      // 1. Reset state
+      setToken(null);
       setTokenStatus('loading');
 
+      // 2. Validate basic config
       if (appIdMissing) {
         setTokenStatus('error');
+        console.error("❌ Agora APP_ID is missing from environment variables.");
         toast({
           title: "Agora APP_ID missing",
-          description: "Set VITE_AGORA_APP_ID in .env to join rooms.",
+          description: "Set VITE_AGORA_APP_ID in Vercel/Render settings.",
           variant: "destructive",
         });
         return;
@@ -373,42 +377,76 @@ const LiveMeeting = (props: {
 
       if (!TOKEN_SERVER_URL) {
         setTokenStatus('error');
+        console.error("❌ Token Server URL is not configured.");
         toast({
-          title: "Token server not configured",
-          description: "Set VITE_TOKEN_SERVER_URL in .env to join securely.",
+          title: "Token server missing",
+          description: "Set VITE_TOKEN_SERVER_URL in your environment variables.",
           variant: "destructive",
         });
         return;
       }
 
+      // 3. Sanitize URL (Handle trailing slashes)
+      const baseUrl = TOKEN_SERVER_URL.endsWith('/')
+        ? TOKEN_SERVER_URL.slice(0, -1)
+        : TOKEN_SERVER_URL;
+      const targetUrl = `${baseUrl}/token`;
+
+      console.log(`🌐 Attempting to fetch token for channel: ${props.roomCode}, uid: ${uid}`);
+      console.log(`📡 URL: ${targetUrl}`);
+
       try {
-        const response = await fetch(`${TOKEN_SERVER_URL}/token`, {
+        // 4. Perform fetch with timeout handling
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+
+        const response = await fetch(targetUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ channel: props.roomCode, uid: uid }),
+          body: JSON.stringify({
+            channel: String(props.roomCode),
+            uid: Number(uid)
+          }),
+          signal: controller.signal
         });
 
-        if (!response.ok) throw new Error("Failed to get token");
-        
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Server responded with ${response.status}: ${errorText}`);
+        }
+
         const data = await response.json();
+
+        if (!data.token) {
+          throw new Error("Token server response missing 'token' field.");
+        }
+
+        console.log("✅ Token successfully received.");
         setToken(data.token);
         setTokenStatus('ready');
-      } catch (error) {
-        console.error("Token fetch error:", error);
+      } catch (error: any) {
+        console.error("❌ Token fetch failed:", error.message);
+
+        let customMessage = "Could not fetch secure token.";
+        if (error.name === 'AbortError') {
+          customMessage = "Token request timed out. (Render server might be starting up)";
+        }
+
         setTokenStatus('error');
         toast({
           title: "Connection Error",
-          description: "Could not fetch token. Check token server.",
+          description: error.message || customMessage,
           variant: "destructive",
         });
       }
     };
 
     if (props.roomCode) {
-      setToken(null);
       fetchToken();
     }
-  }, [props.roomCode, uid, toast, appIdMissing]);
+  }, [props.roomCode, uid, appIdMissing]); // Removed toast from deps to prevent loops
 
   const joinReady = Boolean(props.roomCode && token && !appIdMissing && tokenStatus === 'ready');
 
