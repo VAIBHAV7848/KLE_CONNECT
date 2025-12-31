@@ -15,7 +15,8 @@ import {
   Clock,
   Target,
   LogIn,
-  User
+  User,
+  ShieldCheck
 } from 'lucide-react';
 
 /**
@@ -72,6 +73,13 @@ const Dashboard = () => {
       gradient: 'linear-gradient(135deg, hsl(330 80% 55% / 0.3), hsl(330 80% 55% / 0.1))',
       path: '/study-rooms'
     },
+    {
+      icon: ShieldCheck,
+      title: 'Admin Control',
+      description: 'Campus oversight, moderation, and system stats',
+      gradient: 'linear-gradient(135deg, hsl(0 100% 50% / 0.3), hsl(217 91% 60% / 0.1))',
+      path: '/admin'
+    },
   ];
 
   return (
@@ -97,7 +105,7 @@ const Dashboard = () => {
                 <span className="text-foreground"> CONNECT</span>
               </h1>
               <p className="text-muted-foreground">
-                {user ? `Welcome back, ${user.user_metadata?.full_name || user.email}!` : 'Your college companion, powered by AI'}
+                {user ? `Welcome back, ${user.displayName || user.email}!` : 'Your college companion, powered by AI'}
               </p>
             </div>
           </div>
