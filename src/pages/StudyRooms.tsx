@@ -47,24 +47,51 @@ const SpeakingAura = ({ volume }: { volume: number }) => {
   return (
     <AnimatePresence>
       {volume > 5 && (
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{
-            scale: [1, 1.2, 1],
-            opacity: [0.3, 0.6, 0.3],
-            borderWidth: [2, 8, 2]
-          }}
-          exit={{ scale: 1.5, opacity: 0 }}
-          transition={{
-            duration: 1.5,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }}
-          className="absolute inset-0 rounded-full border-blue-500/50 bg-blue-500/10 pointer-events-none z-0"
-          style={{ width: '110%', height: '110%', left: '-5%', top: '-5%' }}
-        />
+        <>
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{
+              scale: [1, 1.4, 1],
+              opacity: [0.2, 0.4, 0.2],
+            }}
+            exit={{ scale: 1.5, opacity: 0 }}
+            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+            className="absolute inset-0 rounded-full bg-blue-400/20 blur-xl pointer-events-none z-0"
+            style={{ width: '130%', height: '130%', left: '-15%', top: '-15%' }}
+          />
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{
+              scale: [1, 1.2, 1],
+              opacity: [0.4, 0.8, 0.4],
+              borderWidth: [2, 4, 2]
+            }}
+            exit={{ scale: 1.3, opacity: 0 }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+            className="absolute inset-0 rounded-full border-2 border-blue-400/60 pointer-events-none z-0"
+            style={{ width: '115%', height: '115%', left: '-7.5%', top: '-7.5%' }}
+          />
+        </>
       )}
     </AnimatePresence>
+  );
+};
+
+const VolumeBar = ({ volume, isActive }: { volume: number, isActive: boolean }) => {
+  if (!isActive) return <MicOff className="w-3 h-3 text-red-500" />;
+
+  return (
+    <div className="flex gap-0.5 items-end h-3 w-4">
+      {[1, 2, 3].map((i) => (
+        <motion.div
+          key={i}
+          animate={{
+            height: volume > (i * 10) ? `${Math.min(100, (volume / (i * 0.5)))}%` : '20%'
+          }}
+          className="w-1 bg-green-500 rounded-full"
+        />
+      ))}
+    </div>
   );
 };
 
@@ -493,7 +520,13 @@ const LiveMeeting = (props: {
     joinReady
   );
 
-  const { localMicrophoneTrack } = useLocalMicrophoneTrack(micOn);
+  // Professional Audio Constraints: Hardened for Echo and Noise
+  const { localMicrophoneTrack } = useLocalMicrophoneTrack(micOn, {
+    encoderConfig: "high_quality_stereo",
+    AEC: true,
+    ANS: true,
+    AGC: true
+  });
   const { localCameraTrack } = useLocalCameraTrack(cameraOn);
   // Screen Share Hook
   const { screenTrack, error: screenError } = useLocalScreenTrack(screenShareOn, {}, "disable");
@@ -582,8 +615,9 @@ const LiveMeeting = (props: {
                 cover={avatarUrl}
               />
             )}
-            <div className="absolute bottom-3 left-3 bg-black/50 px-2 py-1 rounded text-sm font-medium z-10">
-              You
+            <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-lg text-sm font-medium z-10 flex items-center gap-2 border border-white/10">
+              <VolumeBar volume={localVolume} isActive={micOn} />
+              <span>You</span>
             </div>
           </div>
         )}
@@ -615,7 +649,7 @@ const LiveMeeting = (props: {
                       <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${user.uid}`} />
                       <AvatarFallback>U{user.uid}</AvatarFallback>
                     </Avatar>
-                    <UserVolumeIndicator track={user.audioTrack} />
+                    <UserVolumeIndicator track={user.audioTrack} micOn={user.hasAudio} />
                   </div>
                   <p className="mt-3 text-sm text-gray-400">Student {user.uid}</p>
                 </div>
@@ -623,8 +657,9 @@ const LiveMeeting = (props: {
             ) : (
               <RemoteUser cover={`https://api.dicebear.com/7.x/initials/svg?seed=${user.uid}`} user={user} />
             )}
-            <div className="absolute bottom-3 left-3 bg-black/50 px-2 py-1 rounded text-sm font-medium z-10">
-              Student {user.uid}
+            <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-lg text-sm font-medium z-10 flex items-center gap-2 border border-white/10">
+              <UserVolumeIndicator track={user.audioTrack} micOn={user.hasAudio} />
+              <span>Student {user.uid}</span>
             </div>
           </div>
         ))}
@@ -699,9 +734,14 @@ const LiveMeeting = (props: {
   );
 };
 
-const UserVolumeIndicator = ({ track }: { track: any }) => {
+const UserVolumeIndicator = ({ track, micOn }: { track: any, micOn: boolean }) => {
   const volume = useVolumeLevel(track);
-  return <SpeakingAura volume={volume} />;
+  return (
+    <>
+      <VolumeBar volume={volume} isActive={micOn} />
+      <SpeakingAura volume={volume} />
+    </>
+  );
 };
 
 export default StudyRooms;
