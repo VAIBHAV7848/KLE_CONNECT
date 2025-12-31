@@ -8,8 +8,8 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-
-// Agora Imports
+import { useAuth } from '@/hooks/useAuth';
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import AgoraRTC, {
   AgoraRTCProvider,
   useJoin,
@@ -283,6 +283,10 @@ const PreJoinRoom = (props: {
   onJoinNow: () => void,
   onBack: () => void
 }) => {
+  const { user } = useAuth();
+  const userEmail = user?.email || user?.phoneNumber || "Student";
+  const avatarUrl = `https://api.dicebear.com/7.x/initials/svg?seed=${userEmail}`;
+
   // Local Tracks Hook for Preview
   const { localMicrophoneTrack } = useLocalMicrophoneTrack(props.micOn);
   const { localCameraTrack } = useLocalCameraTrack(props.cameraOn);
@@ -294,18 +298,29 @@ const PreJoinRoom = (props: {
         {/* Left: Preview */}
         <div className="flex-1 w-full max-w-xl">
           <div className="relative aspect-video bg-[#3c4043] rounded-2xl overflow-hidden shadow-2xl border border-white/10 group">
-            <LocalUser
-              audioTrack={localMicrophoneTrack}
-              cameraOn={props.cameraOn}
-              micOn={props.micOn}
-              videoTrack={localCameraTrack}
-              cover="https://www.agora.io/en/wp-content/uploads/2022/10/3d-spatial-audio-icon.svg"
-            >
-              <div className="absolute top-4 right-4 bg-black/50 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2">
-                <CheckCircle2 className="w-3 h-3 text-green-400" />
-                Ready to join
+            {!props.cameraOn ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-[#202124]">
+                <div className="text-center">
+                  <Avatar className="w-32 h-32 mx-auto border-4 border-[#3c4043] shadow-2xl">
+                    <AvatarImage src={avatarUrl} />
+                    <AvatarFallback>{userEmail.substring(0, 2).toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                  <p className="mt-4 text-gray-400 font-medium tracking-wide">{userEmail}</p>
+                </div>
               </div>
-            </LocalUser>
+            ) : (
+              <LocalUser
+                cameraOn={props.cameraOn}
+                micOn={props.micOn}
+                videoTrack={localCameraTrack}
+                cover={avatarUrl}
+              >
+                <div className="absolute top-4 right-4 bg-black/50 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2">
+                  <CheckCircle2 className="w-3 h-3 text-green-400" />
+                  Ready to join
+                </div>
+              </LocalUser>
+            )}
 
             {/* Overlay Controls */}
             <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 z-20">
@@ -355,10 +370,14 @@ const LiveMeeting = (props: {
   initialCam: boolean,
   onLeave: () => void
 }) => {
+  const { user } = useAuth();
   const [micOn, setMicOn] = useState(props.initialMic);
   const [cameraOn, setCameraOn] = useState(props.initialCam);
   const [screenShareOn, setScreenShareOn] = useState(false);
   const [tokenStatus, setTokenStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+
+  const userEmail = user?.email || user?.phoneNumber || "Student";
+  const avatarUrl = `https://api.dicebear.com/7.x/initials/svg?seed=${userEmail}`;
 
   const { toast } = useToast();
 
@@ -488,14 +507,6 @@ const LiveMeeting = (props: {
               CONNECTING
             </div>
           )}
-          <div className="flex items-center gap-2 text-[11px] text-gray-300">
-            <span className="px-2 py-1 rounded-md border border-white/10 bg-white/5">
-              Token: {tokenStatus}
-            </span>
-            <span className="px-2 py-1 rounded-md border border-white/10 bg-white/5">
-              APP_ID: {appIdMissing ? 'missing' : 'ok'}
-            </span>
-          </div>
         </div>
         <div className="flex items-center gap-2">
           <Users className="w-4 h-4 text-gray-400" />
@@ -515,17 +526,27 @@ const LiveMeeting = (props: {
         {/* You (Camera) */}
         {!screenShareOn && (
           <div className="relative bg-[#3c4043] rounded-xl overflow-hidden border-2 border-blue-500/0 aspect-video group shadow-lg">
-            <LocalUser
-              audioTrack={localMicrophoneTrack}
-              cameraOn={cameraOn}
-              micOn={micOn}
-              videoTrack={localCameraTrack}
-              cover="https://www.agora.io/en/wp-content/uploads/2022/10/3d-spatial-audio-icon.svg"
-            >
-              <div className="absolute bottom-3 left-3 bg-black/50 px-2 py-1 rounded text-sm font-medium z-10">
-                You
+            {!cameraOn ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-[#202124]">
+                <div className="text-center">
+                  <Avatar className="w-24 h-24 mx-auto border-4 border-[#3c4043] shadow-2xl">
+                    <AvatarImage src={avatarUrl} />
+                    <AvatarFallback>{userEmail.substring(0, 2).toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                  <p className="mt-4 text-gray-400 font-medium">{userEmail}</p>
+                </div>
               </div>
-            </LocalUser>
+            ) : (
+              <LocalUser
+                cameraOn={cameraOn}
+                micOn={micOn}
+                videoTrack={localCameraTrack}
+                cover={avatarUrl}
+              />
+            )}
+            <div className="absolute bottom-3 left-3 bg-black/50 px-2 py-1 rounded text-sm font-medium z-10">
+              You
+            </div>
           </div>
         )}
 
@@ -548,12 +569,23 @@ const LiveMeeting = (props: {
 
         {/* Others */}
         {remoteUsers.map((user) => (
-          <div key={user.uid} className={`relative bg-[#3c4043] rounded-xl overflow-hidden aspect-video shadow-lg ${user.hasVideo ? '' : 'flex items-center justify-center'}`}>
-            <RemoteUser cover="https://www.agora.io/en/wp-content/uploads/2022/10/3d-spatial-audio-icon.svg" user={user}>
-              <div className="absolute bottom-3 left-3 bg-black/50 px-2 py-1 rounded text-sm font-medium z-10">
-                Student {user.uid}
+          <div key={user.uid} className="relative bg-[#3c4043] rounded-xl overflow-hidden aspect-video shadow-lg">
+            {!user.hasVideo ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-[#202124]">
+                <div className="text-center">
+                  <Avatar className="w-20 h-20 mx-auto border-4 border-[#3c4043]">
+                    <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${user.uid}`} />
+                    <AvatarFallback>U{user.uid}</AvatarFallback>
+                  </Avatar>
+                  <p className="mt-3 text-sm text-gray-400">Student {user.uid}</p>
+                </div>
               </div>
-            </RemoteUser>
+            ) : (
+              <RemoteUser cover={`https://api.dicebear.com/7.x/initials/svg?seed=${user.uid}`} user={user} />
+            )}
+            <div className="absolute bottom-3 left-3 bg-black/50 px-2 py-1 rounded text-sm font-medium z-10">
+              Student {user.uid}
+            </div>
           </div>
         ))}
 
