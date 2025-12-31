@@ -19,9 +19,11 @@ import AgoraRTC, {
   usePublish,
   useRTCClient,
   useRemoteUsers,
+  useVolumeLevel,
   RemoteUser,
   LocalUser
 } from "agora-rtc-react";
+import { motion, AnimatePresence } from 'framer-motion';
 
 /**
  * CONFIGURATION
@@ -40,6 +42,31 @@ if (typeof window !== 'undefined') {
 }
 
 type ViewState = 'lobby' | 'prejoin' | 'meeting';
+
+const SpeakingAura = ({ volume }: { volume: number }) => {
+  return (
+    <AnimatePresence>
+      {volume > 5 && (
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{
+            scale: [1, 1.2, 1],
+            opacity: [0.3, 0.6, 0.3],
+            borderWidth: [2, 8, 2]
+          }}
+          exit={{ scale: 1.5, opacity: 0 }}
+          transition={{
+            duration: 1.5,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+          className="absolute inset-0 rounded-full border-blue-500/50 bg-blue-500/10 pointer-events-none z-0"
+          style={{ width: '110%', height: '110%', left: '-5%', top: '-5%' }}
+        />
+      )}
+    </AnimatePresence>
+  );
+};
 
 const StudyRooms = () => {
   const [view, setView] = useState<ViewState>('lobby');
@@ -287,8 +314,8 @@ const PreJoinRoom = (props: {
   const userEmail = user?.email || user?.phoneNumber || "Student";
   const avatarUrl = `https://api.dicebear.com/7.x/initials/svg?seed=${userEmail}`;
 
-  // Local Tracks Hook for Preview
-  const { localMicrophoneTrack } = useLocalMicrophoneTrack(props.micOn, { AEC: true, ANS: true, AGC: true });
+  // Local Tracks Hook for Preview - Simplified to avoid browser issues
+  const { localMicrophoneTrack } = useLocalMicrophoneTrack(props.micOn);
   const { localCameraTrack } = useLocalCameraTrack(props.cameraOn);
 
   return (
@@ -466,10 +493,18 @@ const LiveMeeting = (props: {
     joinReady
   );
 
-  const { localMicrophoneTrack } = useLocalMicrophoneTrack(micOn, { AEC: true, ANS: true, AGC: true });
+  const { localMicrophoneTrack } = useLocalMicrophoneTrack(micOn);
   const { localCameraTrack } = useLocalCameraTrack(cameraOn);
   // Screen Share Hook
   const { screenTrack, error: screenError } = useLocalScreenTrack(screenShareOn, {}, "disable");
+
+  const localVolume = useVolumeLevel(localMicrophoneTrack);
+
+  // Enable Volume Indicators
+  const rtcClient = useRTCClient();
+  useEffect(() => {
+    rtcClient.enableAudioVolumeIndicator();
+  }, [rtcClient]);
 
   // Handle Screen Share Stop (via browser UI)
   useEffect(() => {
@@ -529,10 +564,13 @@ const LiveMeeting = (props: {
             {!cameraOn ? (
               <div className="absolute inset-0 flex items-center justify-center bg-[#202124]">
                 <div className="text-center">
-                  <Avatar className="w-24 h-24 mx-auto border-4 border-[#3c4043] shadow-2xl">
-                    <AvatarImage src={avatarUrl} />
-                    <AvatarFallback>{userEmail.substring(0, 2).toUpperCase()}</AvatarFallback>
-                  </Avatar>
+                  <div className="relative">
+                    <Avatar className="w-24 h-24 mx-auto border-4 border-[#3c4043] shadow-2xl relative z-10">
+                      <AvatarImage src={avatarUrl} />
+                      <AvatarFallback>{userEmail.substring(0, 2).toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                    <SpeakingAura volume={localVolume} />
+                  </div>
                   <p className="mt-4 text-gray-400 font-medium">{userEmail}</p>
                 </div>
               </div>
@@ -571,11 +609,14 @@ const LiveMeeting = (props: {
           <div key={user.uid} className="relative bg-[#3c4043] rounded-xl overflow-hidden aspect-video shadow-lg">
             {!user.hasVideo ? (
               <div className="absolute inset-0 flex items-center justify-center bg-[#202124]">
-                <div className="text-center">
-                  <Avatar className="w-20 h-20 mx-auto border-4 border-[#3c4043]">
-                    <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${user.uid}`} />
-                    <AvatarFallback>U{user.uid}</AvatarFallback>
-                  </Avatar>
+                <div className="text-center relative">
+                  <div className="relative">
+                    <Avatar className="w-20 h-20 mx-auto border-4 border-[#3c4043] relative z-10">
+                      <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${user.uid}`} />
+                      <AvatarFallback>U{user.uid}</AvatarFallback>
+                    </Avatar>
+                    <UserVolumeIndicator track={user.audioTrack} />
+                  </div>
                   <p className="mt-3 text-sm text-gray-400">Student {user.uid}</p>
                 </div>
               </div>
@@ -656,6 +697,11 @@ const LiveMeeting = (props: {
       </div>
     </div>
   );
+};
+
+const UserVolumeIndicator = ({ track }: { track: any }) => {
+  const volume = useVolumeLevel(track);
+  return <SpeakingAura volume={volume} />;
 };
 
 export default StudyRooms;
