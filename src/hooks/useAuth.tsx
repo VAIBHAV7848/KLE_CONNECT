@@ -30,6 +30,7 @@ interface AuthContextType {
   setUpRecaptcha: (elementId: string) => RecaptchaVerifier;
   signInWithPhone: (phoneNumber: string, appVerifier: RecaptchaVerifier) => Promise<{ confirmationResult: ConfirmationResult | null, error: Error | null }>;
   signOut: () => Promise<void>;
+  isAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -129,7 +130,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       signInAnonymously,
       setUpRecaptcha,
       signInWithPhone,
-      signOut
+      signOut,
+      isAdmin: user?.email === 'jayashriinagle720@gmail.com'
     }}>
       {children}
     </AuthContext.Provider>

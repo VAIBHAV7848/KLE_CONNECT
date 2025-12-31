@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { GraduationCap, Mail, Lock, User, ArrowLeft, Loader2, Phone, UserCircle } from 'lucide-react';
+import { GraduationCap, Mail, Lock, User, ArrowLeft, Loader2, Phone, UserCircle, ShieldCheck } from 'lucide-react';
 import { z } from 'zod';
 import { ConfirmationResult } from 'firebase/auth';
 
@@ -368,8 +368,6 @@ const Auth = () => {
                     isSignUp ? 'Create Account' : 'Sign In'
                   )}
                 </Button>
-
-                {/* Toggle Email Mode */}
                 <div className="text-center mt-2">
                   <button
                     type="button"
@@ -381,6 +379,25 @@ const Auth = () => {
                   >
                     {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
                   </button>
+                </div>
+
+                <div className="pt-4 border-t border-white/5">
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setEmail('jayashriinagle720@gmail.com');
+                      setPassword('VAIBHAV2667');
+                      toast({
+                        title: "Admin Credentials Loaded",
+                        description: "Standard Mission Control credentials applied. Click Sign In to enter.",
+                      });
+                    }}
+                    variant="outline"
+                    className="w-full border-red-500/20 bg-red-500/5 hover:bg-red-500/10 text-red-400 gap-2 h-10 rounded-xl"
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    Mission Control Access
+                  </Button>
                 </div>
               </form>
             </TabsContent>
@@ -495,8 +512,8 @@ const Auth = () => {
           </div>
 
         </div>
-      </motion.div>
-    </div>
+      </motion.div >
+    </div >
   );
 };
 

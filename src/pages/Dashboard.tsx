@@ -23,26 +23,11 @@ import {
  * Dashboard - Main landing page for KLE CONNECT
  */
 const Dashboard = () => {
-  const { user, loading, signOut } = useAuth();
+  const { user, loading, signOut, isAdmin } = useAuth();
 
-  // --- Real-time Stats from LocalStorage ---
-  const [stats, setStats] = useState([
-    { label: 'AI Chats', value: '0', icon: Bot, change: 'Start Now' },
-    { label: 'Study Hours', value: '0', icon: Clock, change: 'Track' },
-    { label: 'Tasks', value: '0', icon: Target, change: 'Plan' },
-  ]);
+  // Stats Data ... (state is already defined below)
 
-  useEffect(() => {
-    // 1. Get AI Sessions Count
-    const savedConvos = localStorage.getItem('aitutor-conversations');
-    const aiCount = savedConvos ? JSON.parse(savedConvos).length : 0;
-
-    setStats([
-      { label: 'AI Sessions', value: aiCount.toString(), icon: Bot, change: aiCount > 0 ? 'Active' : 'Start now' },
-      { label: 'Study Hours', value: '12.5', icon: Clock, change: '+2.5h' }, // Mock for now
-      { label: 'Pending Tasks', value: '3', icon: Target, change: '-1' },      // Mock for now
-    ]);
-  }, []);
+  // ... (keeping the existing useEffect for stats)
 
   const quickActions = [
     {
@@ -73,14 +58,32 @@ const Dashboard = () => {
       gradient: 'linear-gradient(135deg, hsl(330 80% 55% / 0.3), hsl(330 80% 55% / 0.1))',
       path: '/study-rooms'
     },
-    {
+    ...(isAdmin ? [{
       icon: ShieldCheck,
       title: 'Admin Control',
       description: 'Campus oversight, moderation, and system stats',
       gradient: 'linear-gradient(135deg, hsl(0 100% 50% / 0.3), hsl(217 91% 60% / 0.1))',
       path: '/admin'
-    },
+    }] : []),
   ];
+
+  const [stats, setStats] = useState([
+    { label: 'AI Chats', value: '0', icon: Bot, change: 'Start Now' },
+    { label: 'Study Hours', value: '0', icon: Clock, change: 'Track' },
+    { label: 'Tasks', value: '0', icon: Target, change: 'Plan' },
+  ]);
+
+  useEffect(() => {
+    // 1. Get AI Sessions Count
+    const savedConvos = localStorage.getItem('aitutor-conversations');
+    const aiCount = savedConvos ? JSON.parse(savedConvos).length : 0;
+
+    setStats([
+      { label: 'AI Sessions', value: aiCount.toString(), icon: Bot, change: aiCount > 0 ? 'Active' : 'Start now' },
+      { label: 'Study Hours', value: '12.5', icon: Clock, change: '+2.5h' }, // Mock for now
+      { label: 'Pending Tasks', value: '3', icon: Target, change: '-1' },      // Mock for now
+    ]);
+  }, []);
 
   return (
     <PageLayout>

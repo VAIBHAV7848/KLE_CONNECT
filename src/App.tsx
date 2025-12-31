@@ -29,6 +29,7 @@ import Support from "./pages/Support";
 import NotFound from "./pages/NotFound";
 import ErrorBoundary from "./components/ErrorBoundary";
 import ProtectedRoute from "./components/ProtectedRoute";
+import AdminProtectedRoute from "./components/AdminProtectedRoute";
 
 const router = createHashRouter([
   {
@@ -46,9 +47,9 @@ const router = createHashRouter([
   {
     path: "/admin",
     element: (
-      <ProtectedRoute>
+      <AdminProtectedRoute>
         <Admin />
-      </ProtectedRoute>
+      </AdminProtectedRoute>
     ),
   },
   {

@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { useDockAnimation } from '@/hooks/useDockAnimation';
+import { useAuth } from '@/hooks/useAuth';
 import DockItem from './DockItem';
 import {
   LayoutDashboard,
@@ -112,7 +113,15 @@ const navigationItems = [
  * Main Dock component - macOS-style animated navigation
  */
 const Dock = () => {
-  const { dockRef, setItemRef } = useDockAnimation(navigationItems.length, {
+  const { isAdmin } = useAuth();
+
+  // Filter out admin item if current user is not an admin
+  const filteredItems = navigationItems.filter(item => {
+    if (item.to === '/admin') return isAdmin;
+    return true;
+  });
+
+  const { dockRef, setItemRef } = useDockAnimation(filteredItems.length, {
     baseSize: 48,
     maxScale: 1.6,
     maxDistance: 100
@@ -129,7 +138,7 @@ const Dock = () => {
         ref={dockRef}
         className="glass-dock rounded-2xl px-3 py-2.5 flex items-end gap-1"
       >
-        {navigationItems.map((item, index) => (
+        {filteredItems.map((item, index) => (
           <DockItem
             key={item.to}
             icon={item.icon}
