@@ -43,10 +43,25 @@ if (typeof window !== 'undefined') {
 
 type ViewState = 'lobby' | 'prejoin' | 'meeting';
 
-const SpeakingAura = ({ volume }: { volume: number }) => {
+const SpeakingAura = ({ track, isActive }: { track: any, isActive: boolean }) => {
+  const [volume, setVolume] = useState(0);
+
+  useEffect(() => {
+    if (!isActive || !track) {
+      setVolume(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      setVolume(track.getVolumeLevel() * 100);
+    }, 100);
+    return () => clearInterval(interval);
+  }, [track, isActive]);
+
+  const isSpeaking = volume > 2;
+
   return (
     <AnimatePresence>
-      {volume > 5 && (
+      {isSpeaking && (
         <>
           <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
@@ -77,17 +92,34 @@ const SpeakingAura = ({ volume }: { volume: number }) => {
   );
 };
 
-const VolumeBar = ({ volume, isActive }: { volume: number, isActive: boolean }) => {
+const VolumeBar = ({ track, isActive }: { track: any, isActive: boolean }) => {
+  const [level, setLevel] = useState(0);
+
+  useEffect(() => {
+    if (!isActive || !track) {
+      setLevel(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      // Direct hardware-level polling is more reliable than async events
+      setLevel(track.getVolumeLevel() * 100);
+    }, 100);
+    return () => clearInterval(interval);
+  }, [track, isActive]);
+
   if (!isActive) return <MicOff className="w-3 h-3 text-red-500" />;
+
+  const normalizedVol = Math.min(100, level * 4);
 
   return (
     <div className="flex gap-0.5 items-end h-3 w-4">
-      {[1, 2, 3].map((i) => (
+      {[0.6, 1, 0.8].map((factor, i) => (
         <motion.div
           key={i}
           animate={{
-            height: volume > (i * 10) ? `${Math.min(100, (volume / (i * 0.5)))}%` : '20%'
+            height: `${Math.max(20, normalizedVol * factor)}%`
           }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
           className="w-1 bg-green-500 rounded-full"
         />
       ))}
@@ -520,20 +552,26 @@ const LiveMeeting = (props: {
     joinReady
   );
 
-  // Professional Audio Constraints: Hardened for Echo and Noise
-  const { localMicrophoneTrack } = useLocalMicrophoneTrack(micOn, {
-    encoderConfig: "high_quality_stereo",
-    AEC: true,
-    ANS: true,
-    AGC: true
-  });
+  const { localMicrophoneTrack, error: micError } = useLocalMicrophoneTrack(micOn);
   const { localCameraTrack } = useLocalCameraTrack(cameraOn);
+
+  // Handle Mic Errors
+  useEffect(() => {
+    if (micError) {
+      console.error("🎤 Mic Fail:", micError);
+      toast({
+        title: "Microphone Issue",
+        description: "Please check if your browser has permission or if another app is using the mic.",
+        variant: "destructive"
+      });
+    }
+  }, [micError]);
   // Screen Share Hook
   const { screenTrack, error: screenError } = useLocalScreenTrack(screenShareOn, {}, "disable");
 
   const localVolume = useVolumeLevel(localMicrophoneTrack);
 
-  // Enable Volume Indicators
+  // Enable Volume Indicators with high polling rate
   const rtcClient = useRTCClient();
   useEffect(() => {
     rtcClient.enableAudioVolumeIndicator();
@@ -602,7 +640,7 @@ const LiveMeeting = (props: {
                       <AvatarImage src={avatarUrl} />
                       <AvatarFallback>{userEmail.substring(0, 2).toUpperCase()}</AvatarFallback>
                     </Avatar>
-                    <SpeakingAura volume={localVolume} />
+                    <SpeakingAura track={localMicrophoneTrack} isActive={micOn} />
                   </div>
                   <p className="mt-4 text-gray-400 font-medium">{userEmail}</p>
                 </div>
@@ -616,7 +654,7 @@ const LiveMeeting = (props: {
               />
             )}
             <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-lg text-sm font-medium z-10 flex items-center gap-2 border border-white/10">
-              <VolumeBar volume={localVolume} isActive={micOn} />
+              <VolumeBar track={localMicrophoneTrack} isActive={micOn} />
               <span>You</span>
             </div>
           </div>
@@ -735,11 +773,10 @@ const LiveMeeting = (props: {
 };
 
 const UserVolumeIndicator = ({ track, micOn }: { track: any, micOn: boolean }) => {
-  const volume = useVolumeLevel(track);
   return (
     <>
-      <VolumeBar volume={volume} isActive={micOn} />
-      <SpeakingAura volume={volume} />
+      <VolumeBar track={track} isActive={micOn} />
+      <SpeakingAura track={track} isActive={micOn} />
     </>
   );
 };
