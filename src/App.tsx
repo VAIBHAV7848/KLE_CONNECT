@@ -8,6 +8,7 @@ import {
 } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import { AuthProvider } from "@/hooks/useAuth";
+import { ThemeProvider } from "@/hooks/useTheme";
 import { Analytics } from "@vercel/analytics/react";
 
 // Pages
@@ -170,16 +171,19 @@ const router = createHashRouter([
   },
 });
 
+
 const App = () => (
   <ErrorBoundary>
-    <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <RouterProvider router={router} future={{ v7_startTransition: true }} />
-        <Analytics />
-      </TooltipProvider>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <RouterProvider router={router} future={{ v7_startTransition: true }} />
+          <Analytics />
+        </TooltipProvider>
+      </AuthProvider>
+    </ThemeProvider>
   </ErrorBoundary>
 );
 
