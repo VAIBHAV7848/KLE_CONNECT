@@ -26,8 +26,18 @@ import AgoraRTC, {
 /**
  * CONFIGURATION
  */
-const APP_ID = import.meta.env.VITE_AGORA_APP_ID || "";
-const TOKEN_SERVER_URL = import.meta.env.VITE_TOKEN_SERVER_URL || "";
+const APP_ID = (import.meta.env.VITE_AGORA_APP_ID || "").trim();
+const TOKEN_SERVER_URL = (import.meta.env.VITE_TOKEN_SERVER_URL || "").trim();
+
+// Diagnostic Log for Developer Console
+if (typeof window !== 'undefined') {
+  console.log("🛠️ Agora Config Check:", {
+    hasAppId: !!APP_ID,
+    appIdLength: APP_ID.length,
+    hasTokenServer: !!TOKEN_SERVER_URL,
+    tokenServerLength: TOKEN_SERVER_URL.length
+  });
+}
 
 type ViewState = 'lobby' | 'prejoin' | 'meeting';
 
