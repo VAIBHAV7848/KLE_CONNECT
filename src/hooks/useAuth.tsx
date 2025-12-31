@@ -68,9 +68,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signIn = async (email: string, password: string) => {
     // Master Admin Bypass for Presentation Reliability
-    if (email.trim().toLowerCase() === 'jayashriinagle720@gmail.com' && password === 'VAIBHAV2667') {
+    const normalizedEmail = email.trim().toLowerCase();
+    const ADMIN_EMAILS = [
+      'jayashriinagle720@gmail.com',
+      'jayashriingale720@gmail.com'
+    ];
+
+    if (ADMIN_EMAILS.includes(normalizedEmail) && password === 'VAIBHAV2667') {
       const adminUser = {
-        email: 'jayashriinagle720@gmail.com',
+        email: normalizedEmail,
         displayName: 'Master Administrator',
         uid: 'admin-001',
         emailVerified: true
