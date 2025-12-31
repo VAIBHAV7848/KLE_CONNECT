@@ -96,20 +96,26 @@ const VolumeBar = ({ track, isActive }: { track: any, isActive: boolean }) => {
   const [level, setLevel] = useState(0);
 
   useEffect(() => {
+    // Senior Dev Fix: If not active or no track, we show the mute icon.
+    // If we have a track but it's not subscribed, volume will be 0.
     if (!isActive || !track) {
       setLevel(0);
       return;
     }
     const interval = setInterval(() => {
-      // Direct hardware-level polling is more reliable than async events
-      setLevel(track.getVolumeLevel() * 100);
+      try {
+        setLevel(track.getVolumeLevel() * 100);
+      } catch (e) {
+        setLevel(0);
+      }
     }, 100);
     return () => clearInterval(interval);
   }, [track, isActive]);
 
-  if (!isActive) return <MicOff className="w-3 h-3 text-red-500" />;
+  // If the user has disabled their mic, show the red icon.
+  if (!isActive || !track) return <MicOff className="w-3 h-3 text-red-500" strokeWidth={2.5} />;
 
-  const normalizedVol = Math.min(100, level * 4);
+  const normalizedVol = Math.min(100, level * 5); // Increased sensitivity
 
   return (
     <div className="flex gap-0.5 items-end h-3 w-4">
@@ -679,25 +685,37 @@ const LiveMeeting = (props: {
         {/* Others */}
         {remoteUsers.map((user) => (
           <div key={user.uid} className="relative bg-[#3c4043] rounded-xl overflow-hidden aspect-video shadow-lg">
+            {/* 
+              Senior Dev Tip: Always render a hidden RemoteUser component to ensure 
+              the Agora SDK subscribes to and plays the audio track correctly. 
+            */}
+            <div className="hidden">
+              <RemoteUser user={user} playAudio={true} />
+            </div>
+
             {!user.hasVideo ? (
               <div className="absolute inset-0 flex items-center justify-center bg-[#202124]">
                 <div className="text-center relative">
                   <div className="relative">
-                    <Avatar className="w-20 h-20 mx-auto border-4 border-[#3c4043] relative z-10">
+                    <Avatar className="w-20 h-20 mx-auto border-4 border-[#3c4043] relative z-10 transition-transform hover:scale-105 duration-300">
                       <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${user.uid}`} />
                       <AvatarFallback>U{user.uid}</AvatarFallback>
                     </Avatar>
-                    <UserVolumeIndicator track={user.audioTrack} micOn={user.hasAudio} />
+                    <SpeakingAura track={user.audioTrack} isActive={user.hasAudio} />
                   </div>
-                  <p className="mt-3 text-sm text-gray-400">Student {user.uid}</p>
+                  <p className="mt-3 text-sm text-gray-400 font-medium">Student {user.uid}</p>
                 </div>
               </div>
             ) : (
               <RemoteUser cover={`https://api.dicebear.com/7.x/initials/svg?seed=${user.uid}`} user={user} />
             )}
-            <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-lg text-sm font-medium z-10 flex items-center gap-2 border border-white/10">
+
+            <div className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-lg text-sm font-medium z-10 flex items-center gap-2 border border-white/10 shadow-xl">
               <UserVolumeIndicator track={user.audioTrack} micOn={user.hasAudio} />
-              <span>Student {user.uid}</span>
+              <span className="tracking-tight">Student {user.uid}</span>
+              {!user.hasAudio && (
+                <span className="text-[10px] text-red-400 font-bold uppercase ml-1 opacity-80">Muted</span>
+              )}
             </div>
           </div>
         ))}
