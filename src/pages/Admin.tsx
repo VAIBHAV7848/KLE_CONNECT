@@ -368,10 +368,10 @@ const Admin = () => {
                                     ) : (
                                         rooms.map(room => (
                                             <div key={room.id} className="glass rounded-3xl p-6 border border-white/5 overflow-hidden relative group">
-                                                <div className="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:opacity-[0.07] transition-all">
+                                                <div className="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:opacity-[0.07] transition-all pointer-events-none">
                                                     <Video className="w-32 h-32" />
                                                 </div>
-                                                <div className="flex justify-between items-start mb-6">
+                                                <div className="flex justify-between items-start mb-6 relative z-10">
                                                     <div className="flex items-center gap-3">
                                                         <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
                                                             <Video className="w-6 h-6 text-blue-400" />
@@ -381,11 +381,19 @@ const Admin = () => {
                                                             <p className="text-[10px] text-gray-500 font-mono">CHANNEL_ID: {room.id}</p>
                                                         </div>
                                                     </div>
-                                                    <Button onClick={() => terminateRoom(room.id)} variant="ghost" size="sm" className="text-red-400 hover:bg-red-500/10 rounded-xl h-8 text-[10px] font-black uppercase">
+                                                    <Button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            terminateRoom(room.id);
+                                                        }}
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="text-red-400 hover:bg-red-500/10 rounded-xl h-8 text-[10px] font-black uppercase z-20 relative"
+                                                    >
                                                         Kill Session
                                                     </Button>
                                                 </div>
-                                                <div className="grid grid-cols-3 gap-2 border-t border-white/5 pt-6">
+                                                <div className="grid grid-cols-3 gap-2 border-t border-white/5 pt-6 relative z-10">
                                                     <div>
                                                         <p className="text-[9px] text-gray-600 uppercase font-black tracking-tighter">Load</p>
                                                         <p className="text-xs font-bold mt-1 text-green-400">{room.participants} Users</p>
@@ -402,6 +410,137 @@ const Admin = () => {
                                             </div>
                                         ))
                                     )}
+                                </div>
+                            </motion.div>
+                        )}
+
+                        {activeTab === 'moderation' && (
+                            <motion.div
+                                key="moderation"
+                                initial={{ opacity: 0, scale: 0.98 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                className="space-y-6"
+                            >
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    {/* Session Activity Monitor */}
+                                    <div className="glass rounded-[32px] p-6 border border-white/5">
+                                        <div className="flex items-center gap-3 mb-6">
+                                            <div className="p-2 rounded-xl bg-blue-500/10">
+                                                <Activity className="w-5 h-5 text-blue-400" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-bold">Session Activity</h3>
+                                                <p className="text-[10px] text-gray-500 uppercase tracking-wider">Real-time admin actions</p>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar">
+                                            {[
+                                                { action: 'User suspended', target: 'demo@kle.edu', time: '2m ago', severity: 'high' },
+                                                { action: 'Broadcast pushed', target: 'All students', time: '15m ago', severity: 'medium' },
+                                                { action: 'Room terminated', target: 'RM-502', time: '1h ago', severity: 'high' },
+                                                { action: 'Login attempt', target: 'Admin panel', time: '2h ago', severity: 'low' },
+                                            ].map((log, i) => (
+                                                <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/5 hover:border-white/10 transition-all">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={cn("w-2 h-2 rounded-full",
+                                                            log.severity === 'high' ? 'bg-red-500' :
+                                                                log.severity === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
+                                                        )} />
+                                                        <div>
+                                                            <p className="text-xs font-bold">{log.action}</p>
+                                                            <p className="text-[10px] text-gray-500">{log.target}</p>
+                                                        </div>
+                                                    </div>
+                                                    <span className="text-[9px] text-gray-600 font-mono">{log.time}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* IP Whitelist */}
+                                    <div className="glass rounded-[32px] p-6 border border-white/5">
+                                        <div className="flex items-center gap-3 mb-6">
+                                            <div className="p-2 rounded-xl bg-green-500/10">
+                                                <Lock className="w-5 h-5 text-green-400" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-bold">IP Whitelist</h3>
+                                                <p className="text-[10px] text-gray-500 uppercase tracking-wider">Authorized access points</p>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            {['192.168.1.100', '10.0.0.50', '172.16.0.25'].map((ip, i) => (
+                                                <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-green-500/5 border border-green-500/20">
+                                                    <span className="text-xs font-mono text-green-400">{ip}</span>
+                                                    <Button variant="ghost" size="sm" className="h-6 text-[9px] text-red-400 hover:bg-red-500/10">
+                                                        Revoke
+                                                    </Button>
+                                                </div>
+                                            ))}
+                                            <Button variant="outline" size="sm" className="w-full mt-4 rounded-xl">
+                                                + Add IP Address
+                                            </Button>
+                                        </div>
+                                    </div>
+
+                                    {/* Two-Factor Authentication */}
+                                    <div className="glass rounded-[32px] p-6 border border-white/5">
+                                        <div className="flex items-center justify-between mb-6">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 rounded-xl bg-purple-500/10">
+                                                    <ShieldAlert className="w-5 h-5 text-purple-400" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-lg font-bold">Two-Factor Auth</h3>
+                                                    <p className="text-[10px] text-gray-500 uppercase tracking-wider">Enhanced login security</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                                                <span className="text-[10px] font-bold text-green-400">ENABLED</span>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-4">
+                                            <div className="p-4 rounded-xl bg-purple-500/5 border border-purple-500/20">
+                                                <p className="text-xs text-gray-400 mb-2">Authenticator App</p>
+                                                <p className="text-sm font-bold text-purple-400">Google Authenticator</p>
+                                            </div>
+                                            <div className="p-4 rounded-xl bg-purple-500/5 border border-purple-500/20">
+                                                <p className="text-xs text-gray-400 mb-2">Backup Codes</p>
+                                                <p className="text-sm font-bold">8 remaining</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Emergency Controls */}
+                                    <div className="glass rounded-[32px] p-6 border border-red-500/20 bg-gradient-to-br from-red-600/5 to-transparent">
+                                        <div className="flex items-center gap-3 mb-6">
+                                            <div className="p-2 rounded-xl bg-red-500/10">
+                                                <AlertCircle className="w-5 h-5 text-red-400" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-bold text-red-400">Emergency Lockdown</h3>
+                                                <p className="text-[10px] text-gray-500 uppercase tracking-wider">Critical security response</p>
+                                            </div>
+                                        </div>
+                                        <p className="text-xs text-gray-400 mb-6">
+                                            Instantly suspend all non-admin accounts and terminate active sessions. Use only in case of security breach.
+                                        </p>
+                                        <Button
+                                            variant="destructive"
+                                            className="w-full h-12 rounded-xl font-black uppercase tracking-widest text-xs"
+                                            onClick={() => {
+                                                toast({
+                                                    title: "🚨 LOCKDOWN INITIATED",
+                                                    description: "All student accounts suspended. Sessions terminated.",
+                                                    variant: "destructive"
+                                                });
+                                            }}
+                                        >
+                                            <ShieldAlert className="w-4 h-4 mr-2" />
+                                            Activate Lockdown
+                                        </Button>
+                                    </div>
                                 </div>
                             </motion.div>
                         )}
