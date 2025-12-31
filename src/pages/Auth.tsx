@@ -23,7 +23,6 @@ const signInSchema = z.object({
 
 const Auth = () => {
   const [isSignUp, setIsSignUp] = useState(false);
-  const [isLockdownActive, setIsLockdownActive] = useState(false);
 
   // Email Auth State
   const [email, setEmail] = useState('');
@@ -49,19 +48,6 @@ const Auth = () => {
       navigate('/');
     }
   }, [user, authLoading, navigate]);
-
-  // Check lockdown status
-  useEffect(() => {
-    const checkLockdown = () => {
-      const lockdownStatus = localStorage.getItem('emergency_lockdown');
-      setIsLockdownActive(lockdownStatus === 'true');
-    };
-
-    checkLockdown();
-    const interval = setInterval(checkLockdown, 2000);
-
-    return () => clearInterval(interval);
-  }, []);
 
   const validateEmailForm = () => {
     try {
@@ -283,27 +269,6 @@ const Auth = () => {
         <ArrowLeft className="w-4 h-4" />
         <span className="text-sm">Back to home</span>
       </Link>
-
-      {/* Lockdown Alert Banner */}
-      {isLockdownActive && (
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="absolute top-6 left-1/2 -translate-x-1/2 max-w-md w-full mx-4"
-        >
-          <div className="glass rounded-2xl p-4 border border-red-500/30 bg-gradient-to-br from-red-600/10 to-transparent">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center flex-shrink-0">
-                <ShieldCheck className="w-5 h-5 text-red-400 animate-pulse" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-bold text-red-400">Emergency Lockdown Active</p>
-                <p className="text-xs text-gray-400">Student logins disabled. Admin access available.</p>
-              </div>
-            </div>
-          </div>
-        </motion.div>
-      )}
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
