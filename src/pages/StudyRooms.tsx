@@ -563,8 +563,8 @@ const LiveMeeting = (props: {
     joinReady
   );
 
-  const { localMicrophoneTrack, error: micError } = useLocalMicrophoneTrack(micOn);
-  const { localCameraTrack } = useLocalCameraTrack(cameraOn);
+  const { localMicrophoneTrack, error: micError } = useLocalMicrophoneTrack(joinReady);
+  const { localCameraTrack } = useLocalCameraTrack(joinReady);
 
   // Handle Mic Errors
   useEffect(() => {
@@ -597,22 +597,31 @@ const LiveMeeting = (props: {
     }
   }, [screenShareOn, screenTrack]);
 
-  // Professional Audio Sync: Ensure unmublished state is broadcasted
-  // Passing null to usePublish effectively unpublishes the track immediately
-  const tracksToPublish = [
-    micOn ? localMicrophoneTrack : null,
-    screenShareOn ? screenTrack : (cameraOn ? localCameraTrack : null)
-  ].filter(Boolean);
+  // Hardened Hardware Controls: use setEnabled for REAL syncing
+  useEffect(() => {
+    if (localMicrophoneTrack) {
+      localMicrophoneTrack.setEnabled(micOn).catch(console.error);
+    }
+  }, [micOn, localMicrophoneTrack]);
 
+  useEffect(() => {
+    if (localCameraTrack) {
+      localCameraTrack.setEnabled(cameraOn).catch(console.error);
+    }
+  }, [cameraOn, localCameraTrack]);
+
+  // Always publish the tracks once ready, let setEnabled handle the muting
+  // This is the Senior Dev way to ensure status syncing is instantaneous
+  const tracksToPublish = [localMicrophoneTrack, screenShareOn ? screenTrack : localCameraTrack].filter(Boolean);
   usePublish(tracksToPublish);
 
   const remoteUsers = useRemoteUsers();
 
-  // Auto-Spotlight Screen Shares
+  // Clean Theatre Logic: Auto-Spotlight Screen Shares
   useEffect(() => {
-    const remoteScreenShare = remoteUsers.find(u => u.hasVideo);
-    if (remoteScreenShare) {
-      setStageUid(remoteScreenShare.uid);
+    const remoteScreenPresenting = remoteUsers.find(u => u.hasVideo);
+    if (remoteScreenPresenting) {
+      setStageUid(remoteScreenPresenting.uid);
     } else if (screenShareOn) {
       setStageUid('local_screen');
     }
@@ -692,20 +701,20 @@ const LiveMeeting = (props: {
                   )
                 )}
 
-                {/* Stage Controls Overlay */}
-                <div className="absolute top-6 left-6 flex gap-3">
-                  <div className="bg-blue-600 px-4 py-2 rounded-2xl shadow-2xl border border-blue-400/50 flex items-center gap-2">
-                    <MonitorUp className="w-4 h-4" />
-                    <span className="text-[10px] font-black uppercase tracking-widest">
-                      {stageUid === 'local_screen' ? 'Your Presentation' : 'Spotlight View'}
-                    </span>
+                {/* Subtle Overlay Controls */}
+                <div className="absolute top-4 left-4 flex gap-2">
+                  <div className="bg-blue-600/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-blue-400/50 flex items-center gap-2">
+                    <MonitorUp className="w-3.5 h-3.5" />
+                    <span className="text-[9px] font-black uppercase tracking-widest text-white">Focus Mode</span>
                   </div>
-                  <button
-                    onClick={() => setStageUid(null)}
-                    className="bg-black/60 hover:bg-black/80 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/10 text-[10px] font-black uppercase tracking-widest transition-all"
-                  >
-                    Close Stage
-                  </button>
+                  {stageUid && (
+                    <button
+                      onClick={() => setStageUid(null)}
+                      className="bg-black/40 hover:bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 text-[9px] font-black uppercase tracking-widest text-white/80 transition-all"
+                    >
+                      Reset Grid
+                    </button>
+                  )}
                 </div>
               </motion.div>
             </AnimatePresence>
