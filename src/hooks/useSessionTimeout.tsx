@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useAuth } from './useAuth';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -11,19 +11,21 @@ export const useSessionTimeout = () => {
     const timeoutRef = useRef<NodeJS.Timeout>();
     const lastActivityRef = useRef(Date.now());
 
-    const resetTimeout = () => {
+    const handleTimeout = useCallback(() => {
+        toast.error('Session expired due to inactivity');
+        signOut();
+        navigate('/auth');
+    }, [signOut, navigate]);
+
+    const resetTimeout = useCallback(() => {
         lastActivityRef.current = Date.now();
 
         if (timeoutRef.current) {
             clearTimeout(timeoutRef.current);
         }
 
-        timeoutRef.current = setTimeout(() => {
-            toast.error('Session expired due to inactivity');
-            signOut();
-            navigate('/auth');
-        }, TIMEOUT_DURATION);
-    };
+        timeoutRef.current = setTimeout(handleTimeout, TIMEOUT_DURATION);
+    }, [handleTimeout]);
 
     useEffect(() => {
         if (!user) return;
@@ -44,5 +46,5 @@ export const useSessionTimeout = () => {
                 clearTimeout(timeoutRef.current);
             }
         };
-    }, [user]);
+    }, [user, resetTimeout]);
 };
