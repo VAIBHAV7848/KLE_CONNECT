@@ -443,7 +443,7 @@ const LiveMeeting = (props: {
   );
 
   const { isConnected } = useJoin(
-    { appid: APP_ID, channel: props.roomCode, token: token || undefined, uid: uid },
+    { appid: APP_ID, channel: props.roomCode, token: token || null, uid: uid },
     joinReady
   );
 
