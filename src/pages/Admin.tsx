@@ -32,6 +32,7 @@ const Admin = () => {
     const { toast } = useToast();
     const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'rooms' | 'moderation'>('overview');
     const [isLive, setIsLive] = useState(true);
+    const [isLockdownActive, setIsLockdownActive] = useState(false);
 
     // Real functional logic states
     const [broadcast, setBroadcast] = useState('');
@@ -65,6 +66,12 @@ const Admin = () => {
             { id: 'RM-201', name: 'Thermodynamics Exam', host: 'Rahul', participants: 4, uptime: '12m' },
         ];
         setRooms(mockRooms);
+
+        // Load Lockdown State
+        const savedLockdown = localStorage.getItem('emergency_lockdown');
+        if (savedLockdown === 'true') {
+            setIsLockdownActive(true);
+        }
 
         // Update Stats
         setStats([
@@ -130,6 +137,27 @@ const Admin = () => {
             description: nextState ? "All normal services restored." : "Access restricted for global maintenance.",
             variant: nextState ? "default" : "destructive"
         });
+    };
+
+    const toggleLockdown = () => {
+        const nextState = !isLockdownActive;
+        setIsLockdownActive(nextState);
+        localStorage.setItem('emergency_lockdown', String(nextState));
+
+        if (nextState) {
+            // Activate Lockdown
+            toast({
+                title: "🚨 EMERGENCY LOCKDOWN ACTIVATED",
+                description: "All student accounts suspended. Sessions terminated. Only admins can access the platform.",
+                variant: "destructive"
+            });
+        } else {
+            // Deactivate Lockdown
+            toast({
+                title: "✅ LOCKDOWN DEACTIVATED",
+                description: "Normal operations restored. All student accounts reactivated.",
+            });
+        }
     };
 
     return (
@@ -513,32 +541,66 @@ const Admin = () => {
                                     </div>
 
                                     {/* Emergency Controls */}
-                                    <div className="glass rounded-[32px] p-6 border border-red-500/20 bg-gradient-to-br from-red-600/5 to-transparent">
-                                        <div className="flex items-center gap-3 mb-6">
-                                            <div className="p-2 rounded-xl bg-red-500/10">
-                                                <AlertCircle className="w-5 h-5 text-red-400" />
+                                    <div className={cn(
+                                        "glass rounded-[32px] p-6 border transition-all",
+                                        isLockdownActive
+                                            ? "border-red-500/40 bg-gradient-to-br from-red-600/10 to-transparent"
+                                            : "border-red-500/20 bg-gradient-to-br from-red-600/5 to-transparent"
+                                    )}>
+                                        <div className="flex items-center justify-between mb-6">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 rounded-xl bg-red-500/10">
+                                                    <AlertCircle className="w-5 h-5 text-red-400" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-lg font-bold text-red-400">Emergency Lockdown</h3>
+                                                    <p className="text-[10px] text-gray-500 uppercase tracking-wider">Critical security response</p>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <h3 className="text-lg font-bold text-red-400">Emergency Lockdown</h3>
-                                                <p className="text-[10px] text-gray-500 uppercase tracking-wider">Critical security response</p>
+                                            <div className="flex items-center gap-2">
+                                                <div className={cn(
+                                                    "w-2 h-2 rounded-full",
+                                                    isLockdownActive ? "bg-red-500 animate-pulse" : "bg-gray-500"
+                                                )} />
+                                                <span className={cn(
+                                                    "text-[10px] font-bold uppercase",
+                                                    isLockdownActive ? "text-red-400" : "text-gray-500"
+                                                )}>
+                                                    {isLockdownActive ? "ACTIVE" : "INACTIVE"}
+                                                </span>
                                             </div>
                                         </div>
+
+                                        {isLockdownActive && (
+                                            <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/30 animate-in fade-in">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <ShieldAlert className="w-4 h-4 text-red-400" />
+                                                    <p className="text-xs font-bold text-red-400">LOCKDOWN IN EFFECT</p>
+                                                </div>
+                                                <p className="text-[10px] text-gray-400">
+                                                    All student accounts are currently suspended. Click below to restore normal operations.
+                                                </p>
+                                            </div>
+                                        )}
+
                                         <p className="text-xs text-gray-400 mb-6">
-                                            Instantly suspend all non-admin accounts and terminate active sessions. Use only in case of security breach.
+                                            {isLockdownActive
+                                                ? "Click to restore normal operations and reactivate all student accounts."
+                                                : "Instantly suspend all non-admin accounts and terminate active sessions. Use only in case of security breach."
+                                            }
                                         </p>
                                         <Button
-                                            variant="destructive"
-                                            className="w-full h-12 rounded-xl font-black uppercase tracking-widest text-xs"
-                                            onClick={() => {
-                                                toast({
-                                                    title: "🚨 LOCKDOWN INITIATED",
-                                                    description: "All student accounts suspended. Sessions terminated.",
-                                                    variant: "destructive"
-                                                });
-                                            }}
+                                            variant={isLockdownActive ? "default" : "destructive"}
+                                            className={cn(
+                                                "w-full h-12 rounded-xl font-black uppercase tracking-widest text-xs",
+                                                isLockdownActive
+                                                    ? "bg-green-600 hover:bg-green-700"
+                                                    : ""
+                                            )}
+                                            onClick={toggleLockdown}
                                         >
                                             <ShieldAlert className="w-4 h-4 mr-2" />
-                                            Activate Lockdown
+                                            {isLockdownActive ? "DEACTIVATE LOCKDOWN" : "ACTIVATE LOCKDOWN"}
                                         </Button>
                                     </div>
                                 </div>
