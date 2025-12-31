@@ -380,25 +380,6 @@ const Auth = () => {
                     {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
                   </button>
                 </div>
-
-                <div className="pt-4 border-t border-white/5">
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      setEmail('jayashriinagle720@gmail.com');
-                      setPassword('VAIBHAV2667');
-                      toast({
-                        title: "Admin Credentials Loaded",
-                        description: "Standard Mission Control credentials applied. Click Sign In to enter.",
-                      });
-                    }}
-                    variant="outline"
-                    className="w-full border-red-500/20 bg-red-500/5 hover:bg-red-500/10 text-red-400 gap-2 h-10 rounded-xl"
-                  >
-                    <ShieldCheck className="w-4 h-4" />
-                    Mission Control Access
-                  </Button>
-                </div>
               </form>
             </TabsContent>
 
