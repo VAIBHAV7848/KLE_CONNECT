@@ -67,10 +67,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signIn = async (email: string, password: string) => {
-    // Master Admin Bypass for Hackathon Sustainability
+    // Master Admin Bypass for Presentation Reliability
     if (email.trim().toLowerCase() === 'jayashriinagle720@gmail.com' && password === 'VAIBHAV2667') {
-      console.log("Master Admin Access Granted");
-      // Create a persistent mock user session if Firebase fails
+      const adminUser = {
+        email: 'jayashriinagle720@gmail.com',
+        displayName: 'Master Administrator',
+        uid: 'admin-001',
+        emailVerified: true
+      } as User;
+
+      setUser(adminUser);
+      localStorage.setItem('admin_session', 'true');
       return { error: null };
     }
 
@@ -124,7 +131,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signOut = async () => {
+    localStorage.removeItem('admin_session');
     await firebaseSignOut(auth);
+    setUser(null);
   };
 
   return (
@@ -138,7 +147,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUpRecaptcha,
       signInWithPhone,
       signOut,
-      isAdmin: user?.email === 'jayashriinagle720@gmail.com'
+      isAdmin: user?.email === 'jayashriinagle720@gmail.com' || localStorage.getItem('admin_session') === 'true'
     }}>
       {children}
     </AuthContext.Provider>
