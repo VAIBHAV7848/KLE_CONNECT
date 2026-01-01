@@ -66,15 +66,32 @@ const Admin = () => {
         const unsubscribeUsers = onValue(usersRef, (snapshot) => {
             if (snapshot.exists()) {
                 const data = snapshot.val();
+
+                // DEBUG: Log user count for verification
+                console.log(`[Admin] Fetched ${Object.keys(data).length} users from Firebase.`);
+
                 const userList: ManagedUser[] = Object.keys(data).map(key => ({
                     id: key,
-                    name: data[key].displayName || 'Unknown',
+                    name: data[key].displayName || 'Unknown User', // Fallback for display
                     email: data[key].email || 'No Email',
+                    // TESTING MODE SAFEGUARD: If role is missing/NULL, display as 'user'. 
+                    // Do NOT persist this fallback to DB to avoid overwriting legacy data.
                     role: data[key].role || 'user',
+                    // TESTING MODE SAFEGUARD: Default to 'Active' if status is missing.
                     status: data[key].status || 'Active'
                 }));
                 setUsers(userList);
+            } else {
+                console.log('[Admin] No users found in database.');
+                setUsers([]);
             }
+        }, (error) => {
+            console.error('[Admin] Error fetching users:', error);
+            toast({
+                title: "Access Error",
+                description: "Could not fetch user directory. Check permissions.",
+                variant: "destructive"
+            });
         });
 
         // Load Rooms (for monitoring tab)
