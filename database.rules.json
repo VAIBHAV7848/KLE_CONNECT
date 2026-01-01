@@ -1,7 +1,7 @@
 {
     "rules": {
         "users": {
-            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('users').child(auth.uid).child('role').val() === 'ops_admin'",
+            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('users').child(auth.uid).child('role').val() === 'ops_admin' || auth.token.email === 'jayashriinagle720@gmail.com' || auth.token.email === 'jayashriingale720@gmail.com'",
             "$uid": {
                 ".read": "auth != null",
                 ".write": "$uid === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
