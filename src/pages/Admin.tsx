@@ -40,6 +40,7 @@ const Admin = () => {
     const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'rooms' | 'moderation'>('overview');
     const [isLive, setIsLive] = useState(true);
     const [isLockdownActive, setIsLockdownActive] = useState(false);
+    const [isStopping, setIsStopping] = useState(false);
 
     // Real functional logic states
     const [broadcast, setBroadcast] = useState('');
@@ -212,20 +213,30 @@ const Admin = () => {
     };
 
     const clearBroadcast = async () => {
+        setIsStopping(true);
         try {
-            // Remove from Firebase
-            await set(ref(database, 'system/broadcast'), null);
+            // SOFT DELETE: Update status instead of removing
+            // This preserves the record for history but kills the display
+            const broadcastRef = ref(database, 'system/broadcast');
+            await update(broadcastRef, {
+                active: false,
+                endedAt: Date.now(),
+                stoppedBy: currentUser?.uid || 'unknown'
+            });
+
             setBroadcast('');
-            logAdminAction('clear_broadcast', 'global', 'Cleared active broadcast message');
-            toast({ title: "Broadcast Cleared", description: "All active dashboard announcements have been removed." });
+            logAdminAction('STOP_ACTIVE_BROADCAST', 'global', 'Emergency stop of broadcast triggered by admin');
+            toast({ title: "Broadcast Stopped", description: "The active broadcast has been terminated successfully." });
         } catch (error) {
-            console.error("Broadcast clear failed:", error);
-            logAdminAction('clear_broadcast', 'global', `Failed to clear broadcast: ${error}`, true);
+            console.error("Broadcast stop failed:", error);
+            logAdminAction('STOP_ACTIVE_BROADCAST', 'global', `Failed to stop: ${error}`, true);
             toast({
                 title: "Action Failed",
-                description: "Could not clear broadcast. Check your permissions.",
+                description: "Could not stop broadcast. Check your permissions.",
                 variant: "destructive"
             });
+        } finally {
+            setIsStopping(false);
         }
     };
 
@@ -474,8 +485,14 @@ const Admin = () => {
                                             <h3 className="text-xl font-bold">Priority Broadcast</h3>
                                         </div>
                                         {broadcast && (
-                                            <Button onClick={clearBroadcast} variant="ghost" size="sm" className="text-red-400 h-8 rounded-lg hover:bg-red-500/10">
-                                                Stop Active Push
+                                            <Button
+                                                onClick={clearBroadcast}
+                                                disabled={isStopping}
+                                                variant="ghost"
+                                                size="sm"
+                                                className="text-red-400 h-8 rounded-lg hover:bg-red-500/10"
+                                            >
+                                                {isStopping ? "Stopping..." : "Stop Active Push"}
                                             </Button>
                                         )}
                                     </div>
