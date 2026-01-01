@@ -6,6 +6,7 @@ export interface UserProfile {
     displayName: string | null;
     photoURL: string | null;
     role: UserRole;
+    isOwner?: boolean; // Added for Platform Owner Protection
     createdAt?: number;
     lastLogin?: number;
 }

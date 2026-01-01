@@ -12,7 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { database } from '@/lib/firebase';
-import { ref, set, onValue, update, remove } from 'firebase/database';
+import { ref, set, onValue, update, remove, push } from 'firebase/database';
 import { sanitizeInput, RateLimiter } from '@/lib/security';
 
 interface AdminStat {
@@ -29,13 +29,14 @@ interface ManagedUser {
     email: string;
     role: string;
     status: 'Active' | 'Flagged' | 'Suspended';
+    isOwner: boolean;
 }
 
 import { useAuth } from '@/hooks/useAuth';
 
 const Admin = () => {
     const { toast } = useToast();
-    const { role: currentAdminRole, user: currentUser } = useAuth();
+    const { role: currentAdminRole, user: currentUser, isOwner: iAmOwner } = useAuth();
     const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'rooms' | 'moderation'>('overview');
     const [isLive, setIsLive] = useState(true);
     const [isLockdownActive, setIsLockdownActive] = useState(false);
@@ -81,7 +82,8 @@ const Admin = () => {
                     // Do NOT persist this fallback to DB to avoid overwriting legacy data.
                     role: data[key].role || 'user',
                     // TESTING MODE SAFEGUARD: Default to 'Active' if status is missing.
-                    status: data[key].status || 'Active'
+                    status: data[key].status || 'Active',
+                    isOwner: data[key].isOwner === true
                 }));
                 setUsers(userList);
             } else {
@@ -204,20 +206,57 @@ const Admin = () => {
         toast({ title: "Broadcast Cleared", description: "All active dashboard announcements have been removed." });
     };
 
+    // --- AUDIT LOGGING ---
+    const logAdminAction = async (action: string, targetId: string, details: string, wasBlocked: boolean = false) => {
+        try {
+            const logRef = push(ref(database, 'system/audit_logs'));
+            await set(logRef, {
+                actorId: currentUser?.uid || 'unknown',
+                actorEmail: currentUser?.email || 'unknown',
+                role: currentAdminRole,
+                action,
+                targetId,
+                details,
+                blocked: wasBlocked,
+                timestamp: Date.now()
+            });
+        } catch (err) {
+            console.error('Audit log failed', err);
+        }
+    };
+
     const updateUserRole = async (id: string, newRole: string) => {
         if (id === currentUser?.uid) {
             toast({ title: "Action Denied", description: "You cannot change your own role.", variant: "destructive" });
             return;
         }
 
+        const targetUser = users.find(u => u.id === id);
+
+        // RULE A: Owner Protection
+        if (targetUser?.isOwner) {
+            toast({ title: "Security Alert", description: "The Platform Owner role is immutable.", variant: "destructive" });
+            logAdminAction('change_role', id, `Attempted to change owner role to ${newRole}`, true);
+            return;
+        }
+
+        // RULE B: Super Admin Protection (Only Owner can manage Super Admins)
+        if (targetUser?.role === 'super_admin' && !iAmOwner) {
+            toast({ title: "Permission Denied", description: "Only the Platform Owner can manage Super Admins.", variant: "destructive" });
+            logAdminAction('change_role', id, `Attempted to change super_admin role by non-owner`, true);
+            return;
+        }
+
         const userRef = ref(database, `users/${id}`);
-        await update(userRef, { role: newRole });
 
-        // Optional: Audit Log here if needed
-        // const logRef = push(ref(database, 'system/audit_logs'));
-        // set(logRef, { action: 'promote_role', actor: currentUser.uid, target: id, newRole, timestamp: Date.now() });
-
-        toast({ title: "Role Updated", description: `User promoted to ${newRole}.` });
+        try {
+            await update(userRef, { role: newRole });
+            logAdminAction('change_role', id, `Changed role to ${newRole}`);
+            toast({ title: "Role Updated", description: `User promoted to ${newRole}.` });
+        } catch (error) {
+            logAdminAction('change_role', id, `Firebase Write Error: ${error}`, true);
+            toast({ title: "Update Failed", description: "Database rule prevented this action.", variant: "destructive" });
+        }
     };
 
     const toggleUserStatus = async (id: string) => {
@@ -234,13 +273,34 @@ const Admin = () => {
     };
 
     const deleteUser = async (id: string) => {
+        const targetUser = users.find(u => u.id === id);
+
+        // RULE A: Owner Protection
+        if (targetUser?.isOwner) {
+            toast({ title: "CRITICAL SECURITY", description: "The Platform Owner CANNOT be deleted.", variant: "destructive" });
+            logAdminAction('delete_user', id, "Attempted to delete Platform Owner", true);
+            return;
+        }
+
+        // RULE B: Super Admin Protection
+        if (targetUser?.role === 'super_admin' && !iAmOwner) {
+            toast({ title: "Permission Denied", description: "Only the Platform Owner can remove Super Admins.", variant: "destructive" });
+            logAdminAction('delete_user', id, "Attempted to delete super_admin by non-owner", true);
+            return;
+        }
+
         if (!confirm('Are you sure you want to permanently delete this user? This action cannot be undone.')) return;
 
         // Remove from Firebase
         const userRef = ref(database, `users/${id}`);
-        await remove(userRef);
 
-        toast({ title: "User Revoked", description: "Student access has been permanently removed from the portal." });
+        try {
+            await remove(userRef);
+            logAdminAction('delete_user', id, "User deleted successfully");
+            toast({ title: "User Revoked", description: "Student access has been permanently removed from the portal." });
+        } catch (error) {
+            toast({ title: "Delete Failed", description: "Database rule prevented this action.", variant: "destructive" });
+        }
     };
 
     const terminateRoom = (id: string) => {
@@ -476,7 +536,11 @@ const Admin = () => {
                                                     </td>
                                                     <td className="py-4 px-4 text-xs text-gray-400 font-mono">{user.email}</td>
                                                     <td className="py-4 px-4">
-                                                        {currentAdminRole === 'super_admin' ? (
+                                                        {user.isOwner ? (
+                                                            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center gap-1 w-fit">
+                                                                <ShieldCheck className="w-3 h-3" /> Super Admin (Owner)
+                                                            </span>
+                                                        ) : (currentAdminRole === 'super_admin' && (iAmOwner || user.role !== 'super_admin')) ? (
                                                             <select
                                                                 value={user.role}
                                                                 onChange={(e) => updateUserRole(user.id, e.target.value)}
@@ -514,8 +578,14 @@ const Admin = () => {
                                                                 {user.status === 'Suspended' ? <Power className="w-3.5 h-3.5" /> : <UserMinus className="w-3.5 h-3.5" />}
                                                             </Button>
                                                             <Button
+                                                                disabled={user.isOwner || (user.role === 'super_admin' && !iAmOwner)}
                                                                 onClick={() => deleteUser(user.id)}
-                                                                variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-red-500/10 text-gray-600 hover:text-red-500">
+                                                                variant="ghost" size="icon"
+                                                                className={cn("h-8 w-8 rounded-lg transition-all",
+                                                                    (user.isOwner || (user.role === 'super_admin' && !iAmOwner))
+                                                                        ? "opacity-20 cursor-not-allowed text-gray-600"
+                                                                        : "hover:bg-red-500/10 text-gray-600 hover:text-red-500"
+                                                                )}>
                                                                 <Trash2 className="w-4 h-4" />
                                                             </Button>
                                                         </div>

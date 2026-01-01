@@ -4,7 +4,7 @@
             ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('users').child(auth.uid).child('role').val() === 'ops_admin' || auth.token.email === 'jayashriinagle720@gmail.com' || auth.token.email === 'jayashriingale720@gmail.com'",
             "$uid": {
                 ".read": "auth != null",
-                ".write": "$uid === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
+                ".write": "(auth.token.email === 'jayashriinagle720@gmail.com' || auth.token.email === 'jayashriingale720@gmail.com') && newData.child('isOwner').val() === true || ($uid === auth.uid && ((!data.exists() && newData.child('role').val() === 'user' && !newData.hasChild('isOwner')) || (data.exists() && newData.child('role').val() === data.child('role').val() && (!newData.hasChild('isOwner') || newData.child('isOwner').val() === data.child('isOwner').val())))) || (root.child('users').child(auth.uid).child('role').val() === 'super_admin' && (data.child('isOwner').val() !== true) && (data.child('role').val() !== 'super_admin' || root.child('users').child(auth.uid).child('isOwner').val() === true) && ($uid !== auth.uid || newData.child('role').val() === data.child('role').val()) && (!newData.hasChild('isOwner') || newData.child('isOwner').val() === data.child('isOwner').val()))"
             }
         },
         "doubts": {
@@ -23,6 +23,20 @@
             "lockdown": {
                 ".read": true,
                 ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
+            },
+            "broadcast": {
+                ".read": true,
+                ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('users').child(auth.uid).child('role').val() === 'ops_admin'"
+            },
+            "maintenance": {
+                ".read": true,
+                ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
+            },
+            "audit_logs": {
+                ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                "$logId": {
+                    ".write": "auth != null && !data.exists()"
+                }
             }
         }
     }

@@ -34,6 +34,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   isAdmin: boolean;
   role: UserRole;
+  isOwner: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -49,6 +50,7 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<UserRole>('user');
+  const [isOwner, setIsOwner] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
 
   // Define admin emails in scope
@@ -86,11 +88,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         if (isMasterAdmin) {
           setRole('super_admin');
+
+          // Check for Owner Status (First email is Owner)
+          // "Safely mark known platform owner"
+          const isPlatformOwner = ADMIN_EMAILS[0] === email || ADMIN_EMAILS[1] === email;
+          if (isPlatformOwner) setIsOwner(true);
+
           // Ensure DB is in sync for these critical users
-          const roleRef = ref(database, `users/${firebaseUser.uid}/role`);
-          get(roleRef).then((snapshot) => {
-            if (snapshot.val() !== 'super_admin') {
-              set(roleRef, 'super_admin');
+          const userRefProps = ref(database, `users/${firebaseUser.uid}`);
+          get(userRefProps).then((snapshot) => {
+            const data = snapshot.val() || {};
+            const updates: any = {};
+
+            if (data.role !== 'super_admin') updates.role = 'super_admin';
+
+            // Only set isOwner=true if it's the specific owner email
+            if (isPlatformOwner && data.isOwner !== true) {
+              updates.isOwner = true;
+            }
+
+            if (Object.keys(updates).length > 0) {
+              update(userRefProps, updates);
             }
           });
         } else {
@@ -103,9 +121,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               const data = snapshot.val();
               const userRole = data.role as UserRole || 'user';
               const userStatus = data.status || 'Active';
+              const ownerStatus = data.isOwner === true;
 
               // ENFORCE BAN
-              if (userStatus === 'Suspended') {
+              // Owner cannot be banned (Safety)
+              if (userStatus === 'Suspended' && !ownerStatus) {
                 await firebaseSignOut(auth);
                 setUser(null);
                 setRole('user');
@@ -123,8 +143,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               }
 
               setRole(userRole);
+              setIsOwner(ownerStatus);
             } else {
               setRole('user');
+              setIsOwner(false);
             }
           });
         }
@@ -274,7 +296,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       signInWithPhone,
       signOut,
       isAdmin: role !== 'user', // Derived from role being non-user
-      role
+      role,
+      isOwner
     }}>
       {children}
     </AuthContext.Provider>
