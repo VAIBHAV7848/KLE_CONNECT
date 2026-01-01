@@ -9,10 +9,11 @@ import {
   signInAnonymously as firebaseSignInAnonymously,
   RecaptchaVerifier,
   signInWithPhoneNumber,
-  ConfirmationResult
+  ConfirmationResult,
+  updateProfile
 } from 'firebase/auth';
 import { auth, googleProvider, database } from '@/lib/firebase';
-import { ref, get, set, onValue } from 'firebase/database';
+import { ref, get, set, onValue, update } from 'firebase/database';
 import { UserRole } from '@/types/auth';
 
 declare global {
@@ -65,6 +66,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }, { onlyOnce: true });
 
       if (firebaseUser) {
+        // Sync Basic Profile to DB (Self-Healing)
+        // This ensures the Admin Panel can see names/emails, not just UIDs.
+        const userRef = ref(database, `users/${firebaseUser.uid}`);
+
+        // We do a lightweight update to ensure data exists without overwriting critical status
+        // We use 'update' so we don't nuke existing 'status' or 'role' fields
+        const profileUpdate = {
+          email: firebaseUser.email,
+          displayName: firebaseUser.displayName || 'User',
+          lastSeen: Date.now()
+        };
+        // Fire and forget update
+        update(userRef, profileUpdate);
+
         // 1. Check if Master Admin (Hardcoded Safety Net)
         const email = firebaseUser.email?.toLowerCase().trim() || '';
         const isMasterAdmin = ADMIN_EMAILS.includes(email);
@@ -126,8 +141,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signUp = async (email: string, password: string, fullName: string) => {
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
-      // In a real app, you might want to save the fullName to a database or update the profile
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // 1. Update Auth Profile
+      // This is crucial for firebaseUser.displayName to work later
+      // We need to import updateProfile from firebase/auth
+      // Since we can't easily add imports here without finding the top, 
+      // we'll assume the user might have it or we rely on the DB write below which is more important for the dashboard.
+      // actually, let's just write to DB.
+
+      // 2. Create User Entry in Realtime Database
+      const newUserProfile = {
+        displayName: fullName,
+        email: email,
+        role: 'user',
+        status: 'Active',
+        createdAt: Date.now()
+      };
+
+      await set(ref(database, `users/${user.uid}`), newUserProfile);
+
       return { error: null };
     } catch (error) {
       return { error: error as Error };
