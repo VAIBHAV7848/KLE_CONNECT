@@ -31,6 +31,7 @@ import NotFound from "./pages/NotFound";
 import ErrorBoundary from "./components/ErrorBoundary";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminProtectedRoute from "./components/AdminProtectedRoute";
+import Community from "./pages/Community";
 
 const router = createHashRouter([
   {
@@ -130,6 +131,14 @@ const router = createHashRouter([
     element: (
       <ProtectedRoute>
         <SeniorConnect />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/community",
+    element: (
+      <ProtectedRoute>
+        <Community />
       </ProtectedRoute>
     ),
   },

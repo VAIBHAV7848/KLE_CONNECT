@@ -1,79 +1,34 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import PageLayout from '@/components/layout/PageLayout';
 import PageHeader from '@/components/ui/PageHeader';
-import { BookOpen, Download, FileText, Star } from 'lucide-react';
+import { BookOpen, Download, FileText, Star, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useNotes } from '@/hooks/useNotes';
+import { useAuth } from '@/hooks/useAuth';
 
 /**
  * Notes & PYQs - Study materials and past papers
  */
 const Notes = () => {
   // State
-  const [notes, setNotes] = useState<{ id: string, title: string, subject: string, link: string, rating: number, downloads: number }[]>([]);
+  const { notes, loading, addNote, deleteNote } = useNotes();
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [newNote, setNewNote] = useState({ title: '', subject: '', link: '' });
+  const { user, isAdmin } = useAuth();
 
-  // Load Notes
-  useEffect(() => {
-    const saved = localStorage.getItem('kle-connect-notes');
-    if (saved) {
-      setNotes(JSON.parse(saved));
-    } else {
-      // High-Quality Seed Data for Engineers
-      const seedNotes = [
-        {
-          id: '1',
-          title: 'DSA: Comprehensive Revision Guide',
-          subject: 'Data Structures',
-          link: 'https://www.geeksforgeeks.org/data-structures/',
-          rating: 4.9,
-          downloads: 1240
-        },
-        {
-          id: '2',
-          title: 'Unit 4: Neural Networks PYQs',
-          subject: 'AI & Machine Learning',
-          link: 'https://archive.org/details/artificialintelligencepastpapers',
-          rating: 4.8,
-          downloads: 850
-        },
-        {
-          id: '3',
-          title: 'DBMS SQL Cheat Sheet (Semester 5)',
-          subject: 'Database Systems',
-          link: 'https://web.stanford.edu/class/cs145/cheatsheet.pdf',
-          rating: 5.0,
-          downloads: 3100
-        }
-      ];
-      setNotes(seedNotes);
-      localStorage.setItem('kle-connect-notes', JSON.stringify(seedNotes));
-    }
-  }, []);
-
-  // Save Notes
-  useEffect(() => {
-    localStorage.setItem('kle-connect-notes', JSON.stringify(notes));
-  }, [notes]);
-
-  const handleAddNote = () => {
+  const handleAddNote = async () => {
     if (!newNote.title || !newNote.subject) return;
-    const note = {
-      id: crypto.randomUUID(),
+
+    await addNote({
       title: newNote.title,
       subject: newNote.subject,
       link: newNote.link || '#',
-      rating: 5.0,
-      downloads: 0
-    };
-    setNotes([note, ...notes]);
+      uploadedBy: user?.displayName || 'Anonymous'
+    });
+
     setNewNote({ title: '', subject: '', link: '' });
     setIsUploadOpen(false);
-  };
-
-  const deleteNote = (id: string) => {
-    setNotes(notes.filter(n => n.id !== id));
   };
 
   // Dynamically calculate subjects from real data
@@ -181,46 +136,53 @@ const Notes = () => {
       )}
 
       <div className="space-y-3">
-        {notes.length === 0 && (
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        ) : notes.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             <p>No notes shared yet. Key start the knowledge exchange! 🚀</p>
           </div>
+        ) : (
+          notes.map((note, index) => (
+            <motion.div
+              key={note.id}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.3, delay: index * 0.1 }}
+              className="glass rounded-xl p-4 flex items-center justify-between group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <BookOpen className="w-6 h-6 text-primary" />
+                </div>
+                <div>
+                  <h3 className="text-foreground font-medium">{note.title}</h3>
+                  <p className="text-sm text-muted-foreground">{note.subject} • {note.uploadedBy || 'Anonymous'}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1 text-sm">
+                  <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                  <span className="text-foreground">{note.rating}</span>
+                </div>
+                <Button size="sm" variant="outline" className="gap-2" asChild>
+                  <a href={note.link} target="_blank" rel="noopener noreferrer">
+                    <Download className="w-4 h-4" /> Open
+                  </a>
+                </Button>
+                {isAdmin && (
+                  <button
+                    onClick={() => deleteNote(note.id)}
+                    className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity px-2"
+                    title="Delete Note"
+                  >✕</button>
+                )}
+              </div>
+            </motion.div>
+          ))
         )}
-
-        {notes.map((note, index) => (
-          <motion.div
-            key={note.id}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.3, delay: index * 0.1 }}
-            className="glass rounded-xl p-4 flex items-center justify-between group"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                <BookOpen className="w-6 h-6 text-primary" />
-              </div>
-              <div>
-                <h3 className="text-foreground font-medium">{note.title}</h3>
-                <p className="text-sm text-muted-foreground">{note.subject}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-1 text-sm">
-                <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                <span className="text-foreground">{note.rating}</span>
-              </div>
-              <Button size="sm" variant="outline" className="gap-2" asChild>
-                <a href={note.link} target="_blank" rel="noopener noreferrer">
-                  <Download className="w-4 h-4" /> Open
-                </a>
-              </Button>
-              <button
-                onClick={() => deleteNote(note.id)}
-                className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity px-2"
-              >✕</button>
-            </div>
-          </motion.div>
-        ))}
       </div>
     </PageLayout>
   );

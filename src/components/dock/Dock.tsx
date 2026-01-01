@@ -12,6 +12,7 @@ import {
   Map,
   Calendar,
   MessageCircle,
+  MessageSquare,
   Users,
   Heart,
   HeartHandshake,
@@ -76,6 +77,12 @@ const navigationItems = [
     label: 'Doubts',
     to: '/doubts',
     gradient: 'linear-gradient(135deg, hsl(180 70% 45% / 0.3), hsl(180 70% 45% / 0.1))'
+  },
+  {
+    icon: MessageSquare, // Use MessageSquare if imported, or import it
+    label: 'Community',
+    to: '/community',
+    gradient: 'linear-gradient(135deg, hsl(320 70% 50% / 0.3), hsl(320 70% 50% / 0.1))'
   },
   {
     icon: Users,
