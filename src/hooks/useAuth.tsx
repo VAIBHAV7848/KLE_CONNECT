@@ -12,7 +12,7 @@ import {
   ConfirmationResult
 } from 'firebase/auth';
 import { auth, googleProvider, database } from '@/lib/firebase';
-import { ref, get, set } from 'firebase/database';
+import { ref, get, set, onValue } from 'firebase/database';
 import { UserRole } from '@/types/auth';
 
 declare global {
@@ -58,10 +58,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      let isMaintenanceMode = false;
+      const maintenanceRef = ref(database, 'system/maintenance');
+      onValue(maintenanceRef, (snap) => {
+        isMaintenanceMode = snap.val() === true;
+      }, { onlyOnce: true });
+
       if (firebaseUser) {
         // 1. Check if Master Admin (Hardcoded Safety Net)
         const email = firebaseUser.email?.toLowerCase().trim() || '';
-        if (ADMIN_EMAILS.includes(email)) {
+        const isMasterAdmin = ADMIN_EMAILS.includes(email);
+
+        if (isMasterAdmin) {
           setRole('super_admin');
           // Ensure DB is in sync for these critical users
           const roleRef = ref(database, `users/${firebaseUser.uid}/role`);
@@ -71,19 +79,39 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             }
           });
         } else {
-          // 2. Fetch Role from DB
-          const roleRef = ref(database, `users/${firebaseUser.uid}/role`);
-          try {
-            const snapshot = await get(roleRef);
+          // 2. Fetch Role & Status from DB
+          const userRef = ref(database, `users/${firebaseUser.uid}`);
+
+          // Real-time listener for status changes (Banning)
+          onValue(userRef, async (snapshot) => {
             if (snapshot.exists()) {
-              setRole(snapshot.val() as UserRole);
+              const data = snapshot.val();
+              const userRole = data.role as UserRole || 'user';
+              const userStatus = data.status || 'Active';
+
+              // ENFORCE BAN
+              if (userStatus === 'Suspended') {
+                await firebaseSignOut(auth);
+                setUser(null);
+                setRole('user');
+                alert("Your account has been suspended by the administrator.");
+                return;
+              }
+
+              // ENFORCE MAINTENANCE (Non-admins gets kicked)
+              if (isMaintenanceMode && userRole === 'user') {
+                await firebaseSignOut(auth);
+                setUser(null);
+                setRole('user');
+                alert("System is currently under maintenance. Please try again later.");
+                return;
+              }
+
+              setRole(userRole);
             } else {
               setRole('user');
             }
-          } catch (error) {
-            console.error("Error fetching user role:", error);
-            setRole('user');
-          }
+          });
         }
       } else {
         setRole('user');
