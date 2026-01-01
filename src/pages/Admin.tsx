@@ -488,11 +488,11 @@ const Admin = () => {
                                             <Button
                                                 onClick={clearBroadcast}
                                                 disabled={isStopping}
-                                                variant="ghost"
+                                                variant="destructive"
                                                 size="sm"
-                                                className="text-red-400 h-8 rounded-lg hover:bg-red-500/10"
+                                                className="h-9 px-4 rounded-xl font-black uppercase tracking-wider text-[10px] shadow-lg shadow-red-500/20 hover:bg-red-600 transition-all"
                                             >
-                                                {isStopping ? "Stopping..." : "Stop Active Push"}
+                                                {isStopping ? "TERMINATING..." : "EMERGENCY STOP"}
                                             </Button>
                                         )}
                                     </div>
