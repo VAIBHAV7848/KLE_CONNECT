@@ -15,9 +15,10 @@ export const validateEnv = () => {
         }
     });
 
-    if (missing.length > 0 && import.meta.env.MODE === 'production') {
-        console.error('❌ Missing required environment variables:', missing);
-        console.error('Please check your .env file');
+    if (missing.length > 0) {
+        console.warn('⚠️ Optional environment variables not set:', missing);
+        console.warn('Some features (Video Calls, AI Tutor) may not work without these.');
+        console.warn('See .env.example for configuration instructions.');
     }
 
     return missing.length === 0;

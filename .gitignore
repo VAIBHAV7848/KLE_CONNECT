@@ -26,8 +26,8 @@ dist-ssr
 # Security
 .env
 .env.local
-.env.*
 .env.production
 .env.development
-.env.test.env
+.env.test
+!.env.example
 supabase/.temp/
