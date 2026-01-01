@@ -12,7 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { database } from '@/lib/firebase';
-import { ref, set, onValue } from 'firebase/database';
+import { ref, set, onValue, update, remove } from 'firebase/database';
 import { sanitizeInput, RateLimiter } from '@/lib/security';
 
 interface AdminStat {
@@ -42,6 +42,7 @@ const Admin = () => {
     const [users, setUsers] = useState<ManagedUser[]>([]);
     const [rooms, setRooms] = useState<any[]>([]);
     const [stats, setStats] = useState<AdminStat[]>([]);
+    const [doubtCountState, setDoubtCountState] = useState(0);
 
     // Rate limiters for security
     const broadcastLimiter = useRef(new RateLimiter(10, 60000)); // 10 broadcasts per minute
@@ -49,25 +50,38 @@ const Admin = () => {
 
     // 1. Initialize data and persistence
     useEffect(() => {
-        // Load Broadcast
-        const savedBroadcast = localStorage.getItem('campus_announcement');
-        if (savedBroadcast) setBroadcast(JSON.parse(savedBroadcast).message);
+        // Load Broadcast from Firebase (GLOBAL)
+        const broadcastRef = ref(database, 'system/broadcast');
+        const unsubscribeBroadcast = onValue(broadcastRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data && data.active) {
+                setBroadcast(data.message);
+            } else {
+                setBroadcast('');
+            }
+        });
 
-        // Load Users
-        const savedUsers = localStorage.getItem('admin_managed_users');
-        if (savedUsers) {
-            setUsers(JSON.parse(savedUsers));
-        } else {
-            const initialUsers: ManagedUser[] = [
-                { id: '1', name: 'Vaibhav', email: 'vaibhav@kle.edu', role: 'Admin', status: 'Active' },
-                { id: '2', name: 'Student 7848', email: 'student@kle.edu', role: 'Student', status: 'Active' },
-                { id: '3', name: 'Demo Student', email: 'demo@kle.edu', role: 'Student', status: 'Flagged' },
-            ];
-            setUsers(initialUsers);
-            localStorage.setItem('admin_managed_users', JSON.stringify(initialUsers));
-        }
+        // Load Users (for management tab)
+        const usersRef = ref(database, 'users');
+        const unsubscribeUsers = onValue(usersRef, (snapshot) => {
+            if (snapshot.exists()) {
+                const data = snapshot.val();
+                const userList: ManagedUser[] = Object.keys(data).map(key => ({
+                    id: key,
+                    name: data[key].displayName || 'Unknown',
+                    email: data[key].email || 'No Email',
+                    role: data[key].role || 'user',
+                    status: data[key].status || 'Active'
+                }));
+                setUsers(userList);
+            }
+        });
 
-        // Load Rooms
+        // Load Rooms (for monitoring tab)
+        // Just mocking the structure based on what StudyRooms might look like if persisted,
+        // often these are ephemeral or in a specific node.
+        // For now we will keep the mock rooms for the 'rooms' tab specifically if we don't have a real strict schema for it yet
+        // BUT for the stats, we will try to count them if possible or keep mock for demo.
         const mockRooms = [
             { id: 'RM-502', name: 'DSA Study Group', host: 'Vaibhav', participants: 12, uptime: '45m' },
             { id: 'RM-201', name: 'Thermodynamics Exam', host: 'Rahul', participants: 4, uptime: '12m' },
@@ -76,22 +90,63 @@ const Admin = () => {
 
         // Load Lockdown State from Firebase (GLOBAL)
         const lockdownRef = ref(database, 'system/lockdown');
-        const unsubscribe = onValue(lockdownRef, (snapshot) => {
+        const unsubscribeLockdown = onValue(lockdownRef, (snapshot) => {
             const status = snapshot.val();
             setIsLockdownActive(status === true);
         });
 
-        // Update Stats
+        // --- FETCH REAL STATS ---
+        // We listen to specific nodes to be efficient and secure
+        const doubtsRef = ref(database, 'doubts');
+        const unsubscribeStats = onValue(doubtsRef, (snapshot) => {
+            const data = snapshot.val() || {};
+            const doubtCount = Object.keys(data).length;
+
+            // We update stats using the live counts
+            // Note: users count is derived from the users state or a separate listener if needed.
+            // Since we already have a users listener above, we can use that, but `users` state might update frequent.
+            // For simplicity in this `useEffect`, we reference the 'users' data if we want, 
+            // but `users` state is inside the component.
+            // Best approach: Update stats when `users` or `doubts` changes.
+            // However, inside this callback, we only know about doubts.
+
+            // We will set a local ref for doubt count to combine with user count later OR
+            // just let this effect manage the stats fully if we duplicate the user listener or use a separate counter.
+            // To avoid complexity, we can just update the stats here, assuming user count comes from the usersRef above? 
+            // Actually, the usersRef above sets `setUsers`. 
+            // Let's create a combined state updater or just listen to users again for the count metric? 
+            // No, listening twice is redundant.
+            // Let's make `stats` dependent on `users` length in the render, 
+            // OR strictly, let's keep the logic here but fetch users "count" lightly? 
+            // Firebase doesn't support "count" queries easily without cloud functions.
+            // We will stick to client side counting.
+
+            // We'll update the 'Doubts' part of the stats here, and let the Users part update when `users` changes.
+            // Actually, `setStats` overwrites. Better to use functional state update?
+            // Or easier: Just define `stats` as a derived variable from `users.length`, `mockRooms.length`, etc.
+            // BUT `doubts` is not in state as a list.
+            // So: Add `doubtCount` to state.
+            setDoubtCountState(doubtCount); // We need to add this state variable
+        });
+
+        // Cleanup Firebase listeners on unmount
+        return () => {
+            unsubscribeBroadcast();
+            unsubscribeUsers();
+            unsubscribeLockdown();
+            unsubscribeStats();
+        };
+    }, []);
+
+    // Effect to update the combined Stats object whenever dependencies change
+    useEffect(() => {
         setStats([
-            { label: 'Total Students', value: '1,284', trend: '+12%', icon: Users, color: 'text-blue-400' },
-            { label: 'Active Sessions', value: mockRooms.length, trend: 'Live', icon: Activity, color: 'text-green-400' },
-            { label: 'Doubts Resolved', value: '85%', trend: '+5%', icon: MessageSquare, color: 'text-purple-400' },
+            { label: 'Total Students', value: users.length.toLocaleString(), trend: '+ Live', icon: Users, color: 'text-blue-400' },
+            { label: 'Active Sessions', value: rooms.length, trend: 'Live', icon: Activity, color: 'text-green-400' },
+            { label: 'Doubts Posted', value: doubtCountState.toLocaleString(), trend: 'Total', icon: MessageSquare, color: 'text-purple-400' },
             { label: 'System Load', value: '14%', trend: 'Minimal', icon: BarChart3, color: 'text-yellow-400' },
         ]);
-
-        // Cleanup Firebase listener on unmount
-        return () => unsubscribe();
-    }, []);
+    }, [users.length, rooms.length, doubtCountState]);
 
     // --- FUNCTIONAL ACTIONS ---
 
@@ -111,8 +166,11 @@ const Admin = () => {
         // Sanitize input to prevent XSS
         const sanitizedMessage = sanitizeInput(broadcast);
 
-        const payload = { message: sanitizedMessage, timestamp: Date.now(), active: true };
-        localStorage.setItem('campus_announcement', JSON.stringify(payload));
+        const payload = { message: sanitizedMessage, timestamp: Date.now(), active: true, sentBy: 'Admin' };
+
+        // Push to Firebase Realtime Database
+        set(ref(database, 'system/broadcast'), payload);
+
         toast({
             title: "Global Broadcast Pushed!",
             description: "Every student dashboard will now display this priority message.",
@@ -120,28 +178,32 @@ const Admin = () => {
     };
 
     const clearBroadcast = () => {
-        localStorage.removeItem('campus_announcement');
+        // Remove from Firebase
+        set(ref(database, 'system/broadcast'), null);
         setBroadcast('');
         toast({ title: "Broadcast Cleared", description: "All active dashboard announcements have been removed." });
     };
 
-    const toggleUserStatus = (id: string) => {
-        const updated = users.map(u => {
-            if (u.id === id) {
-                const nextStatus = u.status === 'Active' ? 'Suspended' : 'Active';
-                return { ...u, status: nextStatus as any };
-            }
-            return u;
-        });
-        setUsers(updated);
-        localStorage.setItem('admin_managed_users', JSON.stringify(updated));
-        toast({ title: "User Status Updated", description: "Permission changes have been synchronized with the auth provider." });
+    const toggleUserStatus = async (id: string) => {
+        const userToUpdate = users.find(u => u.id === id);
+        if (!userToUpdate) return;
+
+        const nextStatus = userToUpdate.status === 'Active' ? 'Suspended' : 'Active';
+
+        // Update in Firebase
+        const userRef = ref(database, `users/${id}`);
+        await update(userRef, { status: nextStatus });
+
+        toast({ title: "User Status Updated", description: `User marked as ${nextStatus}.` });
     };
 
-    const deleteUser = (id: string) => {
-        const updated = users.filter(u => u.id !== id);
-        setUsers(updated);
-        localStorage.setItem('admin_managed_users', JSON.stringify(updated));
+    const deleteUser = async (id: string) => {
+        if (!confirm('Are you sure you want to permanently delete this user? This action cannot be undone.')) return;
+
+        // Remove from Firebase
+        const userRef = ref(database, `users/${id}`);
+        await remove(userRef);
+
         toast({ title: "User Revoked", description: "Student access has been permanently removed from the portal." });
     };
 
@@ -153,10 +215,14 @@ const Admin = () => {
         });
     };
 
-    const triggerMaintenance = () => {
+    const triggerMaintenance = async () => {
         const nextState = !isLive;
         setIsLive(nextState);
-        localStorage.setItem('system_maintenance_mode', String(!nextState));
+
+        // Update in Firebase (GLOBAL)
+        const sysRef = ref(database, 'system/maintenance');
+        await set(sysRef, !nextState); // if isLive is false, maintenance is true
+
         toast({
             title: nextState ? "System Operational" : "Maintenance Mode ACTIVE",
             description: nextState ? "All normal services restored." : "Access restricted for global maintenance.",

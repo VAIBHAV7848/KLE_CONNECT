@@ -1,12 +1,29 @@
 {
     "rules": {
+        "users": {
+            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('users').child(auth.uid).child('role').val() === 'ops_admin'",
+            "$uid": {
+                ".read": "auth != null",
+                ".write": "$uid === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
+            }
+        },
+        "doubts": {
+            ".read": "auth != null",
+            ".write": "auth != null"
+        },
+        "community": {
+            ".read": "auth != null",
+            ".write": "auth != null"
+        },
+        "notes": {
+            ".read": "auth != null",
+            ".write": "auth != null"
+        },
         "system": {
             "lockdown": {
                 ".read": true,
-                ".write": "auth != null && (auth.token.email == 'jayashriingale720@gmail.com' || auth.token.email == 'jayashriinagle720@gmail.com')"
+                ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
             }
-        },
-        ".read": false,
-        ".write": false
+        }
     }
 }

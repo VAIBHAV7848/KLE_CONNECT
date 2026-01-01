@@ -20,6 +20,8 @@ import {
   Bell,
   X
 } from 'lucide-react';
+import { database } from '@/lib/firebase';
+import { ref, onValue } from 'firebase/database';
 
 /**
  * Dashboard - Main landing page for KLE CONNECT
@@ -92,11 +94,18 @@ const Dashboard = () => {
       { label: 'Pending Tasks', value: taskCount.toString(), icon: Target, change: taskCount > 0 ? 'Action needed' : 'Clear' },
     ]);
 
-    // 3. Load Global Announcement
-    const savedMsg = localStorage.getItem('campus_announcement');
-    if (savedMsg) {
-      setAnnouncement(JSON.parse(savedMsg));
-    }
+    // 3. Load Global Announcement from Firebase
+    const broadcastRef = ref(database, 'system/broadcast');
+    const unsubscribeBroadcast = onValue(broadcastRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data && data.active) {
+        setAnnouncement(data);
+      } else {
+        setAnnouncement(null);
+      }
+    });
+
+    return () => unsubscribeBroadcast();
   }, []);
 
   return (
