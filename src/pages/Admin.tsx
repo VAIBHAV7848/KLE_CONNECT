@@ -31,8 +31,11 @@ interface ManagedUser {
     status: 'Active' | 'Flagged' | 'Suspended';
 }
 
+import { useAuth } from '@/hooks/useAuth';
+
 const Admin = () => {
     const { toast } = useToast();
+    const { role: currentAdminRole, user: currentUser } = useAuth();
     const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'rooms' | 'moderation'>('overview');
     const [isLive, setIsLive] = useState(true);
     const [isLockdownActive, setIsLockdownActive] = useState(false);
@@ -199,6 +202,22 @@ const Admin = () => {
         set(ref(database, 'system/broadcast'), null);
         setBroadcast('');
         toast({ title: "Broadcast Cleared", description: "All active dashboard announcements have been removed." });
+    };
+
+    const updateUserRole = async (id: string, newRole: string) => {
+        if (id === currentUser?.uid) {
+            toast({ title: "Action Denied", description: "You cannot change your own role.", variant: "destructive" });
+            return;
+        }
+
+        const userRef = ref(database, `users/${id}`);
+        await update(userRef, { role: newRole });
+
+        // Optional: Audit Log here if needed
+        // const logRef = push(ref(database, 'system/audit_logs'));
+        // set(logRef, { action: 'promote_role', actor: currentUser.uid, target: id, newRole, timestamp: Date.now() });
+
+        toast({ title: "Role Updated", description: `User promoted to ${newRole}.` });
     };
 
     const toggleUserStatus = async (id: string) => {
@@ -457,9 +476,22 @@ const Admin = () => {
                                                     </td>
                                                     <td className="py-4 px-4 text-xs text-gray-400 font-mono">{user.email}</td>
                                                     <td className="py-4 px-4">
-                                                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                                                            {user.role}
-                                                        </span>
+                                                        {currentAdminRole === 'super_admin' ? (
+                                                            <select
+                                                                value={user.role}
+                                                                onChange={(e) => updateUserRole(user.id, e.target.value)}
+                                                                className="bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px] uppercase font-black rounded-lg px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                                                            >
+                                                                <option value="user">User</option>
+                                                                <option value="moderator">Moderator</option>
+                                                                <option value="ops_admin">Ops Admin</option>
+                                                                <option value="super_admin">Super Admin</option>
+                                                            </select>
+                                                        ) : (
+                                                            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                                                                {user.role}
+                                                            </span>
+                                                        )}
                                                     </td>
                                                     <td className="py-4 px-4">
                                                         <div className="flex items-center gap-2">
