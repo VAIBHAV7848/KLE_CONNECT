@@ -476,7 +476,7 @@ const Admin = () => {
                             >
                                 {/* Global Broadcast Broadcast */}
                                 <div className="lg:col-span-2 glass rounded-[32px] p-8 border border-white/5 bg-gradient-to-br from-blue-600/5 to-transparent relative overflow-hidden">
-                                    <div className="absolute top-0 right-0 p-8 opacity-5">
+                                    <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
                                         <Globe className="w-40 h-40" />
                                     </div>
                                     <div className="flex items-center justify-between mb-8">
