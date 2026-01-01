@@ -18,6 +18,17 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
+
+// Configure Google Provider with custom parameters
 export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({
+    prompt: 'select_account', // Forces account selection
+    display: 'popup'
+});
+
+// Add scopes for better user info
+googleProvider.addScope('profile');
+googleProvider.addScope('email');
+
 export const analytics = getAnalytics(app);
 export const database = getDatabase(app);

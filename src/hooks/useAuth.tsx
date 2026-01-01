@@ -97,9 +97,42 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signInWithGoogle = async () => {
     try {
-      await signInWithPopup(auth, googleProvider);
+      // Set a timeout for the popup to detect slow loading
+      const popupPromise = signInWithPopup(auth, googleProvider);
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Popup timeout')), 60000) // 60 second timeout
+      );
+
+      await Promise.race([popupPromise, timeoutPromise]);
       return { error: null };
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Google Sign-In Error:', error);
+
+      // Provide helpful error messages based on the error type
+      if (error.code === 'auth/popup-closed-by-user') {
+        return {
+          error: new Error('Sign-in cancelled. Please try again and complete the Google sign-in process.')
+        };
+      }
+
+      if (error.code === 'auth/popup-blocked') {
+        return {
+          error: new Error('Popup was blocked by your browser. Please allow popups for this site and try again.')
+        };
+      }
+
+      if (error.code === 'auth/unauthorized-domain') {
+        return {
+          error: new Error('This domain is not authorized. Please contact the administrator.')
+        };
+      }
+
+      if (error.message === 'Popup timeout') {
+        return {
+          error: new Error('Sign-in is taking too long. Please check your internet connection and try again.')
+        };
+      }
+
       return { error: error as Error };
     }
   };
