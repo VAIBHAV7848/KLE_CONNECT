@@ -172,7 +172,7 @@ const Admin = () => {
 
     // --- FUNCTIONAL ACTIONS ---
 
-    const handlePushBroadcast = () => {
+    const handlePushBroadcast = async () => {
         if (!broadcast.trim()) return;
 
         // Rate limiting check
@@ -190,20 +190,43 @@ const Admin = () => {
 
         const payload = { message: sanitizedMessage, timestamp: Date.now(), active: true, sentBy: 'Admin' };
 
-        // Push to Firebase Realtime Database
-        set(ref(database, 'system/broadcast'), payload);
+        try {
+            // Push to Firebase Realtime Database
+            await set(ref(database, 'system/broadcast'), payload);
 
-        toast({
-            title: "Global Broadcast Pushed!",
-            description: "Every student dashboard will now display this priority message.",
-        });
+            logAdminAction('push_broadcast', 'global', `Message: ${sanitizedMessage.substring(0, 50)}...`);
+
+            toast({
+                title: "Global Broadcast Pushed!",
+                description: "Every student dashboard will now display this priority message.",
+            });
+        } catch (error) {
+            console.error("Broadcast push failed:", error);
+            logAdminAction('push_broadcast', 'global', `Failed to push: ${error}`, true);
+            toast({
+                title: "Broadcast Failed",
+                description: "Could not push message. Check connectivity or permissions.",
+                variant: "destructive"
+            });
+        }
     };
 
-    const clearBroadcast = () => {
-        // Remove from Firebase
-        set(ref(database, 'system/broadcast'), null);
-        setBroadcast('');
-        toast({ title: "Broadcast Cleared", description: "All active dashboard announcements have been removed." });
+    const clearBroadcast = async () => {
+        try {
+            // Remove from Firebase
+            await set(ref(database, 'system/broadcast'), null);
+            setBroadcast('');
+            logAdminAction('clear_broadcast', 'global', 'Cleared active broadcast message');
+            toast({ title: "Broadcast Cleared", description: "All active dashboard announcements have been removed." });
+        } catch (error) {
+            console.error("Broadcast clear failed:", error);
+            logAdminAction('clear_broadcast', 'global', `Failed to clear broadcast: ${error}`, true);
+            toast({
+                title: "Action Failed",
+                description: "Could not clear broadcast. Check your permissions.",
+                variant: "destructive"
+            });
+        }
     };
 
     // --- AUDIT LOGGING ---
