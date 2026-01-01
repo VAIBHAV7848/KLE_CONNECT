@@ -1,9 +1,15 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Loader2 } from 'lucide-react';
+import { UserRole } from '@/types/auth';
 
-const AdminProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-    const { user, loading, isAdmin } = useAuth();
+interface AdminProtectedRouteProps {
+    children: React.ReactNode;
+    allowedRoles?: UserRole[];
+}
+
+const AdminProtectedRoute = ({ children, allowedRoles }: AdminProtectedRouteProps) => {
+    const { user, loading, isAdmin, role } = useAuth();
 
     if (loading) {
         return (
@@ -13,9 +19,15 @@ const AdminProtectedRoute = ({ children }: { children: React.ReactNode }) => {
         );
     }
 
+    // 1. Basic Admin Check
     if (!user || !isAdmin) {
-        // Redirect to home if not an admin
         return <Navigate to="/" replace />;
+    }
+
+    // 2. Specific Role Check (if allowedRoles is provided)
+    if (allowedRoles && !allowedRoles.includes(role)) {
+        // User is an admin but doesn't have the SPECIFIC required role
+        return <Navigate to="/dashboard" replace />; // Or a 403 page
     }
 
     return <>{children}</>;

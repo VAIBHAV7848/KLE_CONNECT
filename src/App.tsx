@@ -25,7 +25,11 @@ import Doubts from "./pages/Doubts";
 import SeniorConnect from "./pages/SeniorConnect";
 import StudentHelp from "./pages/StudentHelp";
 import SettingsPage from "./pages/Settings";
-import Admin from "./pages/Admin";
+import React, { Suspense, lazy } from "react";
+// ... other imports
+
+// Lazy load Admin module
+const Admin = lazy(() => import("./pages/Admin"));
 import Support from "./pages/Support";
 import NotFound from "./pages/NotFound";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -50,7 +54,13 @@ const router = createHashRouter([
     path: "/admin",
     element: (
       <AdminProtectedRoute>
-        <Admin />
+        <Suspense fallback={
+          <div className="h-screen w-full flex items-center justify-center bg-background">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        }>
+          <Admin />
+        </Suspense>
       </AdminProtectedRoute>
     ),
   },

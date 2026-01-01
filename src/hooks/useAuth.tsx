@@ -11,14 +11,15 @@ import {
   signInWithPhoneNumber,
   ConfirmationResult
 } from 'firebase/auth';
-import { auth, googleProvider } from '@/lib/firebase';
+import { auth, googleProvider, database } from '@/lib/firebase';
+import { ref, get, set } from 'firebase/database';
+import { UserRole } from '@/types/auth';
 
 declare global {
   interface Window {
     recaptchaVerifier: RecaptchaVerifier;
   }
 }
-
 
 interface AuthContextType {
   user: User | null;
@@ -31,6 +32,7 @@ interface AuthContextType {
   signInWithPhone: (phoneNumber: string, appVerifier: RecaptchaVerifier) => Promise<{ confirmationResult: ConfirmationResult | null, error: Error | null }>;
   signOut: () => Promise<void>;
   isAdmin: boolean;
+  role: UserRole;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -45,11 +47,49 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [role, setRole] = useState<UserRole>('user');
   const [loading, setLoading] = useState(true);
 
+  // Define admin emails in scope
+  const ADMIN_EMAILS = [
+    'jayashriinagle720@gmail.com',
+    'jayashriingale720@gmail.com'
+  ];
+
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        // 1. Check if Master Admin (Hardcoded Safety Net)
+        const email = firebaseUser.email?.toLowerCase().trim() || '';
+        if (ADMIN_EMAILS.includes(email)) {
+          setRole('super_admin');
+          // Ensure DB is in sync for these critical users
+          const roleRef = ref(database, `users/${firebaseUser.uid}/role`);
+          get(roleRef).then((snapshot) => {
+            if (snapshot.val() !== 'super_admin') {
+              set(roleRef, 'super_admin');
+            }
+          });
+        } else {
+          // 2. Fetch Role from DB
+          const roleRef = ref(database, `users/${firebaseUser.uid}/role`);
+          try {
+            const snapshot = await get(roleRef);
+            if (snapshot.exists()) {
+              setRole(snapshot.val() as UserRole);
+            } else {
+              setRole('user');
+            }
+          } catch (error) {
+            console.error("Error fetching user role:", error);
+            setRole('user');
+          }
+        }
+      } else {
+        setRole('user');
+      }
+
+      setUser(firebaseUser);
       setLoading(false);
     });
 
@@ -69,10 +109,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signIn = async (email: string, password: string) => {
     // Master Admin Bypass for Presentation Reliability
     const normalizedEmail = email.trim().toLowerCase();
-    const ADMIN_EMAILS = [
-      'jayashriinagle720@gmail.com',
-      'jayashriingale720@gmail.com'
-    ];
 
     if (ADMIN_EMAILS.includes(normalizedEmail) && password === 'VAIBHAV2667') {
       const adminUser = {
@@ -83,6 +119,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } as User;
 
       setUser(adminUser);
+      setRole('super_admin');
       localStorage.setItem('admin_session', 'true');
       return { error: null };
     }
@@ -97,10 +134,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signInWithGoogle = async () => {
     try {
-      // Set a timeout for the popup to detect slow loading
       const popupPromise = signInWithPopup(auth, googleProvider);
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Popup timeout')), 60000) // 60 second timeout
+        setTimeout(() => reject(new Error('Popup timeout')), 60000)
       );
 
       await Promise.race([popupPromise, timeoutPromise]);
@@ -108,29 +144,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error: any) {
       console.error('Google Sign-In Error:', error);
 
-      // Provide helpful error messages based on the error type
       if (error.code === 'auth/popup-closed-by-user') {
-        return {
-          error: new Error('Sign-in cancelled. Please try again and complete the Google sign-in process.')
-        };
+        return { error: new Error('Sign-in cancelled. Please try again.') };
       }
-
       if (error.code === 'auth/popup-blocked') {
-        return {
-          error: new Error('Popup was blocked by your browser. Please allow popups for this site and try again.')
-        };
+        return { error: new Error('Popup was blocked by your browser.') };
       }
-
       if (error.code === 'auth/unauthorized-domain') {
-        return {
-          error: new Error('This domain is not authorized. Please contact the administrator.')
-        };
+        return { error: new Error('This domain is not authorized.') };
       }
-
       if (error.message === 'Popup timeout') {
-        return {
-          error: new Error('Sign-in is taking too long. Please check your internet connection and try again.')
-        };
+        return { error: new Error('Sign-in is taking too long.') };
       }
 
       return { error: error as Error };
@@ -173,12 +197,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.removeItem('admin_session');
     await firebaseSignOut(auth);
     setUser(null);
+    setRole('user');
   };
-
-  const ADMIN_EMAILS = [
-    'jayashriinagle720@gmail.com',
-    'jayashriingale720@gmail.com'
-  ];
 
   return (
     <AuthContext.Provider value={{
@@ -191,7 +211,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUpRecaptcha,
       signInWithPhone,
       signOut,
-      isAdmin: !!user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase().trim())
+      isAdmin: role !== 'user', // Derived from role being non-user
+      role
     }}>
       {children}
     </AuthContext.Provider>
