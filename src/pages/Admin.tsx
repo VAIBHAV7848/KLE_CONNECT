@@ -104,16 +104,30 @@ const Admin = () => {
             });
         });
 
-        // Load Rooms (for monitoring tab)
-        // Just mocking the structure based on what StudyRooms might look like if persisted,
-        // often these are ephemeral or in a specific node.
-        // For now we will keep the mock rooms for the 'rooms' tab specifically if we don't have a real strict schema for it yet
-        // BUT for the stats, we will try to count them if possible or keep mock for demo.
-        const mockRooms = [
-            { id: 'RM-502', name: 'DSA Study Group', host: 'Vaibhav', participants: 12, uptime: '45m' },
-            { id: 'RM-201', name: 'Thermodynamics Exam', host: 'Rahul', participants: 4, uptime: '12m' },
-        ];
-        setRooms(mockRooms);
+        // Load Active Study Rooms (Real-time from Firebase)
+        const roomsRef = ref(database, 'rooms');
+        const unsubscribeRooms = onValue(roomsRef, (snapshot) => {
+            if (snapshot.exists()) {
+                const data = snapshot.val();
+                const roomList = Object.keys(data).map(key => {
+                    const room = data[key];
+                    const participants = room.participants ? Object.keys(room.participants).length : 0;
+                    const createdAt = room.createdAt || Date.now();
+                    const uptimeMinutes = Math.floor((Date.now() - createdAt) / 60000);
+
+                    return {
+                        id: key,
+                        name: room.name || `Room ${key.slice(0, 6)}`,
+                        host: room.hostName || room.hostEmail || 'Unknown',
+                        participants: participants,
+                        uptime: uptimeMinutes > 60 ? `${Math.floor(uptimeMinutes / 60)}h ${uptimeMinutes % 60}m` : `${uptimeMinutes}m`
+                    };
+                });
+                setRooms(roomList);
+            } else {
+                setRooms([]);
+            }
+        });
 
         // Load Lockdown State from Firebase (GLOBAL)
         const lockdownRef = ref(database, 'system/lockdown');
@@ -160,6 +174,7 @@ const Admin = () => {
         return () => {
             unsubscribeBroadcast();
             unsubscribeUsers();
+            unsubscribeRooms();
             unsubscribeLockdown();
             unsubscribeStats();
         };
