@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import SystemSecrets from '@/components/admin/SystemSecrets';
+import ErrorBoundary from '@/components/ErrorBoundary';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { database } from '@/lib/firebase';
@@ -881,7 +882,9 @@ const Admin = () => {
                                 initial={{ opacity: 0, scale: 0.98 }}
                                 animate={{ opacity: 1, scale: 1 }}
                             >
-                                <SystemSecrets />
+                                <ErrorBoundary>
+                                    <SystemSecrets />
+                                </ErrorBoundary>
                             </motion.div>
                         )}
                     </AnimatePresence>

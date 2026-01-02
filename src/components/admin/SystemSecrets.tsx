@@ -4,7 +4,22 @@ import { useAuth } from '@/hooks/useAuth';
 import { Shield, Key, Lock, Eye, EyeOff, Save, Trash2, AlertTriangle } from 'lucide-react';
 
 const SystemSecrets: React.FC = () => {
-    const { isOwner } = useAuth();
+    const { isOwner, user } = useAuth();
+
+    // TASK 3 — Log owner flag for debugging
+    console.log('[SystemSecrets] isOwner:', isOwner, 'user:', user?.email);
+
+    // TASK 2 — Early return guards
+    if (!user) {
+        console.warn('[SystemSecrets] No user found');
+        return null;
+    }
+
+    if (!isOwner) {
+        console.warn('[SystemSecrets] User is not owner');
+        return null;
+    }
+
     const { secrets, loading, addSecret, updateSecret, deleteSecret } = useSystemConfig();
 
     const [newKeyName, setNewKeyName] = useState('');
@@ -12,9 +27,6 @@ const SystemSecrets: React.FC = () => {
     const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
     const [editingKey, setEditingKey] = useState<string | null>(null);
     const [editValue, setEditValue] = useState('');
-
-    // internal owner check removed - handled by parent
-
 
     const toggleVisibility = (keyName: string) => {
         const newSet = new Set(visibleKeys);
@@ -35,6 +47,7 @@ const SystemSecrets: React.FC = () => {
             setNewKeyValue('');
             alert('Secret added successfully');
         } catch (err) {
+            console.error('[SystemSecrets] Failed to add secret:', err);
             alert('Failed to add secret');
         }
     };
@@ -45,13 +58,19 @@ const SystemSecrets: React.FC = () => {
             setEditingKey(null);
             setEditValue('');
         } catch (err) {
+            console.error('[SystemSecrets] Failed to update secret:', err);
             alert('Failed to update secret');
         }
     };
 
     const handleDelete = async (keyName: string) => {
         if (confirm(`Are you sure you want to permanently delete ${keyName}? This may break platform features.`)) {
-            await deleteSecret(keyName);
+            try {
+                await deleteSecret(keyName);
+            } catch (err) {
+                console.error('[SystemSecrets] Failed to delete secret:', err);
+                alert('Failed to delete secret');
+            }
         }
     };
 
