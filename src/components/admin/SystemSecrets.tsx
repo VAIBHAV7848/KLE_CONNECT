@@ -13,8 +13,8 @@ const SystemSecrets: React.FC = () => {
     const [editingKey, setEditingKey] = useState<string | null>(null);
     const [editValue, setEditValue] = useState('');
 
-    // ABSOLUTE SECURITY CHECK
-    if (!isOwner) return null;
+    // internal owner check removed - handled by parent
+
 
     const toggleVisibility = (keyName: string) => {
         const newSet = new Set(visibleKeys);
