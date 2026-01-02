@@ -40,7 +40,7 @@ interface ManagedUser {
 const Admin = () => {
     const { toast } = useToast();
     const { role: currentAdminRole, user: currentUser, isOwner: iAmOwner } = useAuth();
-    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'rooms' | 'moderation'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'rooms' | 'moderation' | 'secrets'>('overview');
     const [isLive, setIsLive] = useState(true);
     const [isLockdownActive, setIsLockdownActive] = useState(false);
     const [isStopping, setIsStopping] = useState(false);
@@ -417,9 +417,6 @@ const Admin = () => {
                     </div>
                 </div>
 
-                {/* Tier 0 System Config (Owner Only) */}
-                {iAmOwner && <SystemSecrets />}
-
                 {/* 1. Dashboard Stats */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {stats.map((stat, i) => (
@@ -453,6 +450,7 @@ const Admin = () => {
                         { id: 'users', label: 'User Directory', icon: Users },
                         { id: 'rooms', label: 'Active Meetings', icon: Video },
                         { id: 'moderation', label: 'Security Lab', icon: Lock },
+                        ...(iAmOwner ? [{ id: 'secrets', label: 'System Configuration', icon: ShieldCheck }] : [])
                     ].map(tab => (
                         <button
                             key={tab.id}
@@ -461,10 +459,11 @@ const Admin = () => {
                                 "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2",
                                 activeTab === tab.id
                                     ? "bg-white/10 text-white shadow-lg border border-white/10"
-                                    : "text-gray-500 hover:text-gray-300"
+                                    : "text-gray-500 hover:text-gray-300",
+                                tab.id === 'secrets' && activeTab === 'secrets' && "bg-red-500/10 text-red-500 border-red-500/20 shadow-red-500/10"
                             )}
                         >
-                            <tab.icon className="w-3.5 h-3.5" />
+                            <tab.icon className={cn("w-3.5 h-3.5", tab.id === 'secrets' && "text-red-500")} />
                             <span className="hidden sm:inline">{tab.label}</span>
                         </button>
                     ))}
@@ -873,6 +872,16 @@ const Admin = () => {
                                         </Button>
                                     </div>
                                 </div>
+                            </motion.div>
+                        )}
+
+                        {activeTab === 'secrets' && iAmOwner && (
+                            <motion.div
+                                key="secrets"
+                                initial={{ opacity: 0, scale: 0.98 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                            >
+                                <SystemSecrets />
                             </motion.div>
                         )}
                     </AnimatePresence>
