@@ -647,6 +647,8 @@ const Admin = () => {
                         {activeTab === 'rooms' && (
                             <motion.div
                                 key="rooms"
+                                initial={{ opacity: 0, scale: 0.98 }}
+                                animate={{ opacity: 1, scale: 1 }}
                                 className="space-y-6"
                             >
                                 <div className="flex items-center justify-between mb-2 px-2">
