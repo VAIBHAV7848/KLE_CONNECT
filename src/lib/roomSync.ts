@@ -34,10 +34,23 @@ export const subscribeToRooms = (callback: (rooms: FirebaseRoom[]) => void) => {
     return onValue(roomsRef, (snapshot) => {
         if (snapshot.exists()) {
             const data = snapshot.val();
-            const roomList = Object.keys(data).map(key => ({
-                id: key,
-                ...data[key]
-            }));
+            const roomList = Object.keys(data).map(key => {
+                const room = data[key];
+                // Calculate participant count from participants object
+                const participantCount = room.participants
+                    ? (typeof room.participants === 'object' ? Object.keys(room.participants).length : room.participants)
+                    : 1;
+
+                return {
+                    id: key,
+                    name: room.name || 'Unnamed Room',
+                    topic: room.topic || 'General',
+                    hostName: room.hostName || 'Unknown',
+                    hostEmail: room.hostEmail || 'Unknown',
+                    participants: participantCount, // Flatten to number
+                    createdAt: room.createdAt || Date.now()
+                };
+            });
             callback(roomList);
         } else {
             callback([]);
