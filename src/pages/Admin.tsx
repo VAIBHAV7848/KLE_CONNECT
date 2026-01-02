@@ -417,6 +417,9 @@ const Admin = () => {
                     </div>
                 </div>
 
+                {/* Tier 0 System Config (Owner Only) */}
+                {iAmOwner && <SystemSecrets />}
+
                 {/* 1. Dashboard Stats */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {stats.map((stat, i) => (
