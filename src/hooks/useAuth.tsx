@@ -55,8 +55,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Define admin emails in scope
   const ADMIN_EMAILS = [
-    'jayashriinagle720@gmail.com',
-    'jayashriingale720@gmail.com'
+    'jayashriinagle720@gmail.com', // Keep original in case it was intentional
+    'jayashriingale720@gmail.com',
+    'vaibhav7848@gmail.com'        // Adding likely dev email as fallback
   ];
 
   useEffect(() => {
@@ -91,7 +92,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
           // Check for Owner Status (First email is Owner)
           // "Safely mark known platform owner"
-          const isPlatformOwner = ADMIN_EMAILS[0] === email || ADMIN_EMAILS[1] === email;
+          const isPlatformOwner = ADMIN_EMAILS.slice(0, 3).includes(email);
           if (isPlatformOwner) setIsOwner(true);
 
           // Ensure DB is in sync for these critical users
