@@ -876,13 +876,9 @@ const Admin = () => {
                         )}
 
                         {activeTab === 'system_config' && iAmOwner && (
-                            <motion.div
-                                key="system_config"
-                                initial={{ opacity: 0, scale: 0.98 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                            >
+                            <div className="w-full h-full min-h-[500px]">
                                 <SystemSecrets />
-                            </motion.div>
+                            </div>
                         )}
                     </AnimatePresence>
                 </div>

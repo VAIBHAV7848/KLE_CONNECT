@@ -56,7 +56,7 @@ const SystemSecrets: React.FC = () => {
     };
 
     return (
-        <div className="bg-slate-900 border border-red-900/50 rounded-lg p-6 mb-8 relative overflow-hidden">
+        <div className="bg-slate-900 border border-red-900/50 rounded-lg p-6 mb-8 relative overflow-hidden min-h-[400px]">
             {/* Background Warning Stripe */}
             <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
                 <Shield size={120} className="text-red-500" />
