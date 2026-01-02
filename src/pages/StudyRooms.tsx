@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { saveRoomToFirebase, subscribeToRooms, FirebaseRoom } from '@/lib/roomSync';
+import { saveRoomToFirebase, subscribeToRooms, FirebaseRoom, joinRoom, leaveRoom } from '@/lib/roomSync';
 import AgoraRTC, {
   AgoraRTCProvider,
   useJoin,
@@ -662,6 +662,22 @@ const LiveMeeting = (props: {
       setStageUid('local_screen');
     }
   }, [remoteUsers, screenShareOn]);
+
+  // Firebase: Track participant join/leave
+  useEffect(() => {
+    if (isConnected && user && props.roomCode) {
+      const userId = user.uid || String(uid);
+      const userName = user.displayName || user.email || `User-${uid}`;
+
+      // Join room
+      joinRoom(props.roomCode, userId, userName).catch(console.error);
+
+      // Leave room on unmount
+      return () => {
+        leaveRoom(props.roomCode, userId).catch(console.error);
+      };
+    }
+  }, [isConnected, user, props.roomCode, uid]);
 
   return (
     <div className="h-screen w-full bg-[#202124] text-white flex flex-col overflow-hidden fixed inset-0 z-50 font-sans">
