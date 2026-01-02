@@ -85,7 +85,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         // 1. Check if Master Admin (Hardcoded Safety Net)
         const email = firebaseUser.email?.toLowerCase().trim() || '';
+        console.log("Auth Debug: Checking Email:", email);
+        console.log("Auth Debug: Admin List:", ADMIN_EMAILS);
+
         const isMasterAdmin = ADMIN_EMAILS.includes(email);
+        console.log("Auth Debug: Is Master Admin?", isMasterAdmin);
 
         if (isMasterAdmin) {
           setRole('super_admin');
@@ -156,6 +160,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       setUser(firebaseUser);
+      console.log("AUTH OWNER FLAG:", isOwner);
       setLoading(false);
     });
 

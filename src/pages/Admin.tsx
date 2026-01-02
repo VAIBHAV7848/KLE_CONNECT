@@ -40,7 +40,7 @@ interface ManagedUser {
 const Admin = () => {
     const { toast } = useToast();
     const { role: currentAdminRole, user: currentUser, isOwner: iAmOwner } = useAuth();
-    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'rooms' | 'moderation' | 'secrets'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'rooms' | 'moderation' | 'system_config'>('overview');
     const [isLive, setIsLive] = useState(true);
     const [isLockdownActive, setIsLockdownActive] = useState(false);
     const [isStopping, setIsStopping] = useState(false);
@@ -450,7 +450,7 @@ const Admin = () => {
                         { id: 'users', label: 'User Directory', icon: Users },
                         { id: 'rooms', label: 'Active Meetings', icon: Video },
                         { id: 'moderation', label: 'Security Lab', icon: Lock },
-                        ...(iAmOwner ? [{ id: 'secrets', label: 'System Configuration', icon: ShieldCheck }] : [])
+                        ...(iAmOwner ? [{ id: 'system_config', label: 'System Configuration', icon: ShieldCheck }] : [])
                     ].map(tab => (
                         <button
                             key={tab.id}
@@ -460,10 +460,10 @@ const Admin = () => {
                                 activeTab === tab.id
                                     ? "bg-white/10 text-white shadow-lg border border-white/10"
                                     : "text-gray-500 hover:text-gray-300",
-                                tab.id === 'secrets' && activeTab === 'secrets' && "bg-red-500/10 text-red-500 border-red-500/20 shadow-red-500/10"
+                                tab.id === 'system_config' && activeTab === 'system_config' && "bg-red-500/10 text-red-500 border-red-500/20 shadow-red-500/10"
                             )}
                         >
-                            <tab.icon className={cn("w-3.5 h-3.5", tab.id === 'secrets' && "text-red-500")} />
+                            <tab.icon className={cn("w-3.5 h-3.5", tab.id === 'system_config' && "text-red-500")} />
                             <span className="hidden sm:inline">{tab.label}</span>
                         </button>
                     ))}
@@ -875,9 +875,9 @@ const Admin = () => {
                             </motion.div>
                         )}
 
-                        {activeTab === 'secrets' && iAmOwner && (
+                        {activeTab === 'system_config' && iAmOwner && (
                             <motion.div
-                                key="secrets"
+                                key="system_config"
                                 initial={{ opacity: 0, scale: 0.98 }}
                                 animate={{ opacity: 1, scale: 1 }}
                             >
