@@ -9,6 +9,9 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
+import SystemSecrets from '@/components/admin/SystemSecrets';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { database } from '@/lib/firebase';

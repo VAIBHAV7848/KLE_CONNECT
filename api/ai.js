@@ -19,9 +19,17 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: "Prompt is required" });
         }
 
-        const apiKey = process.env.GROQ_API_KEY;
+        // PRIORITY: Runtime Dynamic Key (Owner Testing) -> Env Var (Production)
+        let apiKey = process.env.GROQ_API_KEY;
+
+        // Check for dynamic key passed securely in body (for Owner testing of new keys)
+        if (req.body.dynamicKey) {
+            apiKey = req.body.dynamicKey;
+            console.log("Using Runtime Dynamic Key for AI Request");
+        }
+
         if (!apiKey) {
-            console.error("GROQ_API_KEY is missing in environment variables");
+            console.error("GROQ_API_KEY is missing in environment variables and no dynamic key provided");
             return res.status(500).json({
                 error: "Configuration Error",
                 reply: "⚠️ **System Error**: GROQ_API_KEY not found in Vercel environment variables. Please check your Vercel project settings."
