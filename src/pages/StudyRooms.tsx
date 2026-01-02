@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { saveRoomToFirebase, subscribeToRooms, FirebaseRoom } from '@/lib/roomSync';
 import AgoraRTC, {
   AgoraRTCProvider,
   useJoin,
@@ -211,28 +212,33 @@ const Lobby = ({ onJoin }: { onJoin: (code: string) => void }) => {
   // Custom Room State
   const [rooms, setRooms] = useState<{ id: string, name: string, topic: string, participants: number }[]>([]);
 
+  const { user } = useAuth();
+
   useEffect(() => {
-    // Load saved rooms or defaults
-    const saved = localStorage.getItem('custom-study-rooms');
-    if (saved) {
-      setRooms(JSON.parse(saved));
-    } else {
-      setRooms([]);
-    }
+    // Subscribe to Firebase rooms in real-time
+    const unsubscribe = subscribeToRooms((firebaseRooms) => {
+      setRooms(firebaseRooms);
+    });
+    return () => unsubscribe();
   }, []);
 
-  const handleCreateRoom = () => {
-    if (!newRoomName.trim()) return;
-    const newRoom = {
+  const handleCreateRoom = async () => {
+    if (!newRoomName.trim() || !user) return;
+
+    const newRoom: FirebaseRoom = {
       id: crypto.randomUUID(),
       name: newRoomName,
       topic: newRoomTopic,
-      participants: 1 // Starts with you
+      hostName: user.displayName || 'Student',
+      hostEmail: user.email || user.phoneNumber || 'Unknown',
+      participants: 1,
+      createdAt: Date.now()
     };
-    const updated = [newRoom, ...rooms];
-    setRooms(updated);
-    localStorage.setItem('custom-study-rooms', JSON.stringify(updated));
+
+    await saveRoomToFirebase(newRoom);
     setIsCreateOpen(false);
+    setNewRoomName('');
+    setNewRoomTopic('');
     onJoin(newRoom.name); // Join immediately
   };
 
