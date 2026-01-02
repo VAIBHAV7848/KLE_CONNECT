@@ -450,6 +450,7 @@ const Admin = () => {
                         { id: 'users', label: 'User Directory', icon: Users },
                         { id: 'rooms', label: 'Active Meetings', icon: Video },
                         { id: 'moderation', label: 'Security Lab', icon: Lock },
+                        ...(iAmOwner ? [{ id: 'system_config', label: 'System Configuration', icon: ShieldCheck }] : [])
                     ].map(tab => (
                         <button
                             key={tab.id}
