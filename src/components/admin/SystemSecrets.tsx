@@ -5,6 +5,7 @@ import { Shield, Key, Lock, Eye, EyeOff, Save, Trash2, AlertTriangle } from 'luc
 
 const SystemSecrets: React.FC = () => {
     const { isOwner, user } = useAuth();
+    const { secrets, loading, addSecret, updateSecret, deleteSecret } = useSystemConfig();
 
     // TASK 3 — Log owner flag for debugging
     console.log('[SystemSecrets] isOwner:', isOwner, 'user:', user?.email);
@@ -19,8 +20,6 @@ const SystemSecrets: React.FC = () => {
         console.warn('[SystemSecrets] User is not owner');
         return null;
     }
-
-    const { secrets, loading, addSecret, updateSecret, deleteSecret } = useSystemConfig();
 
     const [newKeyName, setNewKeyName] = useState('');
     const [newKeyValue, setNewKeyValue] = useState('');
