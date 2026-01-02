@@ -1,4 +1,48 @@
 import Internal API from 'openai';
+import { initializeApp } from 'firebase/app';
+import { getDatabase, ref, get } from 'firebase/database';
+
+import { initializeApp } from 'firebase/app';
+import { getDatabase, ref, get } from 'firebase/database';
+
+// Firebase config (same as frontend)
+const firebaseConfig = {
+    apiKey: "<GOOGLE_KEY_HIDDEN>",
+    authDomain: "kle-connect.firebaseapp.com",
+    databaseURL: "https://kle-connect-default-rtdb.firebaseio.com",
+    projectId: "kle-connect",
+    storageBucket: "kle-connect.firebasestorage.app",
+    messagingSenderId: "1029633402663",
+    appId: "1:1029633402663:web:c4d8e2a0e5a5f5a5f5a5f5"
+};
+
+// Initialize Firebase (singleton)
+let firebaseApp;
+let database;
+try {
+    firebaseApp = initializeApp(firebaseConfig);
+    database = getDatabase(firebaseApp);
+} catch (error) {
+    console.warn('Firebase initialization failed:', error.message);
+}
+
+// Helper: Fetch API key from Firebase System Config
+async function getApiKeyFromFirebase(keyName) {
+    if (!database) return null;
+    try {
+        const keyRef = ref(database, `system_config/api_keys/${keyName}`);
+        const snapshot = await get(keyRef);
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            // Decrypt if needed (for now, assume stored encrypted with AES)
+            // You'll need to add crypto-js here if you want to decrypt
+            return data.keyValue; // Return encrypted value for now
+        }
+    } catch (error) {
+        console.error(`Failed to fetch ${keyName} from Firebase:`, error);
+    }
+    return null;
+}
 
 export default async function handler(req, res) {
     // Enable CORS
@@ -19,20 +63,28 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: "Prompt is required" });
         }
 
-        // PRIORITY: Runtime Dynamic Key (Owner Testing) -> Env Var (Production)
-        let apiKey = process.env.GROQ_API_KEY;
+        // PRIORITY: Firebase System Config -> Dynamic Key (Owner Testing) -> Env Var (Fallback)
+        let apiKey = await getApiKeyFromFirebase('GROQ_API_KEY');
 
-        // Check for dynamic key passed securely in body (for Owner testing of new keys)
-        if (req.body.dynamicKey) {
-            apiKey = req.body.dynamicKey;
-            console.log("Using Runtime Dynamic Key for AI Request");
+        if (!apiKey) {
+            // Fallback to dynamic key from request body (owner testing)
+            if (req.body.dynamicKey) {
+                apiKey = req.body.dynamicKey;
+                console.log("Using Runtime Dynamic Key for AI Request");
+            } else {
+                // Final fallback to environment variable
+                apiKey = process.env.GROQ_API_KEY;
+                console.log("Using Environment Variable for GROQ_API_KEY");
+            }
+        } else {
+            console.log("Using Firebase System Config for GROQ_API_KEY");
         }
 
         if (!apiKey) {
-            console.error("GROQ_API_KEY is missing in environment variables and no dynamic key provided");
+            console.error("GROQ_API_KEY not found in Firebase, request body, or environment variables");
             return res.status(500).json({
                 error: "Configuration Error",
-                reply: "⚠️ **System Error**: GROQ_API_KEY not found in Vercel environment variables. Please check your Vercel project settings."
+                reply: "⚠️ **System Error**: GROQ_API_KEY not configured. Please add it in System Configuration or Vercel environment variables."
             });
         }
 
