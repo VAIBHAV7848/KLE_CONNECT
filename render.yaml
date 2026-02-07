@@ -8,6 +8,6 @@ services:
     plan: free
     envVars:
       - key: VITE_AGORA_APP_ID
-        value: bb21d68abe3449f9b90944ee33253fa5
+        value: a3e9280ee0fc4a2aad7548828ffe0158
       - key: VITE_AGORA_CERTIFICATE
-        value: 1c3ad9b24825427a9e98ec1fe363d098
+        value: 20920bccbb2341e591b4c1c285d20b44
