@@ -39,11 +39,13 @@ export async function notifySecurity(event, details) {
     // 2. TELEGRAM LOGIC
     if (TG_TOKEN && TG_CHAT_ID) {
         try {
+            const escaped = (str) => String(str).replace(/[_*[\]()~`>#+\-=|{}.!]/g, '\\$&');
+
             const text = `${statusEmoji} *KLE CONNECT SECURITY ALERT*\n\n` +
                          `*Event:* ${event.replace(/_/g, '\\_')}\n` +
-                         `*Time:* ${timestamp}\n\n` +
+                         `*Time:* ${escaped(timestamp)}\n\n` +
                          Object.entries(details)
-                            .map(([key, val]) => `• *${key}:* \`${val}\``)
+                            .map(([key, val]) => `• *${key}:* \`${escaped(val)}\``)
                             .join('\n');
 
             const tgUrl = `https://api.telegram.org/bot${TG_TOKEN}/sendMessage`;
