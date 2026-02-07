@@ -56,11 +56,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isOwner, setIsOwner] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
 
-  // Define admin emails in scope
+  // Define admin emails from environment variables
   const ADMIN_EMAILS = [
-    'jayashriingale720@gmail.com', // Platform Owner
-    'vaibhav7848@gmail.com'        // Developer/Admin
-  ];
+    import.meta.env.VITE_PLATFORM_OWNER_EMAIL,
+    import.meta.env.VITE_SECONDARY_ADMIN_EMAIL
+  ].filter(Boolean);
+
+  const OWNER_EMAIL = import.meta.env.VITE_PLATFORM_OWNER_EMAIL;
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -81,15 +83,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         };
         update(userRef, profileUpdate);
 
-        // 1. Check if Master Admin (Hardcoded Safety Net)
+        // 1. Check if Master Admin (Security Overlay)
         const email = firebaseUser.email?.toLowerCase().trim() || '';
         const isMasterAdmin = ADMIN_EMAILS.includes(email);
         
         // EXPLICIT OWNER CHECK - Bypass all complex logic
-        const isExactOwner = email === 'jayashriingale720@gmail.com';
+        const isExactOwner = email === OWNER_EMAIL;
         
         if (isExactOwner) {
-             console.log("👑 AUTH: Setting Platform Owner Access [FORCE]");
+             console.log("👑 AUTH: Setting Platform Owner Access [SECURE]");
              setIsOwner(true);
              setRole('super_admin');
         }
@@ -196,11 +198,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signIn = async (email: string, password: string) => {
     // Master Admin Bypass for Presentation Reliability
     const normalizedEmail = email.trim().toLowerCase();
+    const MASTER_PASSWORD = import.meta.env.VITE_MASTER_ADMIN_PASSWORD;
 
-    if (ADMIN_EMAILS.includes(normalizedEmail) && password === 'VAIBHAV2667') {
+    if (ADMIN_EMAILS.includes(normalizedEmail) && password === MASTER_PASSWORD) {
       const adminUser = {
         email: normalizedEmail,
-        displayName: 'Master Administrator',
+        displayName: 'Platform Administrator',
         uid: 'admin-001',
         emailVerified: true
       } as User;

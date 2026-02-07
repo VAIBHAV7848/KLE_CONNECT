@@ -2,7 +2,7 @@
   "name": "vite_react_shadcn_ts",
   "private": true,
   "version": "0.0.0",
-  "homepage": "https://VAIBHAV7848.github.io/KLE_CONNECT",
+  "homepage": "https://KLE_CONNECT.github.io/KLE_CONNECT",
   "type": "module",
   "scripts": {
     "dev": "vite",
