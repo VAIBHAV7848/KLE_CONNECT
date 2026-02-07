@@ -29,7 +29,7 @@ import { motion, AnimatePresence } from 'framer-motion';
  * CONFIGURATION
  */
 const APP_ID = (import.meta.env.VITE_AGORA_APP_ID || "").trim();
-const TOKEN_SERVER_URL = (import.meta.env.VITE_TOKEN_SERVER_URL || "").trim();
+const TOKEN_SERVER_URL = (import.meta.env.VITE_TOKEN_SERVER_URL || "https://kle-token-server.onrender.com").trim();
 
 // Diagnostic Log for Developer Console
 if (typeof window !== 'undefined') {

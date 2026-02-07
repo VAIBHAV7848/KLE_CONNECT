@@ -99,7 +99,7 @@ const Admin = () => {
             console.error('[Admin] Error fetching users:', error);
             toast({
                 title: "Access Error",
-                description: "Could not fetch user directory. Check permissions.",
+                description: "Database Permission Denied. Please ensure you have deployed the latest validation rules (database.rules.json) to Firebase Console.",
                 variant: "destructive"
             });
         });
