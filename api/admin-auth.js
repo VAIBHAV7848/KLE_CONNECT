@@ -42,7 +42,17 @@ export default async function handler(req, res) {
             });
         }
 
-        console.warn(`[SECURITY_MONITOR] ADMIN_AUTH_FAILURE | User: ${normalizedEmail} | IP: ${req.headers['x-forwarded-for'] || req.socket.remoteAddress}`);
+        const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+        console.warn(`[SECURITY_MONITOR] ADMIN_AUTH_FAILURE | User: ${normalizedEmail} | IP: ${ip}`);
+        
+        // Real-time Alert
+        const { notifySecurity } = await import('./lib/notify.js');
+        await notifySecurity('ADMIN_AUTH_FAILURE', {
+            User: normalizedEmail,
+            IP: ip,
+            Platform: 'KLE_CONNECT_ADMIN'
+        });
+
         return res.status(401).json({ success: false, error: "Invalid credentials" });
     } catch (error) {
         return res.status(500).json({ error: "Server error" });
