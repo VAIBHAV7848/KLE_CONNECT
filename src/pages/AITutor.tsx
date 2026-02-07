@@ -129,9 +129,25 @@ const AITutor = () => {
     setLastError(null);
 
     try {
+    // --- Authenticated AI Logic ---
+    try {
+      // 1. Get Firebase ID Token for secure backend verification
+      let idToken = "";
+      try {
+        const { auth } = await import('@/lib/firebase');
+        if (auth.currentUser) {
+          idToken = await auth.currentUser.getIdToken(true);
+        }
+      } catch (tokenErr) {
+        console.warn("[AITutor] Could not retrieve ID token", tokenErr);
+      }
+
       const response = await fetch(aiEndpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": idToken ? `Bearer ${idToken}` : ""
+        },
         body: JSON.stringify({
           prompt: query,
           history: history.slice(0, -1).map(m => ({
@@ -153,6 +169,10 @@ const AITutor = () => {
         timestamp: Date.now()
       }]);
       setStatus('idle');
+    } catch (tokenErr) {
+        console.warn("[AITutor] Secure request failed", tokenErr);
+        throw tokenErr;
+    }
 
     } catch (error: any) {
       console.error("BACKEND CALL ERROR:", error);

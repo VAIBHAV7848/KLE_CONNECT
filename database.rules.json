@@ -11,9 +11,12 @@
             ".read": "auth.uid != null && root.child('users').child(auth.uid).child('isOwner').val() === true",
             ".write": "auth.uid != null && root.child('users').child(auth.uid).child('isOwner').val() === true"
         },
-        "doubts": {
+        "forum": {
             ".read": "auth != null",
-            ".write": "auth != null"
+            "$questionId": {
+                ".write": "auth != null && (!data.exists() || data.child('authorId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                ".validate": "newData.hasChildren(['question', 'subject', 'author'])"
+            }
         },
         "community": {
             ".read": "auth != null",
@@ -21,11 +24,15 @@
         },
         "notes": {
             ".read": "auth != null",
-            ".write": "auth != null"
+            "$noteId": {
+                ".write": "auth != null && (!data.exists() || data.child('uploaderId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')"
+            }
         },
         "rooms": {
             ".read": "auth != null",
-            ".write": "auth != null"
+            "$roomId": {
+                ".write": "auth != null && (!data.exists() || data.child('hostId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')"
+            }
         },
         "system": {
             "lockdown": {
@@ -43,7 +50,8 @@
             "audit_logs": {
                 ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
                 "$logId": {
-                    ".write": "auth != null && !data.exists()"
+                    ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'super_admin' && !data.exists()",
+                    ".validate": "newData.hasChildren(['action', 'timestamp', 'actorId']) && newData.child('actorId').val() === auth.uid"
                 }
             }
         }
