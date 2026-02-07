@@ -58,9 +58,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Define admin emails in scope
   const ADMIN_EMAILS = [
-    'jayashriinagle720@gmail.com', // Keep original in case it was intentional
-    'jayashriingale720@gmail.com',
-    'vaibhav7848@gmail.com'        // Adding likely dev email as fallback
+    'jayashriingale720@gmail.com', // Platform Owner
+    'vaibhav7848@gmail.com'        // Developer/Admin
   ];
 
   useEffect(() => {
