@@ -240,7 +240,7 @@ const Lobby = ({ onJoin }: { onJoin: (code: string) => void }) => {
     const newRoom = {
       name: newRoomName,
       topic: newRoomTopic,
-      participants: 1, // Starts with you
+      participants: 0, // Will be updated when someone joins
       createdAt: Date.now()
     };
     
@@ -683,6 +683,30 @@ const LiveMeeting = (props: {
       }
     }, { onlyOnce: true }); // Only query once per update
   }, [remoteUsers.length, props.roomCode]);
+
+  // Cleanup: Reset participant count when leaving
+  useEffect(() => {
+    return () => {
+      // When component unmounts (user leaves), reset participants to 0
+      if (!props.roomCode) return;
+
+      const roomsRef = ref(database, 'rooms');
+      onValue(roomsRef, (snapshot) => {
+        if (snapshot.exists()) {
+          const roomsData = snapshot.val();
+          const roomKey = Object.keys(roomsData).find(
+            key => roomsData[key].name === props.roomCode
+          );
+          
+          if (roomKey) {
+            update(ref(database, `rooms/${roomKey}`), {
+              participants: 0
+            });
+          }
+        }
+      }, { onlyOnce: true });
+    };
+  }, [props.roomCode]);
 
   // Clean Theatre Logic: Auto-Spotlight Screen Shares
   useEffect(() => {
