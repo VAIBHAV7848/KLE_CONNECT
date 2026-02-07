@@ -10,7 +10,8 @@ import {
   RecaptchaVerifier,
   signInWithPhoneNumber,
   ConfirmationResult,
-  updateProfile
+  updateProfile,
+  updatePassword
 } from 'firebase/auth';
 import { auth, googleProvider, database } from '@/lib/firebase';
 import { ref, get, set, onValue, update } from 'firebase/database';
@@ -35,6 +36,8 @@ interface AuthContextType {
   isAdmin: boolean;
   role: UserRole;
   isOwner: boolean;
+  updateUserProfile: (displayName: string) => Promise<{ error: Error | null }>;
+  changePassword: (newPassword: string) => Promise<{ error: Error | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -290,6 +293,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setRole('user');
   };
 
+  const updateUserProfile = async (displayName: string) => {
+    try {
+      if (!auth.currentUser) throw new Error('No user logged in');
+      
+      // 1. Update Firebase Auth Profile
+      await updateProfile(auth.currentUser, { displayName });
+      
+      // 2. Update Realtime Database Profile
+      // We only update the display name to avoid overwriting other sensitive fields like role/isOwner
+      const userRef = ref(database, `users/${auth.currentUser.uid}`);
+      await update(userRef, { displayName });
+      
+      // Update local state to reflect change immediately
+      setUser({ ...auth.currentUser, displayName } as User);
+      
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
+  };
+
+  const changePassword = async (newPassword: string) => {
+    try {
+      if (!auth.currentUser) throw new Error('No user logged in');
+      await updatePassword(auth.currentUser, newPassword);
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -303,7 +337,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       signOut,
       isAdmin: role !== 'user', // Derived from role being non-user
       role,
-      isOwner
+      isOwner,
+      updateUserProfile,
+      changePassword
     }}>
       {children}
     </AuthContext.Provider>

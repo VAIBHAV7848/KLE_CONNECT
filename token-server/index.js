@@ -13,11 +13,12 @@ app.use(cors({ origin: '*' }));
 app.use(express.json());
 
 // Load from environment variables
-const APP_ID = process.env.APP_ID;
-const APP_CERTIFICATE = process.env.APP_CERTIFICATE;
+// Load from environment variables
+const APP_ID = process.env.VITE_AGORA_APP_ID;
+const APP_CERTIFICATE = process.env.VITE_AGORA_CERTIFICATE;
 
 if (!APP_ID || !APP_CERTIFICATE) {
-    console.error("Error: APP_ID and APP_CERTIFICATE must be set in .env file");
+    console.error("Error: VITE_AGORA_APP_ID and VITE_AGORA_CERTIFICATE must be set in .env file");
 }
 
 app.post('/token', (req, res) => {

@@ -6,6 +6,11 @@ import { Settings, User, Bell, Shield, Palette, LogOut } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { EditProfileModal } from '@/components/settings/EditProfileModal';
+import { ChangePasswordModal } from '@/components/settings/ChangePasswordModal';
+import { PrivacyModal } from '@/components/settings/PrivacyModal';
+import { database } from '@/lib/firebase';
+import { ref, update, get } from 'firebase/database';
 
 interface SettingState {
   pushNotifications: boolean;
@@ -27,7 +32,10 @@ const DEFAULT_SETTINGS: SettingState = {
  * Settings - App configuration and preferences
  */
 const SettingsPage = () => {
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
 
   // Initialize state from localStorage or defaults
   const [settings, setSettings] = useState<SettingState>(() => {
@@ -54,12 +62,53 @@ const SettingsPage = () => {
     }
   }, [settings]);
 
+  // Listen to Firebase Settings
+  useEffect(() => {
+    if (!user) return;
+    
+    // Check if we have settings in DB
+    const settingsRef = ref(database, `users/${user.uid}/settings`);
+    get(settingsRef).then((snapshot) => {
+        if (snapshot.exists()) {
+            const remoteSettings = snapshot.val();
+            // Merge remote settings with local defaults, preferring remote
+            setSettings(prev => ({
+                ...prev,
+                ...remoteSettings
+            }));
+        }
+    });
+  }, [user]);
+
   const handleToggle = (key: keyof SettingState) => {
-    setSettings(prev => ({ ...prev, [key]: !prev[key] }));
+    const newValue = !settings[key];
+    setSettings(prev => ({ ...prev, [key]: newValue }));
+    
+    // Sync to Firebase if user is logged in
+    if (user) {
+      update(ref(database, `users/${user.uid}/settings`), {
+        [key]: newValue
+      });
+    }
+
     toast.success('Settings updated');
   };
 
   const handleLinkClick = (label: string) => {
+    if (label === 'Edit Profile') {
+      setIsEditProfileOpen(true);
+      return;
+    }
+    if (label === 'Change Password') {
+      setIsChangePasswordOpen(true);
+      return;
+    }
+    
+    if (label === 'Profile Visibility' || label === 'Data & Privacy') {
+      setIsPrivacyOpen(true);
+      return;
+    }
+    
     toast.info(`${label} coming soon!`, {
       description: "This feature is currently under development."
     });
@@ -216,6 +265,20 @@ const SettingsPage = () => {
           </button>
         </motion.div>
       </div>
+      <EditProfileModal 
+        isOpen={isEditProfileOpen} 
+        onClose={() => setIsEditProfileOpen(false)} 
+      />
+      
+      <ChangePasswordModal 
+        isOpen={isChangePasswordOpen} 
+        onClose={() => setIsChangePasswordOpen(false)} 
+      />
+      
+      <PrivacyModal 
+        isOpen={isPrivacyOpen} 
+        onClose={() => setIsPrivacyOpen(false)} 
+      />
     </PageLayout>
   );
 };
