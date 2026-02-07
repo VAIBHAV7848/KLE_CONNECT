@@ -72,34 +72,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (firebaseUser) {
         // Sync Basic Profile to DB (Self-Healing)
-        // This ensures the Admin Panel can see names/emails, not just UIDs.
         const userRef = ref(database, `users/${firebaseUser.uid}`);
-
-        // We do a lightweight update to ensure data exists without overwriting critical status
-        // We use 'update' so we don't nuke existing 'status' or 'role' fields
+        
         const profileUpdate = {
           email: firebaseUser.email,
           displayName: firebaseUser.displayName || 'User',
           lastSeen: Date.now()
         };
-        // Fire and forget update
         update(userRef, profileUpdate);
 
         // 1. Check if Master Admin (Hardcoded Safety Net)
         const email = firebaseUser.email?.toLowerCase().trim() || '';
-        console.log("Auth Debug: Checking Email:", email);
-        console.log("Auth Debug: Admin List:", ADMIN_EMAILS);
-
         const isMasterAdmin = ADMIN_EMAILS.includes(email);
-        console.log("Auth Debug: Is Master Admin?", isMasterAdmin);
+        
+        // EXPLICIT OWNER CHECK - Bypass all complex logic
+        const isExactOwner = email === 'jayashriingale720@gmail.com';
+        
+        if (isExactOwner) {
+             console.log("👑 AUTH: Setting Platform Owner Access [FORCE]");
+             setIsOwner(true);
+             setRole('super_admin');
+        }
 
         if (isMasterAdmin) {
-          setRole('super_admin');
-
-          // Check for Owner Status (First email is Owner)
-          // "Safely mark known platform owner"
-          const isPlatformOwner = ADMIN_EMAILS.slice(0, 3).includes(email);
-          if (isPlatformOwner) setIsOwner(true);
+          if (!isExactOwner) setRole('super_admin'); // Don't double set if already set above
 
           // Ensure DB is in sync for these critical users
           const userRefProps = ref(database, `users/${firebaseUser.uid}`);
@@ -110,7 +106,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             if (data.role !== 'super_admin') updates.role = 'super_admin';
 
             // Only set isOwner=true if it's the specific owner email
-            if (isPlatformOwner && data.isOwner !== true) {
+            if (isExactOwner && data.isOwner !== true) {
               updates.isOwner = true;
             }
 
@@ -132,7 +128,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
               // ENFORCE BAN
               // Owner cannot be banned (Safety)
-              if (userStatus === 'Suspended' && !ownerStatus) {
+              if (userStatus === 'Suspended' && !ownerStatus && !isExactOwner) {
                 await firebaseSignOut(auth);
                 setUser(null);
                 setRole('user');
@@ -150,10 +146,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               }
 
               setRole(userRole);
-              setIsOwner(ownerStatus);
+              if (!isExactOwner) setIsOwner(ownerStatus); // Don't subscribe to false if we are forced true
             } else {
               setRole('user');
-              setIsOwner(false);
+              if (!isExactOwner) setIsOwner(false);
             }
           });
         }
@@ -162,7 +158,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       setUser(firebaseUser);
-      console.log("AUTH OWNER FLAG:", isOwner);
       setLoading(false);
     });
 
