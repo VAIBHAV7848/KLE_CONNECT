@@ -23,6 +23,10 @@
             ".read": "auth != null",
             ".write": "auth != null"
         },
+        "rooms": {
+            ".read": "auth != null",
+            ".write": "auth != null"
+        },
         "system": {
             "lockdown": {
                 ".read": true,
