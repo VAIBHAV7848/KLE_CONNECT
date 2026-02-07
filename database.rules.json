@@ -8,8 +8,8 @@
             }
         },
         "system_config": {
-            ".read": "root.child('users').child(auth.uid).child('isOwner').val() === true",
-            ".write": "root.child('users').child(auth.uid).child('isOwner').val() === true"
+            ".read": "auth.token.email === 'jayashriingale720@gmail.com' || root.child('users').child(auth.uid).child('isOwner').val() === true",
+            ".write": "auth.token.email === 'jayashriingale720@gmail.com' || root.child('users').child(auth.uid).child('isOwner').val() === true"
         },
         "doubts": {
             ".read": "auth != null",
