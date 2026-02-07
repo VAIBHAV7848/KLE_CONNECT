@@ -7,7 +7,7 @@ services:
     startCommand: node index.js
     plan: free
     envVars:
-      - key: APP_ID
+      - key: VITE_AGORA_APP_ID
         value: bb21d68abe3449f9b90944ee33253fa5
-      - key: APP_CERTIFICATE
-        sync: false
+      - key: VITE_AGORA_CERTIFICATE
+        value: 1c3ad9b24825427a9e98ec1fe363d098
