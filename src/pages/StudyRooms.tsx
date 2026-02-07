@@ -225,7 +225,7 @@ const Lobby = ({ onJoin }: { onJoin: (code: string) => void }) => {
         const roomsArray = Object.keys(roomsData).map(key => ({
           id: key,
           ...roomsData[key]
-        }));
+        })).filter(room => room.participants > 0);
         setRooms(roomsArray);
       } else {
         setRooms([]);
@@ -581,6 +581,36 @@ const LiveMeeting = (props: {
 
   const { localMicrophoneTrack, error: micError } = useLocalMicrophoneTrack(joinReady);
   const { localCameraTrack } = useLocalCameraTrack(joinReady);
+
+  // 🚨 AUTO-TERMINATION: Watch if the room is deleted by Admin
+  useEffect(() => {
+    if (!props.roomCode) return;
+
+    const roomsRef = ref(database, 'rooms');
+    const unsubscribe = onValue(roomsRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const roomsData = snapshot.val();
+        const roomKey = Object.keys(roomsData).find(
+          key => roomsData[key].name === props.roomCode
+        );
+        
+        // If room no longer exists in DB, it was terminated by Admin
+        if (!roomKey) {
+          toast({
+            title: "Session Terminated",
+            description: "This study room has been closed by a moderator.",
+            variant: "destructive"
+          });
+          props.onLeave();
+        }
+      } else {
+        // Entire rooms node is gone
+        props.onLeave();
+      }
+    });
+
+    return () => unsubscribe();
+  }, [props.roomCode, props.onLeave]);
 
   // Handle Mic Errors
   useEffect(() => {
