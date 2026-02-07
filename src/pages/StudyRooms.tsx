@@ -25,6 +25,8 @@ import AgoraRTC, {
   LocalUser
 } from "agora-rtc-react";
 import { motion, AnimatePresence } from 'framer-motion';
+import { database } from '@/lib/firebase';
+import { ref, onValue, set, update, remove, push } from 'firebase/database';
 
 /**
  * CONFIGURATION
@@ -215,31 +217,39 @@ const Lobby = ({ onJoin }: { onJoin: (code: string) => void }) => {
   const { user } = useAuth();
 
   useEffect(() => {
-    // Subscribe to Firebase rooms in real-time
-    const unsubscribe = subscribeToRooms((firebaseRooms) => {
-      setRooms(firebaseRooms);
+    // Listen to Firebase rooms in real-time
+    const roomsRef = ref(database, 'rooms');
+    const unsubscribe = onValue(roomsRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const roomsData = snapshot.val();
+        const roomsArray = Object.keys(roomsData).map(key => ({
+          id: key,
+          ...roomsData[key]
+        }));
+        setRooms(roomsArray);
+      } else {
+        setRooms([]);
+      }
     });
+
     return () => unsubscribe();
   }, []);
 
   const handleCreateRoom = async () => {
-    if (!newRoomName.trim() || !user) return;
-
-    const newRoom: FirebaseRoom = {
-      id: crypto.randomUUID(),
+    if (!newRoomName.trim()) return;
+    
+    const roomsRef = ref(database, 'rooms');
+    const newRoomRef = push(roomsRef);
+    const newRoom = {
       name: newRoomName,
       topic: newRoomTopic,
-      hostName: user.displayName || 'Student',
-      hostEmail: user.email || user.phoneNumber || 'Unknown',
-      participants: 1,
+      participants: 1, // Starts with you
       createdAt: Date.now()
     };
-
-    await saveRoomToFirebase(newRoom);
+    
+    await set(newRoomRef, newRoom);
     setIsCreateOpen(false);
-    setNewRoomName('');
-    setNewRoomTopic('');
-    onJoin(newRoom.name); // Join immediately
+    onJoin(newRoomName); // Join immediately
   };
 
   return (
@@ -652,6 +662,30 @@ const LiveMeeting = (props: {
   usePublish(tracksToPublish);
 
   const remoteUsers = useRemoteUsers();
+
+  // Update Firebase participant count in real-time
+  useEffect(() => {
+    if (!props.roomCode) return;
+
+    const roomsRef = ref(database, 'rooms');
+    onValue(roomsRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const roomsData = snapshot.val();
+        // Find the room that matches this meeting
+        const roomKey = Object.keys(roomsData).find(
+          key => roomsData[key].name === props.roomCode
+        );
+        
+        if (roomKey) {
+          // Update participant count (remoteUsers + 1 for local user)
+          const participantCount = remoteUsers.length + 1;
+          update(ref(database, `rooms/${roomKey}`), {
+            participants: participantCount
+          });
+        }
+      }
+    }, { onlyOnce: true }); // Only query once per update
+  }, [remoteUsers.length, props.roomCode]);
 
   // Clean Theatre Logic: Auto-Spotlight Screen Shares
   useEffect(() => {
