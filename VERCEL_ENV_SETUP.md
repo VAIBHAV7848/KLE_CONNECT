@@ -18,17 +18,20 @@ The warnings you're seeing are **harmless** and won't break your app:
 Your app needs these variables for full functionality:
 
 ### 1. VITE_AGORA_APP_ID ✅
+
 - **Status**: Already configured in vercel.json
 - **Value**: `bb21d68abe3449f9b90944ee33253fa5`
 - **Purpose**: Video calling feature
 
 ### 2. VITE_TOKEN_SERVER_URL ⚠️
+
 - **Status**: Needs to be set in Vercel dashboard
 - **Value**: Your Render.com token server URL
 - **Example**: `https://kle-token-server.onrender.com`
 - **Purpose**: Generate Agora tokens for video calls
 
 ### 3. VITE_AI_API_URL ⚠️
+
 - **Status**: Needs to be set in Vercel dashboard
 - **Value**: Your Render.com AI API URL
 - **Example**: `https://kle-token-server.onrender.com/api/ai`
@@ -83,17 +86,20 @@ vercel --prod
 ## Do You Have a Render Server?
 
 ### If YES - You have deployed the token server:
+
 1. Find your Render URL (e.g., `https://kle-token-server.onrender.com`)
 2. Add it to Vercel environment variables as shown above
 3. Redeploy
 
 ### If NO - You haven't deployed the token server yet:
+
 You have two options:
 
 #### Option A: Deploy Token Server to Render (Recommended)
+
 1. Go to: https://render.com
 2. Create new **Web Service**
-3. Connect your GitHub repo: `VAIBHAV7848/KLE_CONNECT`
+3. Connect your GitHub repo: `[YOUR_GITHUB_HANDLE]/KLE_CONNECT`
 4. Use these settings:
    - **Root Directory**: `server` or `token-server`
    - **Build Command**: `npm install`
@@ -105,7 +111,9 @@ You have two options:
 6. Add URL to Vercel environment variables
 
 #### Option B: Use Features Without Backend (Temporary)
+
 If you don't need Video Calls or AI Tutor right now:
+
 - The app will work fine without these variables
 - You'll just see warnings in console (which you can ignore)
 - Google Sign-In and other features work perfectly
@@ -113,6 +121,7 @@ If you don't need Video Calls or AI Tutor right now:
 ## What Features Work Without Environment Variables?
 
 ### ✅ Works Without Config:
+
 - Google Sign-In
 - Email/Password Sign-In
 - Dashboard
@@ -122,6 +131,7 @@ If you don't need Video Calls or AI Tutor right now:
 - Most UI features
 
 ### ⚠️ Needs Config:
+
 - Video Calls (Study Rooms)
 - AI Tutor
 - Screen Sharing in calls
@@ -138,6 +148,7 @@ The current warnings are **cosmetic only** and don't affect functionality. But i
 
 **Want to remove console warnings NOW?**
 → Set dummy values in Vercel:
+
 - `VITE_TOKEN_SERVER_URL`: `https://placeholder.com`
 - `VITE_AI_API_URL`: `https://placeholder.com/api`
 - Video/AI features won't work, but warnings will disappear
@@ -151,6 +162,7 @@ The current warnings are **cosmetic only** and don't affect functionality. But i
 ## Summary
 
 Current state:
+
 - ✅ Google Sign-In: **Working**
 - ✅ Authentication: **Working**
 - ✅ Dashboard: **Working**

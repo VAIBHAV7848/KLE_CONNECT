@@ -1,15 +1,15 @@
 {
     "rules": {
         "users": {
-            ".read": "auth.uid === 'Hhax935GRggNnY3ToB7MYVe7sTh1' || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('users').child(auth.uid).child('role').val() === 'ops_admin' || auth.token.email === 'jayashriingale720@gmail.com'",
+            ".read": "auth.uid != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('users').child(auth.uid).child('role').val() === 'ops_admin')",
             "$uid": {
                 ".read": "auth != null",
-                ".write": "auth.uid === 'Hhax935GRggNnY3ToB7MYVe7sTh1' || auth.token.email === 'jayashriingale720@gmail.com' || ($uid === auth.uid && ((!data.exists() && newData.child('role').val() === 'user' && !newData.hasChild('isOwner')) || (data.exists() && newData.child('role').val() === data.child('role').val() && (!newData.hasChild('isOwner') || newData.child('isOwner').val() === data.child('isOwner').val())))) || (root.child('users').child(auth.uid).child('role').val() === 'super_admin' && (data.child('isOwner').val() !== true) && (data.child('role').val() !== 'super_admin' || root.child('users').child(auth.uid).child('isOwner').val() === true) && ($uid !== auth.uid || newData.child('role').val() === data.child('role').val()) && (!newData.hasChild('isOwner') || newData.child('isOwner').val() === data.child('isOwner').val()))"
+                ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || ($uid === auth.uid && ((!data.exists() && newData.child('role').val() === 'user' && !newData.hasChild('isOwner')) || (data.exists() && newData.child('role').val() === data.child('role').val() && (!newData.hasChild('isOwner') || newData.child('isOwner').val() === data.child('isOwner').val())))))"
             }
         },
         "system_config": {
-            ".read": "auth.uid === 'Hhax935GRggNnY3ToB7MYVe7sTh1' || auth.token.email === 'jayashriingale720@gmail.com' || root.child('users').child(auth.uid).child('isOwner').val() === true",
-            ".write": "auth.uid === 'Hhax935GRggNnY3ToB7MYVe7sTh1' || auth.token.email === 'jayashriingale720@gmail.com' || root.child('users').child(auth.uid).child('isOwner').val() === true"
+            ".read": "auth.uid != null && root.child('users').child(auth.uid).child('isOwner').val() === true",
+            ".write": "auth.uid != null && root.child('users').child(auth.uid).child('isOwner').val() === true"
         },
         "doubts": {
             ".read": "auth != null",

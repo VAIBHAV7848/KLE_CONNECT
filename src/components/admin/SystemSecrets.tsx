@@ -1,25 +1,15 @@
 import React, { useState } from 'react';
 import { useSystemConfig } from '@/contexts/SystemConfigContext';
 import { useAuth } from '@/hooks/useAuth';
-import { Shield, Key, Lock, Eye, EyeOff, Save, Trash2, AlertTriangle } from 'lucide-react';
+import { Shield, Key, Lock, Eye, EyeOff, Save, Trash2, ShieldAlert, Cpu, Terminal } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 const SystemSecrets: React.FC = () => {
     const { isOwner, user } = useAuth();
     const { secrets, loading, addSecret, updateSecret, deleteSecret } = useSystemConfig();
 
-    // TASK 3 — Log owner flag for debugging
-    console.log('[SystemSecrets] isOwner:', isOwner, 'user:', user?.email);
-
-    // TASK 2 — Early return guards
-    if (!user) {
-        console.warn('[SystemSecrets] No user found');
-        return null;
-    }
-
-    if (!isOwner) {
-        console.warn('[SystemSecrets] User is not owner');
-        return null;
-    }
+    if (!user || !isOwner) return null;
 
     const [newKeyName, setNewKeyName] = useState('');
     const [newKeyValue, setNewKeyValue] = useState('');
@@ -29,11 +19,8 @@ const SystemSecrets: React.FC = () => {
 
     const toggleVisibility = (keyName: string) => {
         const newSet = new Set(visibleKeys);
-        if (newSet.has(keyName)) {
-            newSet.delete(keyName);
-        } else {
-            newSet.add(keyName);
-        }
+        if (newSet.has(keyName)) newSet.delete(keyName);
+        else newSet.add(keyName);
         setVisibleKeys(newSet);
     };
 
@@ -44,160 +31,198 @@ const SystemSecrets: React.FC = () => {
             await addSecret(newKeyName, newKeyValue);
             setNewKeyName('');
             setNewKeyValue('');
-            alert('Secret added successfully');
         } catch (err) {
             console.error('[SystemSecrets] Failed to add secret:', err);
-            alert('Failed to add secret');
-        }
-    };
-
-    const handleUpdate = async (keyName: string) => {
-        try {
-            await updateSecret(keyName, editValue);
-            setEditingKey(null);
-            setEditValue('');
-        } catch (err) {
-            console.error('[SystemSecrets] Failed to update secret:', err);
-            alert('Failed to update secret');
-        }
-    };
-
-    const handleDelete = async (keyName: string) => {
-        if (confirm(`Are you sure you want to permanently delete ${keyName}? This may break platform features.`)) {
-            try {
-                await deleteSecret(keyName);
-            } catch (err) {
-                console.error('[SystemSecrets] Failed to delete secret:', err);
-                alert('Failed to delete secret');
-            }
         }
     };
 
     return (
-        <div className="bg-slate-900 border border-red-900/50 rounded-lg p-6 mb-8 relative overflow-hidden min-h-[400px]">
-            {/* Background Warning Stripe */}
-            <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
-                <Shield size={120} className="text-red-500" />
-            </div>
-
-            <div className="flex items-center gap-3 mb-6 relative z-10">
-                <div className="p-2 bg-red-500/10 rounded-lg border border-red-500/20">
-                    <Shield className="text-red-500 w-6 h-6" />
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {/* Security Vault Header */}
+            <div className="glass rounded-[40px] p-10 border border-rose-500/20 bg-gradient-to-br from-rose-500/10 via-transparent to-transparent relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-12 opacity-[0.03] rotate-12 pointer-events-none">
+                    <ShieldAlert size={180} />
                 </div>
-                <div>
-                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                        System Configuration <span className="text-xs bg-red-600 text-white px-2 py-0.5 rounded-full">TIER 0</span>
-                    </h2>
-                    <p className="text-slate-400 text-sm">
-                        Manage critical API keys and platform secrets. Changes apply immediately.
-                    </p>
-                </div>
-            </div>
-
-            {loading ? (
-                <div className="text-center py-8 text-slate-500">Accessing Secure Validation...</div>
-            ) : (
-                <div className="space-y-6 relative z-10">
-
-                    {/* Add New Secret */}
-                    <form onSubmit={handleAdd} className="bg-slate-950/50 p-4 rounded-lg border border-slate-800 flex gap-4 items-end">
-                        <div className="flex-1">
-                            <label className="text-xs text-slate-500 uppercase font-bold mb-1 block">Key Name</label>
-                            <input
-                                type="text"
-                                value={newKeyName}
-                                onChange={e => setNewKeyName(e.target.value)}
-                                placeholder="e.g. GEMINI_API_KEY"
-                                className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white focus:border-red-500 focus:outline-none font-mono text-sm"
-                            />
-                        </div>
-                        <div className="flex-[2]">
-                            <label className="text-xs text-slate-500 uppercase font-bold mb-1 block">Key Value</label>
-                            <input
-                                type="text"
-                                value={newKeyValue}
-                                onChange={e => setNewKeyValue(e.target.value)}
-                                placeholder="Paste secret here..."
-                                className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white focus:border-red-500 focus:outline-none font-mono text-sm"
-                            />
-                        </div>
-                        <button
-                            type="submit"
-                            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded flex items-center gap-2 transition"
-                        >
-                            <Save size={16} /> Save
-                        </button>
-                    </form>
-
-                    {/* List Secrets */}
+                
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 relative z-10">
                     <div className="space-y-3">
-                        {secrets.map((secret) => (
-                            <div key={secret.keyName} className="bg-slate-950 p-4 rounded-lg border border-slate-800 flex items-center justify-between group hover:border-slate-700 transition">
-                                <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <Key size={14} className="text-yellow-500" />
-                                        <span className="font-mono text-yellow-500 font-bold">{secret.keyName}</span>
-                                    </div>
-                                    {editingKey === secret.keyName ? (
-                                        <div className="flex gap-2 mt-2">
-                                            <input
-                                                type="text"
-                                                value={editValue}
-                                                onChange={e => setEditValue(e.target.value)}
-                                                className="flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-sm font-mono"
-                                            />
-                                            <button onClick={() => handleUpdate(secret.keyName)} className="text-green-400 hover:text-green-300 text-sm">Save</button>
-                                            <button onClick={() => setEditingKey(null)} className="text-slate-400 hover:text-white text-sm">Cancel</button>
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-center gap-2">
-                                            <code className="text-slate-300 text-sm bg-slate-900 px-2 py-1 rounded">
-                                                {visibleKeys.has(secret.keyName) ? secret.keyValue : '••••••••••••••••••••••••••••••••'}
-                                            </code>
-                                            <button
-                                                onClick={() => toggleVisibility(secret.keyName)}
-                                                className="text-slate-500 hover:text-white transition"
-                                                title="Toggle Visibility"
-                                            >
-                                                {visibleKeys.has(secret.keyName) ? <EyeOff size={14} /> : <Eye size={14} />}
-                                            </button>
-                                        </div>
-                                    )}
-                                    <div className="text-xs text-slate-600 mt-1">
-                                        Updated: {new Date(secret.updatedAt).toLocaleString()}
-                                    </div>
-                                </div>
-
-                                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition">
-                                    <button
-                                        onClick={() => {
-                                            setEditingKey(secret.keyName);
-                                            setEditValue(secret.keyValue);
-                                        }}
-                                        className="p-2 hover:bg-slate-800 rounded text-blue-400"
-                                        title="Edit"
-                                    >
-                                        <Lock size={16} />
-                                    </button>
-                                    <button
-                                        onClick={() => handleDelete(secret.keyName)}
-                                        className="p-2 hover:bg-slate-800 rounded text-red-400"
-                                        title="Delete"
-                                    >
-                                        <Trash2 size={16} />
-                                    </button>
-                                </div>
+                        <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 rounded-[18px] bg-rose-500/10 flex items-center justify-center border border-rose-500/20 shadow-lg shadow-rose-500/10">
+                                <Shield className="text-rose-500 w-6 h-6" />
                             </div>
-                        ))}
-
-                        {secrets.length === 0 && (
-                            <div className="text-center py-4 border border-dashed border-slate-800 rounded text-slate-600">
-                                No system secrets configured yet.
+                            <div>
+                                <h2 className="text-2xl font-black text-white tracking-tight uppercase">Platform S-Tier Configuration</h2>
+                                <p className="text-xs text-rose-500/60 font-black tracking-widest uppercase mt-1">Authorized Personnel Only • Tier 0 Clearance Required</p>
                             </div>
-                        )}
+                        </div>
+                        <p className="text-sm text-gray-400 font-medium max-w-xl leading-relaxed">
+                            Primary interface for managing encrypted environmental vectors and critical API endpoints. Improper modification may result in immediate platform-wide service termination.
+                        </p>
+                    </div>
+
+                    <div className="flex items-center gap-6 px-8 py-5 bg-black/40 rounded-[24px] border border-white/5 border-dashed">
+                        <div className="text-center">
+                            <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Status</p>
+                            <p className="text-xs font-black text-emerald-400 uppercase tracking-widest flex items-center gap-2">
+                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Validated
+                            </p>
+                        </div>
+                        <div className="w-px h-8 bg-white/10" />
+                        <div className="text-center">
+                            <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Identity</p>
+                            <p className="text-xs font-black text-gray-200 uppercase tracking-widest">Platform Oracle</p>
+                        </div>
                     </div>
                 </div>
-            )}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Secret Injection Form */}
+                <div className="lg:col-span-1 space-y-6">
+                    <div className="glass rounded-[32px] p-8 border border-white/10 bg-white/[0.01]">
+                        <div className="flex items-center gap-3 mb-8 pb-6 border-b border-white/5">
+                            <Terminal className="w-4 h-4 text-blue-400" />
+                            <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em]">Secret Injection</h3>
+                        </div>
+                        
+                        <form onSubmit={handleAdd} className="space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-[10px] text-gray-500 uppercase font-black tracking-widest ml-1">Key Reference</label>
+                                <input
+                                    type="text"
+                                    value={newKeyName}
+                                    onChange={e => setNewKeyName(e.target.value)}
+                                    placeholder="VITE_API_ENDPOINT"
+                                    className="w-full bg-black/40 border border-white/5 rounded-2xl px-5 py-4 text-white focus:border-blue-500/50 focus:outline-none font-mono text-xs transition-all placeholder:text-gray-700 shadow-inner"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] text-gray-500 uppercase font-black tracking-widest ml-1">Sensitive Vector</label>
+                                <input
+                                    type="text"
+                                    value={newKeyValue}
+                                    onChange={e => setNewKeyValue(e.target.value)}
+                                    placeholder="sk_live_..."
+                                    className="w-full bg-black/40 border border-white/5 rounded-2xl px-5 py-4 text-white focus:border-rose-500/50 focus:outline-none font-mono text-xs transition-all placeholder:text-gray-700 shadow-inner"
+                                />
+                            </div>
+                            
+                            <Button
+                                type="submit"
+                                disabled={!newKeyName || !newKeyValue}
+                                className="w-full h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-[18px] font-black uppercase tracking-widest text-[10px] transition-all shadow-xl shadow-blue-500/10 active:scale-[0.98]"
+                            >
+                                <Save size={16} className="mr-2" /> Commit to Vault
+                            </Button>
+                        </form>
+                    </div>
+                    
+                    <div className="glass rounded-[32px] p-8 border border-amber-500/10 bg-amber-500/[0.02]">
+                        <div className="flex gap-4">
+                            <ShieldAlert className="w-8 h-8 text-amber-500 shrink-0" />
+                            <div>
+                                <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-1 font-mono">Warning Protocol</p>
+                                <p className="text-[10px] text-amber-500/60 font-bold leading-relaxed uppercase tracking-tighter">Modification of core environment variables may trigger temporary platform instability while kernels propagate.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Secure Inventory */}
+                <div className="lg:col-span-2 glass rounded-[32px] p-8 border border-white/10 bg-white/[0.01]">
+                    <div className="flex items-center justify-between mb-8 pb-6 border-b border-white/5">
+                        <div className="flex items-center gap-3">
+                            <Cpu className="w-4 h-4 text-emerald-400" />
+                            <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em]">Active Key Mesh</h3>
+                        </div>
+                        <span className="text-[9px] font-mono text-gray-500 uppercase tracking-widest bg-white/5 px-3 py-1 rounded-full">{secrets.length} Nodes Loaded</span>
+                    </div>
+
+                    {loading ? (
+                        <div className="py-20 text-center space-y-4">
+                            <div className="w-10 h-10 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mx-auto" />
+                            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest animate-pulse">Synchronizing Secure Streams...</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-4 max-h-[600px] overflow-y-auto custom-scrollbar pr-2">
+                            {secrets.map((secret) => (
+                                <div key={secret.keyName} className="group relative">
+                                    <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500/20 to-purple-600/20 rounded-[24px] opacity-0 group-hover:opacity-100 transition duration-500 blur-sm" />
+                                    <div className="relative flex items-center justify-between p-6 rounded-[24px] bg-black/40 border border-white/5 backdrop-blur-3xl transition-all duration-300 group-hover:border-white/10">
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <div className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center border border-white/5">
+                                                    <Key size={14} className="text-amber-400" />
+                                                </div>
+                                                <span className="font-mono text-xs font-black text-gray-200 uppercase tracking-tight truncate">{secret.keyName}</span>
+                                            </div>
+                                            
+                                            {editingKey === secret.keyName ? (
+                                                <div className="flex gap-2 mt-4 animate-in slide-in-from-left-2 duration-300">
+                                                    <input
+                                                        type="text"
+                                                        value={editValue}
+                                                        onChange={e => setEditValue(e.target.value)}
+                                                        className="flex-1 bg-black/40 border border-blue-500/30 rounded-xl px-4 py-2 text-white text-xs font-mono outline-none"
+                                                        autoFocus
+                                                    />
+                                                    <Button onClick={() => {
+                                                        updateSecret(secret.keyName, editValue);
+                                                        setEditingKey(null);
+                                                    }} className="bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 h-9 rounded-xl text-[9px] uppercase font-black px-4">Apply</Button>
+                                                    <Button onClick={() => setEditingKey(null)} variant="ghost" className="h-9 rounded-xl text-[9px] uppercase font-black text-gray-500 hover:text-white px-4">Cancel</Button>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center gap-4 bg-black/20 p-2.5 rounded-[18px] border border-white/[0.02]">
+                                                    <code className="text-gray-500 text-[10px] font-mono tracking-tighter truncate flex-1 block overflow-hidden">
+                                                        {visibleKeys.has(secret.keyName) ? secret.keyValue : '••••••••••••••••••••••••••••••••••••••••'}
+                                                    </code>
+                                                    <button
+                                                        onClick={() => toggleVisibility(secret.keyName)}
+                                                        className="p-2 hover:bg-white/5 rounded-xl transition-all text-gray-600 hover:text-white shrink-0"
+                                                    >
+                                                        {visibleKeys.has(secret.keyName) ? <EyeOff size={14} /> : <Eye size={14} />}
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="flex items-center gap-2 ml-6 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-2 group-hover:translate-x-0 shrink-0">
+                                            <Button
+                                                variant="ghost" 
+                                                size="icon"
+                                                onClick={() => {
+                                                    setEditingKey(secret.keyName);
+                                                    setEditValue(secret.keyValue);
+                                                }}
+                                                className="w-10 h-10 rounded-xl bg-blue-500/5 text-blue-400 hover:bg-blue-500 hover:text-white border border-blue-500/10"
+                                            >
+                                                <Lock size={16} />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => {
+                                                    if (confirm(`Permanent deletion of ${secret.keyName}?`)) deleteSecret(secret.keyName);
+                                                }}
+                                                className="w-10 h-10 rounded-xl bg-rose-500/5 text-rose-500 hover:bg-rose-500 hover:text-white border border-rose-500/10"
+                                            >
+                                                <Trash2 size={16} />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+
+                            {secrets.length === 0 && (
+                                <div className="py-20 text-center opacity-30">
+                                    <p className="text-[10px] font-black uppercase tracking-widest">No keys found in current mesh buffer.</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
     );
 };

@@ -42,31 +42,13 @@ const upiLink = 'upi://pay?pa=omganeshmatiwade007@pingpay&pn=elitehacker&tn=Supp
 
 const teammates: TeamMate[] = [
   {
-    name: 'Omganesh Matiwade',
-    role: 'Full Stack Developer',
-    image: assetUrl('om-ganesh.jpg'),
-    github: 'https://github.com/Omganesh014',
-    linkedin: 'https://www.linkedin.com/in/omganesh-r-matiwade-08a694330?utm_source=share_via&utm_content=profile&utm_medium=member_android',
-    instagram: 'https://www.instagram.com/omganesh_014?igsh=MTRkbjE0MHpycno4aQ==',
+    name: 'Platform Engineering',
+    role: 'Core Development',
+    image: assetUrl('team-placeholder.jpg'),
+    github: 'https://github.com/KLE-CONNECT',
+    linkedin: '#',
+    instagram: '#',
     accent: 'hsl(199 89% 48%)'
-  },
-  {
-    name: 'Vaibhav Chavanpatil',
-    role: 'Backend Developer',
-    image: assetUrl('vaibhav-chavanpatil.jpg'),
-    github: 'https://github.com/VAIBHAV7848',
-    linkedin: 'https://www.linkedin.com/in/vaibhav-chavanpatil-a047b035a?utm_source=share_via&utm_content=profile&utm_medium=member_android',
-    instagram: 'https://www.instagram.com/v_chavanpatil?igsh=NzJiNXlyYXF3N3d5',
-    accent: 'hsl(263 70% 58%)'
-  },
-  {
-    name: 'Darshan Kittur',
-    role: 'UI/UX Designer',
-    image: assetUrl('darshan-kittur.jpg'),
-    github: 'https://github.com/darshankittur79',
-    linkedin: 'https://www.linkedin.com/in/darshan-kittur-65532a326?utm_source=share_via&utm_content=profile&utm_medium=member_android',
-    instagram: 'https://www.instagram.com/darshankittur_79?igsh=Z2JxZGtueWFvZnN3',
-    accent: 'hsl(35 90% 55%)'
   }
 ];
 

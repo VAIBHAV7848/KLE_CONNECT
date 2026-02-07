@@ -5,7 +5,7 @@ import {
     ShieldCheck, Users, Video, AlertCircle, TrendingUp,
     MessageSquare, Calendar, Trash2, Power, CheckCircle2,
     Activity, BarChart3, Bell, Lock, Globe, Command,
-    RefreshCcw, UserMinus, ShieldAlert, Zap
+    RefreshCcw, UserMinus, ShieldAlert, Zap, X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -438,52 +438,80 @@ const Admin = () => {
 
     return (
         <PageLayout>
-            <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-8">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <PageHeader
-                        icon={ShieldCheck}
-                        title="Admin Mission Control"
-                        subtitle="Campus-wide oversight and live system management"
-                        gradient="linear-gradient(135deg, hsl(0 100% 50% / 0.2), hsl(217 91% 60% / 0.1))"
-                    />
+            <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-8 min-h-screen">
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-2">
+                    <div className="space-y-1">
+                        <div className="flex items-center gap-2 mb-2">
+                             <div className="h-1 w-8 bg-blue-500 rounded-full" />
+                             <span className="text-[10px] font-bold text-blue-500 uppercase tracking-[0.2em]">System Terminal v4.0</span>
+                        </div>
+                        <h1 className="text-4xl md:text-5xl font-black tracking-tight text-white leading-none">
+                            Mission <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-500">Control</span>
+                        </h1>
+                        <p className="text-gray-400 text-sm font-medium tracking-wide max-w-md">
+                            Centralized college ecosystem management and security oversight.
+                        </p>
+                    </div>
 
-                    <div
-                        onClick={triggerMaintenance}
-                        className="flex items-center gap-3 bg-black/40 hover:bg-black/60 cursor-pointer backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/10 self-start md:self-auto transition-all"
-                    >
-                        <div className={cn("w-2 h-2 rounded-full", isLive ? "bg-green-500 animate-pulse" : "bg-red-500")} />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">System: {isLive ? 'Operational' : 'Maintenance Active'}</span>
+                    <div className="flex items-center gap-4">
+                        <div
+                            onClick={triggerMaintenance}
+                            className="group flex items-center gap-3 bg-white/5 hover:bg-white/10 cursor-pointer backdrop-blur-2xl px-5 py-3 rounded-[20px] border border-white/10 transition-all active:scale-95 shadow-2xl shadow-black/20"
+                        >
+                            <div className={cn("w-2 h-2 rounded-full relative", isLive ? "bg-emerald-500" : "bg-rose-500")}>
+                                <div className={cn("absolute inset-0 rounded-full animate-ping opacity-40", isLive ? "bg-emerald-400" : "bg-rose-400")} />
+                            </div>
+                            <span className="text-[11px] font-black uppercase tracking-widest text-gray-300">
+                                {isLive ? 'Operational' : 'Maintenance Mode'}
+                            </span>
+                        </div>
                     </div>
                 </div>
 
-                {/* 1. Dashboard Stats */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* 1. Pro Dashboard Stats */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                     {stats.map((stat, i) => (
                         <motion.div
                             key={stat.label}
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: i * 0.1 }}
-                            className="glass p-6 rounded-3xl border border-white/5 relative overflow-hidden group hover:border-white/10 transition-all"
+                            transition={{ delay: i * 0.1, ease: [0.23, 1, 0.32, 1] }}
+                            className="relative group"
                         >
-                            <div className="flex justify-between items-start mb-4">
-                                <div className={cn("p-3 rounded-2xl bg-white/5", stat.color)}>
-                                    <stat.icon className="w-5 h-5" />
+                            {/* Card Glow Effect */}
+                            <div className={cn("absolute -inset-0.5 rounded-[32px] opacity-0 group-hover:opacity-20 transition duration-500 blur-xl", 
+                                stat.color.replace('text-', 'bg-')
+                            )} />
+                            
+                            <div className="relative glass p-6 rounded-[32px] border border-white/10 bg-gradient-to-b from-white/[0.05] to-transparent h-full flex flex-col justify-between overflow-hidden">
+                                <div className="absolute -right-4 -top-4 opacity-[0.03] group-hover:opacity-[0.08] group-hover:scale-125 transition-all duration-700">
+                                    <stat.icon className="w-24 h-24" />
                                 </div>
-                                <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/5",
-                                    stat.trend.includes('+') ? 'text-green-400' : 'text-gray-400'
-                                )}>
-                                    {stat.trend}
-                                </span>
+                                
+                                <div className="flex justify-between items-center mb-6">
+                                    <div className={cn("p-3 rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10", stat.color)}>
+                                        <stat.icon className="w-5 h-5" />
+                                    </div>
+                                    <div className="flex flex-col items-end">
+                                        <span className={cn("text-[10px] font-black px-2 py-0.5 rounded-full",
+                                            stat.trend.includes('+') || stat.trend.includes('Live') ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-white/5 text-gray-400 border border-white/10'
+                                        )}>
+                                            {stat.trend}
+                                        </span>
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <h4 className="text-3xl font-black tracking-tight text-white mb-1">{stat.value}</h4>
+                                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-[0.15em]">{stat.label}</p>
+                                </div>
                             </div>
-                            <h4 className="text-2xl font-black tracking-tight">{stat.value}</h4>
-                            <p className="text-xs text-gray-500 font-medium uppercase tracking-wider mt-1">{stat.label}</p>
                         </motion.div>
                     ))}
                 </div>
 
-                {/* 2. Management Navigation */}
-                <div className="flex gap-2 p-1.5 bg-black/20 rounded-2xl w-fit border border-white/5 mx-auto md:mx-0">
+                {/* 2. Professional Navigation */}
+                <div className="flex flex-wrap justify-center md:justify-start gap-4 p-1.5 bg-white/[0.03] backdrop-blur-3xl rounded-[24px] w-fit border border-white/5 mx-auto md:mx-0 shadow-2xl">
                     {[
                         { id: 'overview', label: 'Command Hub', icon: Globe },
                         { id: 'users', label: 'User Directory', icon: Users },
@@ -495,15 +523,28 @@ const Admin = () => {
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id as any)}
                             className={cn(
-                                "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2",
+                                "relative px-6 py-3 rounded-[18px] text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-2.5 group overflow-hidden",
                                 activeTab === tab.id
-                                    ? "bg-white/10 text-white shadow-lg border border-white/10"
-                                    : "text-gray-500 hover:text-gray-300",
-                                tab.id === 'system_config' && activeTab === 'system_config' && "bg-red-500/10 text-red-500 border-red-500/20 shadow-red-500/10"
+                                    ? "text-white"
+                                    : "text-gray-500 hover:text-gray-300"
                             )}
                         >
-                            <tab.icon className={cn("w-3.5 h-3.5", tab.id === 'system_config' && "text-red-500")} />
-                            <span className="hidden sm:inline">{tab.label}</span>
+                            {activeTab === tab.id && (
+                                <motion.div 
+                                    layoutId="nav_active"
+                                    className={cn(
+                                        "absolute inset-0 z-0",
+                                        tab.id === 'system_config' ? "bg-rose-500/20" : "bg-white/[0.08]"
+                                    )}
+                                    transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                                />
+                            )}
+                            <tab.icon className={cn(
+                                "w-4 h-4 relative z-10 transition-transform duration-300 group-hover:scale-110", 
+                                tab.id === 'system_config' && "text-rose-500",
+                                activeTab === tab.id && "text-blue-400"
+                            )} />
+                            <span className="relative z-10">{tab.label}</span>
                         </button>
                     ))}
                 </div>
@@ -514,70 +555,101 @@ const Admin = () => {
                         {activeTab === 'overview' && (
                             <motion.div
                                 key="overview"
-                                initial={{ opacity: 0, scale: 0.98 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+                                initial={{ opacity: 0, scale: 0.99, y: 10 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                className="grid grid-cols-1 lg:grid-cols-3 gap-8"
                             >
-                                {/* Global Broadcast Broadcast */}
-                                <div className="lg:col-span-2 glass rounded-[32px] p-8 border border-white/5 bg-gradient-to-br from-blue-600/5 to-transparent relative overflow-hidden">
-                                    <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
-                                        <Globe className="w-40 h-40" />
-                                    </div>
-                                    <div className="flex items-center justify-between mb-8">
-                                        <div className="flex items-center gap-3">
-                                            <Zap className="w-6 h-6 text-yellow-500" />
-                                            <h3 className="text-xl font-bold">Priority Broadcast</h3>
+                                {/* Priority Control Center */}
+                                <div className="lg:col-span-2 relative">
+                                    <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/10 to-transparent blur-3xl -z-10" />
+                                    
+                                    <div className="glass rounded-[40px] p-10 border border-white/10 bg-gradient-to-br from-white/[0.05] to-transparent shadow-2xl relative overflow-hidden h-full">
+                                        <div className="absolute top-0 right-0 p-12 opacity-[0.03] rotate-12 pointer-events-none">
+                                            <Globe className="w-64 h-64" />
                                         </div>
-                                        {broadcast && (
+                                        
+                                        <div className="flex items-center justify-between mb-10">
+                                            <div className="space-y-1">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2.5 rounded-2xl bg-blue-500/10 border border-blue-500/20">
+                                                        <Zap className="w-6 h-6 text-blue-400" />
+                                                    </div>
+                                                    <h3 className="text-2xl font-black text-white">Priority Broadcast</h3>
+                                                </div>
+                                                <p className="text-xs text-gray-500 font-medium ml-12">Authorized system message propagation</p>
+                                            </div>
+                                            
+                                            {broadcast && (
+                                                <Button
+                                                    onClick={clearBroadcast}
+                                                    disabled={isStopping}
+                                                    className="bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white border border-rose-500/20 px-6 h-11 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all"
+                                                >
+                                                    {isStopping ? "TERMINATING..." : "EMERGENCY STOP"}
+                                                </Button>
+                                            )}
+                                        </div>
+
+                                        <div className="space-y-6">
+                                            <div className="relative group">
+                                                <div className="absolute -inset-0.5 bg-blue-500/20 rounded-[24px] blur opacity-0 group-focus-within:opacity-100 transition duration-500" />
+                                                <textarea
+                                                    value={broadcast}
+                                                    onChange={(e) => setBroadcast(e.target.value)}
+                                                    className="relative w-full h-44 bg-black/40 border border-white/10 rounded-[24px] p-6 text-sm focus:border-blue-500/50 focus:outline-none transition-all placeholder:text-gray-700 leading-relaxed font-medium"
+                                                    placeholder="Type official notification for immediate broadcast..."
+                                                />
+                                            </div>
+                                            
                                             <Button
-                                                onClick={clearBroadcast}
-                                                disabled={isStopping}
-                                                variant="destructive"
-                                                size="sm"
-                                                className="h-9 px-4 rounded-xl font-black uppercase tracking-wider text-[10px] shadow-lg shadow-red-500/20 hover:bg-red-600 transition-all"
+                                                onClick={handlePushBroadcast}
+                                                disabled={!broadcast.trim()}
+                                                className="w-full bg-blue-600 hover:bg-blue-500 h-16 rounded-[24px] gap-3 font-black uppercase tracking-[0.25em] text-[11px] shadow-2xl shadow-blue-500/20 transition-all active:scale-[0.98]"
                                             >
-                                                {isStopping ? "TERMINATING..." : "EMERGENCY STOP"}
+                                                <Globe className="w-4 h-4" /> Push Priority Broadcast
                                             </Button>
-                                        )}
+                                        </div>
                                     </div>
-                                    <p className="text-sm text-gray-400 mb-6">Type a message to instantly notify all students across the KLE Connect platform.</p>
-                                    <textarea
-                                        value={broadcast}
-                                        onChange={(e) => setBroadcast(e.target.value)}
-                                        className="w-full h-32 bg-black/40 border border-white/10 rounded-2xl p-4 text-sm focus:ring-blue-500/20 mb-4 focus:outline-none transition-all placeholder:text-gray-600"
-                                        placeholder="E.g. Engineering Block B will be closed for maintenance tomorrow at 10 AM..."
-                                    />
-                                    <Button
-                                        onClick={handlePushBroadcast}
-                                        disabled={!broadcast.trim()}
-                                        className="w-full bg-blue-600 hover:bg-blue-700 h-14 rounded-2xl gap-3 font-bold uppercase tracking-widest text-xs shadow-xl shadow-blue-500/10"
-                                    >
-                                        <Globe className="w-4 h-4" /> Push Priority Broadcast
-                                    </Button>
                                 </div>
 
-                                {/* Live System Log */}
-                                <div className="glass rounded-[32px] p-8 border border-white/5">
-                                    <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
-                                        <TrendingUp className="w-5 h-5 text-green-500" />
-                                        System Log
-                                    </h3>
-                                    <div className="space-y-6">
+                                {/* Modernized System Log */}
+                                <div className="glass rounded-[40px] p-10 border border-white/10 bg-black/20 shadow-2xl">
+                                    <div className="flex items-center justify-between mb-8">
+                                        <h3 className="text-lg font-black text-white uppercase tracking-widest flex items-center gap-3">
+                                            <div className="w-1 h-4 bg-emerald-500 rounded-full" />
+                                            Live Monitor
+                                        </h3>
+                                        <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                                    </div>
+                                    
+                                    <div className="space-y-6 relative">
+                                        <div className="absolute left-4 top-2 bottom-2 w-px bg-gradient-to-b from-white/10 via-white/5 to-transparent" />
+                                        
                                         {[
-                                            { msg: 'Broadcast synchronized successfully', time: '1m ago', icon: CheckCircle2, color: 'text-green-500' },
-                                            { msg: 'User directory persistence updated', time: '12m ago', icon: Activity, color: 'text-blue-500' },
-                                            { msg: 'Room monitoring agent active', time: '1h ago', icon: ShieldAlert, color: 'text-yellow-500' },
+                                            { msg: 'Broadcast synchronized', time: '1m ago', color: 'text-emerald-500', icon: CheckCircle2 },
+                                            { msg: 'Persistence updated', time: '12m ago', color: 'text-blue-400', icon: Activity },
+                                            { msg: 'Monitoring agent active', time: '1h ago', color: 'text-amber-500', icon: ShieldAlert },
                                         ].map((item, i) => (
-                                            <div key={i} className="flex gap-4">
-                                                <div className={cn("p-2 rounded-lg bg-white/5", item.color)}>
+                                            <div key={i} className="flex gap-6 pl-1 group cursor-default">
+                                                <div className={cn("relative z-10 w-8 h-8 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center transition-all group-hover:scale-110 group-hover:bg-white/10", item.color)}>
                                                     <item.icon className="w-4 h-4" />
                                                 </div>
-                                                <div>
-                                                    <p className="text-xs font-bold">{item.msg}</p>
-                                                    <p className="text-[10px] text-gray-500 uppercase tracking-tighter mt-1">{item.time}</p>
+                                                <div className="space-y-0.5">
+                                                    <p className="text-[11px] font-black tracking-wide text-gray-200 group-hover:text-white transition-colors uppercase">{item.msg}</p>
+                                                    <p className="text-[9px] text-gray-600 font-bold uppercase tracking-tighter">{item.time}</p>
                                                 </div>
                                             </div>
                                         ))}
+                                    </div>
+
+                                    <div className="mt-12 p-5 rounded-3xl bg-white/[0.02] border border-white/5">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <span className="text-[9px] font-black uppercase text-gray-500 tracking-widest">Network Load</span>
+                                            <span className="text-[10px] font-mono text-emerald-400">Stable</span>
+                                        </div>
+                                        <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                                            <div className="h-full w-[14%] bg-gradient-to-r from-emerald-500 to-blue-500" />
+                                        </div>
                                     </div>
                                 </div>
                             </motion.div>
@@ -586,49 +658,62 @@ const Admin = () => {
                         {activeTab === 'users' && (
                             <motion.div
                                 key="users"
-                                className="glass rounded-[32px] p-8 border border-white/5 overflow-hidden"
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="glass rounded-[40px] border border-white/10 bg-white/[0.02] overflow-hidden shadow-2xl"
                             >
-                                <div className="flex justify-between items-center mb-8">
-                                    <h3 className="text-xl font-bold">Managed Student Database</h3>
-                                    <div className="flex gap-2">
-                                        <Button variant="outline" size="sm" className="rounded-xl h-9" onClick={() => window.location.reload()}>
+                                <div className="p-10 border-b border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-gradient-to-r from-white/[0.02] to-transparent">
+                                    <div className="space-y-1">
+                                        <h3 className="text-2xl font-black text-white tracking-tight">Managed Student Database</h3>
+                                        <p className="text-xs text-gray-500 font-medium">Directory of all registered campus identities</p>
+                                    </div>
+                                    <div className="flex gap-3">
+                                        <div className="bg-black/20 border border-white/10 rounded-2xl px-4 py-2 flex items-center gap-3">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
+                                            <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">{users.length} Users Found</span>
+                                        </div>
+                                        <Button variant="outline" size="sm" className="rounded-2xl h-10 px-5 border-white/10 glass hover:bg-white/10 transition-all font-bold text-[11px] uppercase tracking-wider" onClick={() => window.location.reload()}>
                                             <RefreshCcw className="w-3.5 h-3.5 mr-2" /> Refresh
                                         </Button>
                                     </div>
                                 </div>
+                                
                                 <div className="overflow-x-auto">
-                                    <table className="w-full text-left">
+                                    <table className="w-full text-left border-collapse">
                                         <thead>
-                                            <tr className="border-b border-white/5 text-[10px] uppercase tracking-widest text-gray-500 font-black">
-                                                <th className="pb-4 px-4">Identity</th>
-                                                <th className="pb-4 px-4">Contact</th>
-                                                <th className="pb-4 px-4">Auth Role</th>
-                                                <th className="pb-4 px-4">Status</th>
-                                                <th className="pb-4 px-4 text-right">Shield Actions</th>
+                                            <tr className="text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black">
+                                                <th className="py-6 px-10 border-b border-white/5">Identity</th>
+                                                <th className="py-6 px-10 border-b border-white/5">Contact Point</th>
+                                                <th className="py-6 px-10 border-b border-white/5">Authorization</th>
+                                                <th className="py-6 px-10 border-b border-white/5">Vitality</th>
+                                                <th className="py-6 px-10 border-b border-white/5 text-right">Actions</th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-white/5">
+                                        <tbody className="divide-y divide-white/[0.03]">
                                             {users.map(user => (
-                                                <tr key={user.id} className="group hover:bg-white/[0.02] transition-colors">
-                                                    <td className="py-4 px-4">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold">
-                                                                {user.name[0]}
+                                                <tr key={user.id} className="group hover:bg-white/[0.03] transition-all duration-300">
+                                                    <td className="py-6 px-10">
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="relative">
+                                                                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500/20 to-indigo-600/20 flex items-center justify-center text-xs font-black border border-white/10 group-hover:border-blue-500/30 transition-all">
+                                                                    {user.name[0]}
+                                                                </div>
+                                                                <div className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-emerald-500 border-2 border-[#09090b]" />
                                                             </div>
-                                                            <span className="text-sm font-bold">{user.name}</span>
+                                                            <span className="text-sm font-bold text-gray-200 tracking-tight">{user.name}</span>
                                                         </div>
                                                     </td>
-                                                    <td className="py-4 px-4 text-xs text-gray-400 font-mono">{user.email}</td>
-                                                    <td className="py-4 px-4">
+                                                    <td className="py-6 px-10 text-xs text-gray-400 font-mono tracking-tighter">{user.email}</td>
+                                                    <td className="py-6 px-10">
                                                         {user.isOwner ? (
-                                                            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center gap-1 w-fit">
-                                                                <ShieldCheck className="w-3 h-3" /> Super Admin (Owner)
+                                                            <span className="text-[9px] font-black uppercase px-3 py-1 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center gap-2 w-fit shadow-lg shadow-purple-500/5">
+                                                                <ShieldCheck className="w-3 h-3" /> Platform Oracle
                                                             </span>
                                                         ) : (currentAdminRole === 'super_admin' && (iAmOwner || user.role !== 'super_admin')) ? (
                                                             <select
                                                                 value={user.role}
                                                                 onChange={(e) => updateUserRole(user.id, e.target.value)}
-                                                                className="bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px] uppercase font-black rounded-lg px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                                                                className="bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[9px] uppercase font-black rounded-xl px-3 py-1.5 outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer hover:bg-blue-500/20 transition-all appearance-none tracking-widest text-center min-w-[120px]"
                                                             >
                                                                 <option value="user">User</option>
                                                                 <option value="moderator">Moderator</option>
@@ -636,40 +721,39 @@ const Admin = () => {
                                                                 <option value="super_admin">Super Admin</option>
                                                             </select>
                                                         ) : (
-                                                            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                                                            <span className="text-[9px] font-black uppercase px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 tracking-widest">
                                                                 {user.role}
                                                             </span>
                                                         )}
                                                     </td>
-                                                    <td className="py-4 px-4">
-                                                        <div className="flex items-center gap-2">
-                                                            <div className={cn("w-1.5 h-1.5 rounded-full",
-                                                                user.status === 'Active' ? 'bg-green-500' :
-                                                                    user.status === 'Flagged' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'
+                                                    <td className="py-6 px-10">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className={cn("w-1.5 h-1.5 rounded-full shadow-[0_0_8px]",
+                                                                user.status === 'Active' ? 'bg-emerald-500 shadow-emerald-500/40' :
+                                                                    user.status === 'Flagged' ? 'bg-amber-500 animate-pulse shadow-amber-500/40' : 'bg-rose-500 shadow-rose-500/40'
                                                             )} />
-                                                            <span className={cn("text-xs font-medium",
-                                                                user.status === 'Suspended' ? 'text-red-400' : 'text-gray-300'
+                                                            <span className={cn("text-[10px] font-black uppercase tracking-wider",
+                                                                user.status === 'Active' ? 'text-emerald-400' :
+                                                                    user.status === 'Flagged' ? 'text-amber-400' : 'text-rose-400'
                                                             )}>{user.status}</span>
                                                         </div>
                                                     </td>
-                                                    <td className="py-4 px-4 text-right">
-                                                        <div className="flex justify-end gap-2">
+                                                    <td className="py-6 px-10">
+                                                        <div className="flex items-center justify-end gap-2">
                                                             <Button
+                                                                disabled={user.isOwner || (user.role === 'super_admin' && !iAmOwner)}
                                                                 onClick={() => toggleUserStatus(user.id)}
                                                                 variant="ghost" size="icon"
-                                                                className={cn("h-8 w-8 rounded-lg", user.status === 'Suspended' ? 'text-green-400 hover:bg-green-400/10' : 'text-yellow-400 hover:bg-yellow-400/10')}
+                                                                className={cn("h-9 w-9 rounded-xl transition-all", user.status === 'Suspended' ? 'bg-emerald-500/5 text-emerald-400 border border-emerald-500/10' : 'bg-amber-500/5 text-amber-400 border border-amber-500/10')}
                                                             >
-                                                                {user.status === 'Suspended' ? <Power className="w-3.5 h-3.5" /> : <UserMinus className="w-3.5 h-3.5" />}
+                                                                {user.status === 'Suspended' ? <Power className="w-4 h-4" /> : <UserMinus className="w-4 h-4" />}
                                                             </Button>
                                                             <Button
                                                                 disabled={user.isOwner || (user.role === 'super_admin' && !iAmOwner)}
                                                                 onClick={() => deleteUser(user.id)}
                                                                 variant="ghost" size="icon"
-                                                                className={cn("h-8 w-8 rounded-lg transition-all",
-                                                                    (user.isOwner || (user.role === 'super_admin' && !iAmOwner))
-                                                                        ? "opacity-20 cursor-not-allowed text-gray-600"
-                                                                        : "hover:bg-red-500/10 text-gray-600 hover:text-red-500"
-                                                                )}>
+                                                                className="h-9 w-9 rounded-xl transition-all bg-rose-500/5 text-gray-500 hover:text-rose-500 border border-white/5 hover:border-rose-500/20"
+                                                            >
                                                                 <Trash2 className="w-4 h-4" />
                                                             </Button>
                                                         </div>
@@ -685,37 +769,50 @@ const Admin = () => {
                         {activeTab === 'rooms' && (
                             <motion.div
                                 key="rooms"
-                                initial={{ opacity: 0, scale: 0.98 }}
+                                initial={{ opacity: 0, scale: 0.99 }}
                                 animate={{ opacity: 1, scale: 1 }}
-                                className="space-y-6"
+                                className="space-y-8"
                             >
-                                <div className="flex items-center justify-between mb-2 px-2">
-                                    <h3 className="text-lg font-bold flex items-center gap-2">
-                                        <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                                        Live Infrastructure Monitor
-                                    </h3>
-                                    <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest">{rooms.length} Channels Active</p>
+                                <div className="flex items-center justify-between px-2">
+                                    <div className="flex items-center gap-4">
+                                        <div className="h-10 w-1 bg-blue-500 rounded-full" />
+                                        <div>
+                                            <h3 className="text-2xl font-black text-white tracking-tight flex items-center gap-3">
+                                                Live Grid Monitor
+                                            </h3>
+                                            <p className="text-xs text-gray-500 font-medium tracking-wide">Persistent viewport into active study cohorts</p>
+                                        </div>
+                                    </div>
+                                    <div className="bg-rose-500/5 border border-rose-500/10 rounded-2xl px-5 py-2.5 flex items-center gap-3">
+                                        <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse shadow-[0_0_10px_rgba(244,63,94,0.6)]" />
+                                        <span className="text-[10px] font-black uppercase text-rose-400 tracking-[0.2em]">{rooms.length} NODES ONLINE</span>
+                                    </div>
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-8">
                                     {rooms.length === 0 ? (
-                                        <div className="col-span-full py-20 text-center glass rounded-[32px] border border-dashed border-white/10 opacity-40">
-                                            <Video className="w-12 h-12 mx-auto mb-4" />
-                                            <p className="text-sm font-medium">No active sessions detected on the grid.</p>
+                                        <div className="col-span-full py-32 text-center glass rounded-[40px] border border-dashed border-white/10 bg-white/[0.01]">
+                                            <div className="w-20 h-20 rounded-[32px] bg-white/5 flex items-center justify-center mx-auto mb-6">
+                                                <Video className="w-10 h-10 text-gray-600" />
+                                            </div>
+                                            <p className="text-lg font-black text-gray-400 uppercase tracking-widest">Static Environment</p>
+                                            <p className="text-sm text-gray-600 font-medium">No system-level activity detected on the mesh.</p>
                                         </div>
                                     ) : (
                                         rooms.map(room => (
-                                            <div key={room.id} className="glass rounded-3xl p-6 border border-white/5 overflow-hidden relative group">
-                                                <div className="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:opacity-[0.07] transition-all pointer-events-none">
-                                                    <Video className="w-32 h-32" />
+                                            <div key={room.id} className="glass rounded-[36px] p-8 border border-white/10 bg-gradient-to-br from-white/[0.04] to-transparent shadow-2xl relative group overflow-hidden transition-all hover:border-blue-500/20 hover:scale-[1.02] duration-500">
+                                                <div className="absolute top-0 right-0 p-10 opacity-[0.02] group-hover:opacity-[0.06] group-hover:rotate-12 group-hover:scale-125 transition-all duration-700 pointer-events-none">
+                                                    <Video className="w-48 h-48" />
                                                 </div>
-                                                <div className="flex justify-between items-start mb-6 relative z-10">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
-                                                            <Video className="w-6 h-6 text-blue-400" />
+                                                
+                                                <div className="flex justify-between items-start mb-10 relative z-10">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-14 h-14 rounded-[20px] bg-blue-500/10 flex items-center justify-center border border-blue-500/20 shadow-inner group-hover:bg-blue-500 group-hover:text-white transition-all duration-500">
+                                                            <Video className="w-7 h-7" />
                                                         </div>
-                                                        <div>
-                                                            <h4 className="font-bold text-gray-200">{room.name}</h4>
-                                                            <p className="text-[10px] text-gray-500 font-mono">CHANNEL_ID: {room.id}</p>
+                                                        <div className="space-y-0.5">
+                                                            <h4 className="font-black text-xl text-gray-100 tracking-tight group-hover:text-white transition-colors capitalize">{room.name}</h4>
+                                                            <p className="text-[9px] text-gray-500 font-black tracking-[0.15em] uppercase">UID: {room.id.substring(0, 10)}</p>
                                                         </div>
                                                     </div>
                                                     <Button
@@ -724,25 +821,31 @@ const Admin = () => {
                                                             terminateRoom(room.id);
                                                         }}
                                                         variant="ghost"
-                                                        size="sm"
-                                                        className="text-red-400 hover:bg-red-500/10 rounded-xl h-8 text-[10px] font-black uppercase z-20 relative"
+                                                        className="h-10 w-10 text-rose-500 hover:bg-rose-500 hover:text-white rounded-[14px] border border-rose-500/20 glass"
                                                     >
-                                                        Kill Session
+                                                        <X className="w-5 h-5" />
                                                     </Button>
                                                 </div>
-                                                <div className="grid grid-cols-3 gap-2 border-t border-white/5 pt-6 relative z-10">
-                                                    <div>
-                                                        <p className="text-[9px] text-gray-600 uppercase font-black tracking-tighter">Load</p>
-                                                        <p className="text-xs font-bold mt-1 text-green-400">{room.participants} Users</p>
+
+                                                <div className="grid grid-cols-3 gap-6 border-t border-white/[0.05] pt-8 relative z-10">
+                                                    <div className="space-y-1">
+                                                        <p className="text-[9px] text-gray-600 uppercase font-black tracking-widest">Load</p>
+                                                        <p className="text-sm font-black text-emerald-400 tracking-tight">{room.participants} USERS</p>
                                                     </div>
-                                                    <div>
-                                                        <p className="text-[9px] text-gray-600 uppercase font-black tracking-tighter">Authorized</p>
-                                                        <p className="text-xs font-bold mt-1 truncate">{room.host}</p>
+                                                    <div className="space-y-1">
+                                                        <p className="text-[9px] text-gray-600 uppercase font-black tracking-widest">Authority</p>
+                                                        <p className="text-sm font-black text-white/80 tracking-tight truncate">{room.host || 'STUDENT'}</p>
                                                     </div>
-                                                    <div>
-                                                        <p className="text-[9px] text-gray-600 uppercase font-black tracking-tighter">Duration</p>
-                                                        <p className="text-xs font-bold mt-1 text-gray-400">{room.uptime}</p>
+                                                    <div className="space-y-1">
+                                                        <p className="text-[9px] text-gray-600 uppercase font-black tracking-widest">Uptime</p>
+                                                        <p className="text-sm font-black text-gray-400 tracking-tight font-mono">{room.uptime}</p>
                                                     </div>
+                                                </div>
+                                                
+                                                <div className="mt-8">
+                                                    <Button className="w-full bg-white/5 hover:bg-blue-600 text-gray-400 hover:text-white border border-white/5 h-12 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all">
+                                                        Attach to Session
+                                                    </Button>
                                                 </div>
                                             </div>
                                         ))
@@ -754,166 +857,130 @@ const Admin = () => {
                         {activeTab === 'moderation' && (
                             <motion.div
                                 key="moderation"
-                                initial={{ opacity: 0, scale: 0.98 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                className="space-y-6"
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="grid grid-cols-1 lg:grid-cols-2 gap-8"
                             >
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                    {/* Session Activity Monitor */}
-                                    <div className="glass rounded-[32px] p-6 border border-white/5">
-                                        <div className="flex items-center gap-3 mb-6">
-                                            <div className="p-2 rounded-xl bg-blue-500/10">
-                                                <Activity className="w-5 h-5 text-blue-400" />
+                                {/* Advanced Audit Facility */}
+                                <div className="glass rounded-[40px] p-10 border border-white/10 bg-white/[0.01] shadow-2xl space-y-8">
+                                    <div className="flex items-center justify-between border-b border-white/5 pb-8">
+                                        <div className="flex items-center gap-4">
+                                            <div className="p-3 rounded-2xl bg-blue-500/10 border border-blue-500/20">
+                                                <Activity className="w-6 h-6 text-blue-400" />
                                             </div>
                                             <div>
-                                                <h3 className="text-lg font-bold">Session Activity</h3>
-                                                <p className="text-[10px] text-gray-500 uppercase tracking-wider">Real-time admin actions</p>
+                                                <h3 className="text-xl font-black text-white uppercase tracking-tight">Audit Stream</h3>
+                                                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Real-time system actions</p>
                                             </div>
                                         </div>
-                                        <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar">
-                                            {auditLogs.length === 0 ? (
-                                                <div className="py-10 text-center opacity-40">
-                                                    <p className="text-xs">No recent activity logged.</p>
-                                                </div>
-                                            ) : (
-                                                auditLogs.map((log, i) => (
-                                                    <div key={log.id} className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/5 hover:border-white/10 transition-all">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className={cn("w-2 h-2 rounded-full",
-                                                                log.blocked ? 'bg-red-500' :
-                                                                    log.action.includes('push') ? 'bg-blue-500' : 'bg-green-500'
-                                                            )} />
-                                                            <div>
-                                                                <p className="text-xs font-bold uppercase tracking-tighter">{log.action.replace(/_/g, ' ')}</p>
-                                                                <p className="text-[10px] text-gray-500">Target: {log.targetId}</p>
-                                                            </div>
+                                        <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
+                                    </div>
+                                    
+                                    <div className="space-y-4 max-h-[450px] overflow-y-auto custom-scrollbar pr-2">
+                                        {auditLogs.length === 0 ? (
+                                            <div className="py-20 text-center opacity-30">
+                                                <p className="text-xs font-black uppercase tracking-widest">Buffer Empty</p>
+                                            </div>
+                                        ) : (
+                                            auditLogs.map((log) => (
+                                                <div key={log.id} className="flex items-center justify-between p-5 rounded-[24px] bg-white/[0.02] border border-white/5 hover:border-blue-500/30 hover:bg-white/[0.04] transition-all duration-300">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className={cn("w-2 h-10 rounded-full",
+                                                            log.blocked ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]' :
+                                                                log.action.includes('push') ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.4)]' : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]'
+                                                        )} />
+                                                        <div>
+                                                            <p className="text-[11px] font-black uppercase tracking-widest text-gray-200">{log.action.replace(/_/g, ' ')}</p>
+                                                            <p className="text-[9px] text-gray-600 font-mono mt-1">OBJ: {log.targetId}</p>
                                                         </div>
-                                                        <span className="text-[9px] text-gray-600 font-mono">
-                                                            {Math.floor((Date.now() - log.timestamp) / 60000)}m ago
-                                                        </span>
                                                     </div>
-                                                ))
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* IP Whitelist */}
-                                    <div className="glass rounded-[32px] p-6 border border-white/5">
-                                        <div className="flex items-center gap-3 mb-6">
-                                            <div className="p-2 rounded-xl bg-green-500/10">
-                                                <Lock className="w-5 h-5 text-green-400" />
-                                            </div>
-                                            <div>
-                                                <h3 className="text-lg font-bold">IP Whitelist</h3>
-                                                <p className="text-[10px] text-gray-500 uppercase tracking-wider">Authorized access points</p>
-                                            </div>
-                                        </div>
-                                        <div className="space-y-2">
-                                            {['192.168.1.100', '10.0.0.50', '172.16.0.25'].map((ip, i) => (
-                                                <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-green-500/5 border border-green-500/20">
-                                                    <span className="text-xs font-mono text-green-400">{ip}</span>
-                                                    <Button variant="ghost" size="sm" className="h-6 text-[9px] text-red-400 hover:bg-red-500/10">
-                                                        Revoke
-                                                    </Button>
+                                                    <div className="text-right">
+                                                        <p className="text-[10px] font-black text-gray-500 uppercase tracking-tighter">
+                                                            {Math.floor((Date.now() - log.timestamp) / 60000)}m
+                                                        </p>
+                                                    </div>
                                                 </div>
-                                            ))}
-                                            <Button variant="outline" size="sm" className="w-full mt-4 rounded-xl">
-                                                + Add IP Address
-                                            </Button>
-                                        </div>
+                                            ))
+                                        )}
                                     </div>
+                                </div>
 
-                                    {/* Two-Factor Authentication */}
-                                    <div className="glass rounded-[32px] p-6 border border-white/5">
-                                        <div className="flex items-center justify-between mb-6">
-                                            <div className="flex items-center gap-3">
-                                                <div className="p-2 rounded-xl bg-purple-500/10">
-                                                    <ShieldAlert className="w-5 h-5 text-purple-400" />
-                                                </div>
-                                                <div>
-                                                    <h3 className="text-lg font-bold">Two-Factor Auth</h3>
-                                                    <p className="text-[10px] text-gray-500 uppercase tracking-wider">Enhanced login security</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                                                <span className="text-[10px] font-bold text-green-400">ENABLED</span>
-                                            </div>
-                                        </div>
-                                        <div className="space-y-4">
-                                            <div className="p-4 rounded-xl bg-purple-500/5 border border-purple-500/20">
-                                                <p className="text-xs text-gray-400 mb-2">Authenticator App</p>
-                                                <p className="text-sm font-bold text-purple-400">Google Authenticator</p>
-                                            </div>
-                                            <div className="p-4 rounded-xl bg-purple-500/5 border border-purple-500/20">
-                                                <p className="text-xs text-gray-400 mb-2">Backup Codes</p>
-                                                <p className="text-sm font-bold">8 remaining</p>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Emergency Controls */}
+                                {/* Security Response Facility */}
+                                <div className="space-y-8">
                                     <div className={cn(
-                                        "glass rounded-[32px] p-6 border transition-all",
-                                        isLockdownActive
-                                            ? "border-red-500/40 bg-gradient-to-br from-red-600/10 to-transparent"
-                                            : "border-red-500/20 bg-gradient-to-br from-red-600/5 to-transparent"
+                                        "glass rounded-[40px] p-10 border border-white/10 shadow-2xl transition-all duration-700 relative overflow-hidden",
+                                        isLockdownActive 
+                                            ? "bg-rose-600/10 border-rose-500/30" 
+                                            : "bg-white/[0.01]"
                                     )}>
-                                        <div className="flex items-center justify-between mb-6">
-                                            <div className="flex items-center gap-3">
-                                                <div className="p-2 rounded-xl bg-red-500/10">
-                                                    <AlertCircle className="w-5 h-5 text-red-400" />
+                                        {isLockdownActive && (
+                                            <div className="absolute inset-0 bg-rose-500/5 animate-pulse" />
+                                        )}
+                                        
+                                        <div className="flex items-center justify-between mb-10 relative z-10">
+                                            <div className="flex items-center gap-4">
+                                                <div className={cn("p-3 rounded-2xl transition-colors", isLockdownActive ? "bg-rose-500/20 text-rose-500" : "bg-gray-500/10 text-gray-500")}>
+                                                    <AlertCircle className="w-6 h-6" />
                                                 </div>
                                                 <div>
-                                                    <h3 className="text-lg font-bold text-red-400">Emergency Lockdown</h3>
-                                                    <p className="text-[10px] text-gray-500 uppercase tracking-wider">Critical security response</p>
+                                                    <h3 className={cn("text-xl font-black uppercase tracking-tight", isLockdownActive ? "text-rose-500" : "text-white")}>
+                                                        Emergency Response
+                                                    </h3>
+                                                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Global Protocol Zero</p>
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-2">
-                                                <div className={cn(
-                                                    "w-2 h-2 rounded-full",
-                                                    isLockdownActive ? "bg-red-500 animate-pulse" : "bg-gray-500"
-                                                )} />
-                                                <span className={cn(
-                                                    "text-[10px] font-bold uppercase",
-                                                    isLockdownActive ? "text-red-400" : "text-gray-500"
-                                                )}>
-                                                    {isLockdownActive ? "ACTIVE" : "INACTIVE"}
+                                            <div className="flex items-center gap-3 bg-black/40 px-4 py-2 rounded-2xl border border-white/5">
+                                                <div className={cn("w-2 h-2 rounded-full", isLockdownActive ? "bg-rose-500 animate-ping" : "bg-gray-600")} />
+                                                <span className={cn("text-[9px] font-black uppercase tracking-widest", isLockdownActive ? "text-rose-500" : "text-gray-500")}>
+                                                    {isLockdownActive ? "ENGAGED" : "DORMANT"}
                                                 </span>
                                             </div>
                                         </div>
 
-                                        {isLockdownActive && (
-                                            <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/30 animate-in fade-in">
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <ShieldAlert className="w-4 h-4 text-red-400" />
-                                                    <p className="text-xs font-bold text-red-400">LOCKDOWN IN EFFECT</p>
-                                                </div>
-                                                <p className="text-[10px] text-gray-400">
-                                                    All student accounts are currently suspended. Click below to restore normal operations.
-                                                </p>
-                                            </div>
-                                        )}
-
-                                        <p className="text-xs text-gray-400 mb-6">
-                                            {isLockdownActive
-                                                ? "Click to restore normal operations and reactivate all student accounts."
-                                                : "Instantly suspend all non-admin accounts and terminate active sessions. Use only in case of security breach."
-                                            }
+                                        <p className="text-sm text-gray-400 font-medium mb-10 leading-relaxed border-l-2 border-white/5 pl-6 relative z-10">
+                                            Activating Global Lockdown will instantly suspend all non-admin account vitality and terminally close all active data streams.
                                         </p>
+
                                         <Button
+                                            onClick={toggleLockdown}
                                             variant={isLockdownActive ? "default" : "destructive"}
                                             className={cn(
-                                                "w-full h-12 rounded-xl font-black uppercase tracking-widest text-xs",
-                                                isLockdownActive
-                                                    ? "bg-green-600 hover:bg-green-700"
-                                                    : ""
+                                                "w-full h-16 rounded-[24px] font-black uppercase tracking-[0.3em] text-[11px] transition-all relative z-10",
+                                                isLockdownActive 
+                                                    ? "bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/20" 
+                                                    : "bg-rose-600 hover:bg-rose-500 text-white shadow-rose-500/20"
                                             )}
-                                            onClick={toggleLockdown}
                                         >
-                                            <ShieldAlert className="w-4 h-4 mr-2" />
-                                            {isLockdownActive ? "DEACTIVATE LOCKDOWN" : "ACTIVATE LOCKDOWN"}
+                                            {isLockdownActive ? "Disengage Lockdown" : "Initiate Protocol Zero"}
                                         </Button>
+                                    </div>
+
+                                    {/* Sub-panels Grid */}
+                                    <div className="grid grid-cols-2 gap-8">
+                                        <div className="glass rounded-[32px] p-8 border border-white/10 bg-white/[0.02]">
+                                            <div className="flex items-center gap-3 mb-6">
+                                                <Lock className="w-4 h-4 text-emerald-400" />
+                                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Auth Buffer</span>
+                                            </div>
+                                            <div className="space-y-4">
+                                                <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                                                    <div className="h-full w-full bg-emerald-500/40" />
+                                                </div>
+                                                <p className="text-[11px] font-black text-gray-200">2FA Enforced</p>
+                                            </div>
+                                        </div>
+                                        <div className="glass rounded-[32px] p-8 border border-white/10 bg-white/[0.02]">
+                                            <div className="flex items-center gap-3 mb-6">
+                                                <ShieldCheck className="w-4 h-4 text-blue-400" />
+                                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Firewall</span>
+                                            </div>
+                                            <div className="space-y-4">
+                                                <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                                                    <div className="h-full w-3/4 bg-blue-500/40" />
+                                                </div>
+                                                <p className="text-[11px] font-black text-gray-200">Active Shield</p>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </motion.div>
