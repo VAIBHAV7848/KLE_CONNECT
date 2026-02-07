@@ -198,20 +198,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signIn = async (email: string, password: string) => {
     // Master Admin Bypass for Presentation Reliability
     const normalizedEmail = email.trim().toLowerCase();
-    const MASTER_PASSWORD = import.meta.env.VITE_MASTER_ADMIN_PASSWORD;
 
-    if (ADMIN_EMAILS.includes(normalizedEmail) && password === MASTER_PASSWORD) {
-      const adminUser = {
-        email: normalizedEmail,
-        displayName: 'Platform Administrator',
-        uid: 'admin-001',
-        emailVerified: true
-      } as User;
+    try {
+      // Call secure server-side admin check
+      const response = await fetch('/api/admin-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: normalizedEmail, password })
+      });
 
-      setUser(adminUser);
-      setRole('super_admin');
-      localStorage.setItem('admin_session', 'true');
-      return { error: null };
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          const adminUser = data.adminUser as User;
+          setUser(adminUser);
+          setRole('super_admin');
+          localStorage.setItem('admin_session', 'true');
+          return { error: null };
+        }
+      }
+    } catch (e) {
+      console.warn('[Auth] Admin proxy failed, falling back to standard auth');
     }
 
     try {

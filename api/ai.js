@@ -1,11 +1,28 @@
 import Internal API from 'openai';
+import admin from 'firebase-admin';
+
+// Initialize Firebase Admin (Only once)
+if (!admin.apps.length) {
+    try {
+        admin.initializeApp({
+            credential: admin.credential.cert({
+                projectId: process.env.FIREBASE_PROJECT_ID,
+                clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+                privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+            }),
+            databaseURL: process.env.VITE_FIREBASE_DATABASE_URL
+        });
+    } catch (error) {
+        console.error('Firebase admin initialization error', error.stack);
+    }
+}
 
 export default async function handler(req, res) {
     // Enable CORS
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-    res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+    res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
 
     if (req.method === 'OPTIONS') {
         res.status(200).end();
@@ -13,26 +30,45 @@ export default async function handler(req, res) {
     }
 
     try {
+        // --- SECURITY: Verify Firebase ID Token ---
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ 
+                error: "Unauthorized", 
+                reply: "⚠️ **Security Error**: Access denied. Please sign in to use the AI Tutor." 
+            });
+        }
+
+        const idToken = authHeader.split('Bearer ')[1];
+        
+        try {
+            const decodedToken = await admin.auth().verifyIdToken(idToken);
+            console.info(`[SECURITY_MONITOR] AI_ACCESS_GRANTED | User: ${decodedToken.email} | UID: ${decodedToken.uid}`);
+        } catch (authError) {
+            console.warn(`[SECURITY_MONITOR] AI_ACCESS_DENIED | Reason: ${authError.message} | IP: ${req.headers['x-forwarded-for'] || req.socket.remoteAddress}`);
+            return res.status(403).json({ 
+                error: "Forbidden", 
+                reply: "⚠️ **Security Error**: Session expired or invalid authentication. Please re-login." 
+            });
+        }
+        // --- END SECURITY ---
+
         const { prompt, history } = req.body;
 
         if (!prompt) {
             return res.status(400).json({ error: "Prompt is required" });
         }
 
-        // PRIORITY: Runtime Dynamic Key (Owner Testing) -> Env Var (Production)
         let apiKey = process.env.GROQ_API_KEY;
 
-        // Check for dynamic key passed securely in body (for Owner testing of new keys)
         if (req.body.dynamicKey) {
             apiKey = req.body.dynamicKey;
-            console.log("Using Runtime Dynamic Key for AI Request");
         }
 
         if (!apiKey) {
-            console.error("GROQ_API_KEY is missing in environment variables and no dynamic key provided");
             return res.status(500).json({
                 error: "Configuration Error",
-                reply: "⚠️ **System Error**: GROQ_API_KEY not found in Vercel environment variables. Please check your Vercel project settings."
+                reply: "⚠️ **System Error**: GROQ_API_KEY not found."
             });
         }
 
@@ -65,6 +101,9 @@ export default async function handler(req, res) {
             temperature: 0.7,
             max_tokens: 1000
         });
+
+        // --- COST MONITORING ---
+        console.info(`[COST_MONITOR] AI_COMPLETION | Tokens: ${completion.usage?.total_tokens || 'unknown'} | Model: ${completion.model}`);
 
         return res.status(200).json({ reply: completion.choices[0].message.content });
     } catch (error) {
