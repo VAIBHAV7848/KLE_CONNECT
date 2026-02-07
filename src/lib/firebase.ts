@@ -6,13 +6,13 @@ import { getDatabase } from "firebase/database";
 // Your web app's Firebase configuration
 const firebaseConfig = {
     apiKey: "<GOOGLE_KEY_HIDDEN>",
-    authDomain: "kle-connect.firebaseapp.com",
-    databaseURL: "https://kle-connect-default-rtdb.firebaseio.com",
-    projectId: "kle-connect",
-    storageBucket: "kle-connect.firebasestorage.app",
-    messagingSenderId: "939070940474",
-    appId: "1:939070940474:web:5a0b7a45c7fe345fbddc03",
-    measurementId: "G-9T43NDMQVS"
+    authDomain: "kleconnect-a7c43.firebaseapp.com",
+    databaseURL: "https://kleconnect-a7c43-default-rtdb.firebaseio.com",
+    projectId: "kleconnect-a7c43",
+    storageBucket: "kleconnect-a7c43.firebasestorage.app",
+    messagingSenderId: "1041101183552",
+    appId: "1:1041101183552:web:3df179ecc56dbcb7199da5",
+    measurementId: "G-P3D6K55CXK"
 };
 
 // Initialize Firebase
