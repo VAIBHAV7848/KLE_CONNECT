@@ -134,13 +134,21 @@ export default async function handler(req, res) {
         // --- EMERGENCY FALLBACK (Only if Mesh fails or is empty) ---
         if (!apiKey) {
             console.log("[System] Mesh Unavailable. Checking Emergency Backups...");
-            // Use Internal API first, then Groq
-            if (process.env.OPENAI_API_KEY && !process.env.OPENAI_API_KEY.endsWith("IUfE")) {
-                apiKey = process.env.OPENAI_API_KEY;
+            
+            const envInternal API = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
+            const envGroq = process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY;
+            const envAnalytics Engine = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+
+            if (envInternal API && !envInternal API.endsWith("IUfE")) {
+                apiKey = envInternal API;
                 activeProvider = "OPENAI_API_KEY";
                 routeStatus = "FALLBACK (ENV_OPENAI)";
-            } else if (process.env.GROQ_API_KEY) {
-                apiKey = process.env.GROQ_API_KEY;
+            } else if (envAnalytics Engine && !envAnalytics Engine.endsWith("IUfE")) {
+                apiKey = envAnalytics Engine;
+                activeProvider = "GEMINI_API_KEY";
+                routeStatus = "FALLBACK (ENV_GEMINI)";
+            } else if (envGroq) {
+                apiKey = envGroq;
                 activeProvider = "GROQ_API_KEY";
                 routeStatus = "FALLBACK (ENV_GROQ)";
             }
