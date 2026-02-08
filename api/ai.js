@@ -81,21 +81,27 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: "Prompt is required" });
         }
 
-        // --- DYNAMIC CONFIG WITH AGGRESSIVE RACING ---
+        // --- DYNAMIC CONFIG WITH SMART ROUTING ---
         let apiKey = process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY;
         let activeProvider = "GROQ_API_KEY";
 
+        // Pre-emptively check if we have other keys in ENV as better fallbacks
+        if (process.env.GEMINI_API_KEY) {
+            apiKey = process.env.GEMINI_API_KEY;
+            activeProvider = "GEMINI_API_KEY";
+        }
+
         try {
-            console.log("[System] Racing for configuration (4s limit)...");
+            console.log("[System] Config Race (8s limit)...");
             const dbFetch = admin.database().ref('system_config').once('value');
-            const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Config Timeout')), 4000));
+            const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Race Timeout')), 8000));
             
             const snapshot = await Promise.race([dbFetch, timeout]);
 
             if (snapshot.exists()) {
                 const config = snapshot.val();
-                activeProvider = config.active_ai_provider || "GROQ_API_KEY";
-                const keyData = config.api_keys?.[activeProvider];
+                const selected = config.active_ai_provider || activeProvider;
+                const keyData = config.api_keys?.[selected];
                 
                 if (keyData && keyData.keyValue) {
                     try {
@@ -103,14 +109,14 @@ export default async function handler(req, res) {
                         const decrypted = bytes.toString(encUtf8);
                         if (decrypted) {
                             apiKey = decrypted;
-                            console.log(`[System] Configuration acquired: ${activeProvider}`);
+                            activeProvider = selected;
+                            console.log(`[System] Route Verified: ${activeProvider}`);
                         }
                     } catch (e) { console.error("[System] Decrypt Fail"); }
                 }
             }
         } catch (err) {
-            console.warn(`[System] Config Race lost (${err.message}). Using ENV Fallback.`);
-            // If race lost, we keep the default ENV apiKey and GROQ provider
+            console.warn(`[System] Using Best-Effort Route: ${activeProvider} (Reason: ${err.message})`);
         }
 
         if (!apiKey) {
@@ -124,12 +130,12 @@ export default async function handler(req, res) {
         let baseURL = "https://api.groq.com/openai/v1";
         let model = "llama-3.3-70b-versatile";
 
-        if (activeProvider === "OPENAI_API_KEY") {
+        if (activeProvider === "OPENAI_API_KEY" || activeProvider === "OPENAI") {
             baseURL = "https://api.openai.com/v1";
             model = "gpt-4-turbo-preview"; 
-        } else if (activeProvider === "GEMINI_API_KEY") {
+        } else if (activeProvider === "GEMINI_API_KEY" || activeProvider === "GEMINI") {
             baseURL = "https://generativelanguage.googleapis.com/v1beta/openai/";
-            model = "gemini-1.5-flash"; // Ultra fast to stay under 10s
+            model = "gemini-1.5-flash"; 
         }
 
         const client = new Internal API({
