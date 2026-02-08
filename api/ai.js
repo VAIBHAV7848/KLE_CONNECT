@@ -92,9 +92,9 @@ export default async function handler(req, res) {
         }
 
         try {
-            console.log("[System] Config Race (8s limit)...");
+            console.log("[System] Config Race (3s limit)...");
             const dbFetch = admin.database().ref('system_config').once('value');
-            const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Race Timeout')), 8000));
+            const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Race Timeout')), 3000));
             
             const snapshot = await Promise.race([dbFetch, timeout]);
 
@@ -130,17 +130,18 @@ export default async function handler(req, res) {
         let baseURL = "https://api.groq.com/openai/v1";
         let model = "llama-3.3-70b-versatile";
 
-        if (activeProvider === "OPENAI_API_KEY" || activeProvider === "OPENAI") {
+        if (activeProvider.includes("OPENAI")) {
             baseURL = "https://api.openai.com/v1";
             model = "gpt-4-turbo-preview"; 
-        } else if (activeProvider === "GEMINI_API_KEY" || activeProvider === "GEMINI") {
+        } else if (activeProvider.includes("GEMINI")) {
             baseURL = "https://generativelanguage.googleapis.com/v1beta/openai/";
             model = "gemini-1.5-flash"; 
         }
 
         const client = new Internal API({
             apiKey: apiKey,
-            baseURL: baseURL
+            baseURL: baseURL,
+            timeout: 7000 // Give the AI call 7s max to fit in Vercel's 10s
         });
 
         const messages = [
@@ -173,10 +174,16 @@ export default async function handler(req, res) {
 
         return res.status(200).json({ 
             reply: completion.choices[0].message.content,
-            provider: activeProvider.replace('_API_KEY', '') 
+            provider: String(activeProvider).replace('_API_KEY', '') 
         });
     } catch (error) {
         console.error("Vercel AI Error:", error);
-        return res.status(500).json({ error: "AI processing failed", details: error.message });
+        // Clearer error for the frontend
+        const errorMsg = error.response?.data?.error?.message || error.message || "Unknown AI Error";
+        return res.status(500).json({ 
+            error: "AI processing failed", 
+            details: errorMsg,
+            reply: `⚠️ **AI Service Error**: ${errorMsg}. Please try switching the AI Provider in Admin settings.`
+        });
     }
 }
