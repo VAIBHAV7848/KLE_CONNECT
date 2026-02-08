@@ -130,13 +130,16 @@ export default async function handler(req, res) {
         // --- AI EXECUTION ---
         try {
             if (activeProvider.includes("GEMINI")) {
-                console.log("[System] Routing to Native Analytics Engine SDK...");
+                console.log("[System] Routing to Native Analytics Engine SDK (v1)...");
+                // Force v1 to avoid v1beta retirement issues
                 const genAI = new GoogleGenerativeAI(apiKey);
-                const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+                const model = genAI.getGenerativeModel({ 
+                    model: "gemini-2.0-flash"
+                }, { apiVersion: 'v1' });
                 
                 const chatHistory = (history || []).map(m => ({
                     role: m.role === 'user' ? 'user' : 'model',
-                    parts: [{ text: m.content || m.parts?.[0]?.text || "" }]
+                    parts: [{ text: String(m.content || m.parts?.[0]?.text || "") }]
                 }));
 
                 const chat = model.startChat({
