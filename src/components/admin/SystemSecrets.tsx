@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useSystemConfig } from '@/contexts/SystemConfigContext';
 import { useAuth } from '@/hooks/useAuth';
 import { Shield, Key, Lock, Eye, EyeOff, Save, Trash2, ShieldAlert, Cpu, Terminal, Sparkles, Check } from 'lucide-react';
+import { Bot, Send, User, Menu, Plus, MessageSquare, X, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -14,10 +15,18 @@ const PROVIDERS = [
 
 const SystemSecrets: React.FC = () => {
     const { isOwner, user } = useAuth();
-    const { secrets, loading, addSecret, updateSecret, deleteSecret } = useSystemConfig();
+    const { 
+        secrets, 
+        activeAIProvider, 
+        loading, 
+        addSecret, 
+        updateSecret, 
+        deleteSecret,
+        setActiveAIProvider 
+    } = useSystemConfig();
 
-    // STRICT OWNER CHECK: Component returns null if not owner
-    if (!user ||!isOwner) return null;
+    // STRICT OWNER CHECK
+    if (!user || !isOwner) return null;
 
     const [selectedProvider, setSelectedProvider] = useState(PROVIDERS[0]);
     const [newKeyValue, setNewKeyValue] = useState('');
@@ -40,9 +49,23 @@ const SystemSecrets: React.FC = () => {
             await addSecret(selectedProvider.key, newKeyValue);
             setNewKeyValue('');
             toast.success(`${selectedProvider.label} key vaulted successfully!`);
-        } catch (err) {
+            
+            // Auto-activate if it's the first key
+            if (secrets.length === 0) {
+                await setActiveAIProvider(selectedProvider.key);
+            }
+        } catch (err: any) {
             console.error('[SystemSecrets] Failed to add secret:', err);
             toast.error("Failed to save credentials.");
+        }
+    };
+
+    const handleActivate = async (keyName: string) => {
+        try {
+            await setActiveAIProvider(keyName);
+            toast.success(`Active Provider switched to ${keyName}`);
+        } catch (err: any) {
+            toast.error("Failed to switch provider");
         }
     };
 
@@ -66,15 +89,15 @@ const SystemSecrets: React.FC = () => {
                             </div>
                         </div>
                         <p className="text-sm text-gray-400 font-medium max-w-xl leading-relaxed">
-                            Configure critical AI model access vectors. Modifications are instantly propagated to the backend proxy mesh.
+                            Configure critical AI model access vectors. Select an "Active Node" to route global traffic to that specific provider.
                         </p>
                     </div>
 
                     <div className="flex items-center gap-6 px-8 py-5 bg-black/40 rounded-[24px] border border-white/5 border-dashed">
                         <div className="text-center">
-                            <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Vault Status</p>
-                            <p className="text-xs font-black text-emerald-400 uppercase tracking-widest flex items-center gap-2">
-                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Secure
+                            <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Active AI System</p>
+                            <p className="text-xs font-black text-blue-400 uppercase tracking-widest flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" /> {activeAIProvider || 'None'}
                             </p>
                         </div>
                         <div className="w-px h-8 bg-white/10" />
@@ -162,7 +185,7 @@ const SystemSecrets: React.FC = () => {
                             <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em]">Active Key Mesh</h3>
                         </div>
                         <span className="text-[9px] font-mono text-gray-500 uppercase tracking-widest bg-white/5 px-3 py-1 rounded-full text-emerald-400 flex items-center gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                             {secrets.length} Active Nodes
                         </span>
                     </div>
@@ -177,20 +200,47 @@ const SystemSecrets: React.FC = () => {
                             {secrets.map((secret) => {
                                 const provider = PROVIDERS.find(p => p.key === secret.keyName) || { icon: Key, color: 'text-gray-400', label: 'Custom Key' };
                                 const ProviderIcon = provider.icon;
+                                const isActive = activeAIProvider === secret.keyName;
                                 
                                 return (
                                     <div key={secret.keyName} className="group relative">
-                                        <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500/10 to-purple-600/10 rounded-[24px] opacity-0 group-hover:opacity-100 transition duration-500 blur-sm" />
-                                        <div className="relative flex flex-col sm:flex-row sm:items-center justify-between p-6 rounded-[24px] bg-black/40 border border-white/5 backdrop-blur-3xl transition-all duration-300 group-hover:border-white/10 gap-4">
+                                        <div className={cn(
+                                            "absolute -inset-0.5 rounded-[24px] opacity-0 group-hover:opacity-100 transition duration-500 blur-sm",
+                                            isActive ? "bg-blue-500/20" : "bg-gradient-to-r from-blue-500/10 to-purple-600/10"
+                                        )} />
+                                        <div className={cn(
+                                            "relative flex flex-col sm:flex-row sm:items-center justify-between p-6 rounded-[24px] bg-black/40 border backdrop-blur-3xl transition-all duration-300 gap-4",
+                                            isActive ? "border-blue-500/40 bg-blue-500/[0.03]" : "border-white/5 group-hover:border-white/10"
+                                        )}>
                                             <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-3 mb-3">
-                                                    <div className={cn("w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center border border-white/5", provider.color)}>
-                                                        <ProviderIcon size={14} />
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={cn("w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center border border-white/5", provider.color)}>
+                                                            <ProviderIcon size={14} />
+                                                        </div>
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <p className="font-bold text-sm text-gray-200 tracking-tight">{provider.label}</p>
+                                                                {isActive && (
+                                                                    <span className="text-[8px] font-black text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full uppercase tracking-tighter flex items-center gap-1">
+                                                                        <span className="w-1 h-1 rounded-full bg-blue-500 animate-pulse" />
+                                                                        Live Route
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <p className="font-mono text-[10px] text-gray-500 uppercase tracking-widest">{secret.keyName}</p>
+                                                        </div>
                                                     </div>
-                                                    <div>
-                                                        <p className="font-bold text-sm text-gray-200 tracking-tight">{provider.label}</p>
-                                                        <p className="font-mono text-[10px] text-gray-500 uppercase tracking-widest">{secret.keyName}</p>
-                                                    </div>
+                                                    
+                                                    {!isActive && (
+                                                        <Button
+                                                            onClick={() => handleActivate(secret.keyName)}
+                                                            variant="ghost"
+                                                            className="text-[9px] font-black uppercase tracking-widest h-7 px-3 rounded-lg border border-white/5 bg-white/5 hover:bg-blue-500 hover:text-white hover:border-blue-500 transition-all sm:hidden"
+                                                        >
+                                                            Set Active
+                                                        </Button>
+                                                    )}
                                                 </div>
                                                 
                                                 {editingKey === secret.keyName ? (
@@ -225,31 +275,43 @@ const SystemSecrets: React.FC = () => {
                                                 )}
                                             </div>
 
-                                            <div className="flex items-center gap-2 sm:ml-6 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-2 group-hover:translate-x-0 shrink-0 self-end sm:self-center">
-                                                <Button
-                                                    variant="ghost" 
-                                                    size="icon"
-                                                    onClick={() => {
-                                                        setEditingKey(secret.keyName);
-                                                        setEditValue(secret.keyValue);
-                                                    }}
-                                                    className="w-10 h-10 rounded-xl bg-blue-500/5 text-blue-400 hover:bg-blue-500 hover:text-white border border-blue-500/10 transition-all hover:scale-105 active:scale-95"
-                                                >
-                                                    <Lock size={16} />
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() => {
-                                                        if (confirm(`PERMANENTLY DELETE access key for ${provider.label}? This will break functionality immediately.`)) {
-                                                            deleteSecret(secret.keyName);
-                                                            toast.success(`${provider.label} key destroyed.`);
-                                                        }
-                                                    }}
-                                                    className="w-10 h-10 rounded-xl bg-rose-500/5 text-rose-500 hover:bg-rose-500 hover:text-white border border-rose-500/10 transition-all hover:scale-105 active:scale-95"
-                                                >
-                                                    <Trash2 size={16} />
-                                                </Button>
+                                            <div className="flex items-center gap-2 sm:ml-6 shrink-0 self-end sm:self-center">
+                                                {!isActive && (
+                                                    <Button
+                                                        onClick={() => handleActivate(secret.keyName)}
+                                                        variant="ghost"
+                                                        className="hidden sm:flex text-[9px] font-black uppercase tracking-widest h-10 px-4 rounded-xl border border-white/5 bg-white/5 hover:bg-blue-500 hover:text-white hover:border-blue-500 transition-all opacity-0 group-hover:opacity-100"
+                                                    >
+                                                        Use This Node
+                                                    </Button>
+                                                )}
+                                                
+                                                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-2 group-hover:translate-x-0">
+                                                    <Button
+                                                        variant="ghost" 
+                                                        size="icon"
+                                                        onClick={() => {
+                                                            setEditingKey(secret.keyName);
+                                                            setEditValue(secret.keyValue);
+                                                        }}
+                                                        className="w-10 h-10 rounded-xl bg-blue-500/5 text-blue-400 hover:bg-blue-500 hover:text-white border border-blue-500/10 transition-all hover:scale-105 active:scale-95"
+                                                    >
+                                                        <Lock size={16} />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() => {
+                                                            if (confirm(`PERMANENTLY DELETE access key for ${provider.label}? This will break functionality immediately.`)) {
+                                                                deleteSecret(secret.keyName);
+                                                                toast.success(`${provider.label} key destroyed.`);
+                                                            }
+                                                        }}
+                                                        className="w-10 h-10 rounded-xl bg-rose-500/5 text-rose-500 hover:bg-rose-500 hover:text-white border border-rose-500/10 transition-all hover:scale-105 active:scale-95"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </Button>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -274,5 +336,3 @@ const SystemSecrets: React.FC = () => {
 };
 
 export default SystemSecrets;
-
-

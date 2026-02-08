@@ -19,11 +19,13 @@ export interface SystemSecret {
 
 interface SystemConfigContextType {
     secrets: SystemSecret[];
+    activeAIProvider: string | null;
     loading: boolean;
     addSecret: (keyName: string, keyValue: string) => Promise<void>;
     updateSecret: (keyName: string, keyValue: string) => Promise<void>;
     deleteSecret: (keyName: string) => Promise<void>;
     getSecret: (keyName: string) => string | null;
+    setActiveAIProvider: (keyName: string) => Promise<void>;
 }
 
 const SystemConfigContext = createContext<SystemConfigContextType | undefined>(undefined);
@@ -31,40 +33,50 @@ const SystemConfigContext = createContext<SystemConfigContextType | undefined>(u
 export const SystemConfigProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { user, isOwner } = useAuth();
     const [secrets, setSecrets] = useState<SystemSecret[]>([]);
+    const [activeAIProvider, setActiveAIProviderState] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
-    // Load Secrets (ONLY if Owner)
+    // Load Secrets & Active Provider (ONLY if Owner)
     useEffect(() => {
         if (!isOwner || !user) {
             setSecrets([]);
+            setActiveAIProviderState(null);
             setLoading(false);
             return;
         }
 
-        const secretsRef = ref(database, 'system_config/api_keys');
-        const unsubscribe = onValue(secretsRef, (snapshot) => {
+        const configRef = ref(database, 'system_config');
+        const unsubscribe = onValue(configRef, (snapshot) => {
             const data = snapshot.val();
             if (data) {
-                const loadedSecrets: SystemSecret[] = Object.entries(data).map(([key, val]: [string, any]) => {
-                    let decryptedValue = "";
-                    try {
-                        // Try to decrypt
-                        decryptedValue = AES.decrypt(val.keyValue, ENCRYPTION_SECRET).toString(encUtf8);
-                        if (!decryptedValue) decryptedValue = val.keyValue; // Fallback if not encrypted or key fail
-                    } catch (e) {
-                        decryptedValue = val.keyValue;
-                    }
+                // 1. Load Keys
+                if (data.api_keys) {
+                    const loadedSecrets: SystemSecret[] = Object.entries(data.api_keys).map(([key, val]: [string, any]) => {
+                        let decryptedValue = "";
+                        try {
+                            decryptedValue = AES.decrypt(val.keyValue, ENCRYPTION_SECRET).toString(encUtf8);
+                            if (!decryptedValue) decryptedValue = val.keyValue;
+                        } catch (e) {
+                            decryptedValue = val.keyValue;
+                        }
 
-                    return {
-                        keyName: key,
-                        keyValue: decryptedValue,
-                        lastUpdatedBy: val.lastUpdatedBy,
-                        updatedAt: val.updatedAt
-                    };
-                });
-                setSecrets(loadedSecrets);
+                        return {
+                            keyName: key,
+                            keyValue: decryptedValue,
+                            lastUpdatedBy: val.lastUpdatedBy,
+                            updatedAt: val.updatedAt
+                        };
+                    });
+                    setSecrets(loadedSecrets);
+                } else {
+                    setSecrets([]);
+                }
+
+                // 2. Load Active Provider
+                setActiveAIProviderState(data.active_ai_provider || 'GROQ_API_KEY');
             } else {
                 setSecrets([]);
+                setActiveAIProviderState('GROQ_API_KEY');
             }
             setLoading(false);
         }, (error) => {
@@ -82,7 +94,7 @@ export const SystemConfigProvider: React.FC<{ children: React.ReactNode }> = ({ 
         await push(logRef, {
             actorUserId: user.uid,
             actorEmail: user.email,
-            isOwner: true, // Redundant but explicit
+            isOwner: true,
             action,
             keyName,
             timestamp: Date.now(),
@@ -92,31 +104,23 @@ export const SystemConfigProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     const addSecret = async (keyName: string, keyValue: string) => {
         if (!isOwner || !user) throw new Error("Unauthorized");
-
-        // Encrypt
         const encryptedValue = AES.encrypt(keyValue, ENCRYPTION_SECRET).toString();
-
         await set(ref(database, `system_config/api_keys/${keyName}`), {
             keyValue: encryptedValue,
             lastUpdatedBy: user.uid,
             updatedAt: Date.now()
         });
-
         await logAudit("ADD_KEY", keyName);
     };
 
     const updateSecret = async (keyName: string, keyValue: string) => {
         if (!isOwner || !user) throw new Error("Unauthorized");
-
-        // Encrypt
         const encryptedValue = AES.encrypt(keyValue, ENCRYPTION_SECRET).toString();
-
         await set(ref(database, `system_config/api_keys/${keyName}`), {
             keyValue: encryptedValue,
             lastUpdatedBy: user.uid,
             updatedAt: Date.now()
         });
-
         await logAudit("UPDATE_KEY", keyName);
     };
 
@@ -126,13 +130,28 @@ export const SystemConfigProvider: React.FC<{ children: React.ReactNode }> = ({ 
         await logAudit("DELETE_KEY", keyName);
     };
 
+    const setActiveAIProvider = async (keyName: string) => {
+        if (!isOwner || !user) throw new Error("Unauthorized");
+        await set(ref(database, `system_config/active_ai_provider`), keyName);
+        await logAudit("SET_ACTIVE_PROVIDER", keyName);
+    };
+
     const getSecret = (keyName: string) => {
         const secret = secrets.find(s => s.keyName === keyName);
         return secret ? secret.keyValue : null;
     };
 
     return (
-        <SystemConfigContext.Provider value={{ secrets, loading, addSecret, updateSecret, deleteSecret, getSecret }}>
+        <SystemConfigContext.Provider value={{ 
+            secrets, 
+            activeAIProvider, 
+            loading, 
+            addSecret, 
+            updateSecret, 
+            deleteSecret, 
+            getSecret,
+            setActiveAIProvider 
+        }}>
             {children}
         </SystemConfigContext.Provider>
     );

@@ -81,49 +81,57 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: "Prompt is required" });
         }
 
-        // --- DYNAMIC KEY FETCHING ---
+        // --- DYNAMIC KEY & PROVIDER FETCHING ---
         let apiKey = process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY;
+        let activeProvider = "GROQ_API_KEY";
 
         try {
-            console.log("[System] Attempting to fetch dynamic key...");
-            // Attempt to fetch dynamic key from Firebase with a timeout
-            const dbFetch = admin.database().ref('system_config/api_keys/GROQ_API_KEY').once('value');
-            const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Firebase DB Timeout')), 5000));
-            
-            const snapshot = await Promise.race([dbFetch, timeout]);
-
-            if (snapshot.exists()) {
-                const data = snapshot.val();
-                if (data && data.keyValue) {
+            console.log("[System] Fetching dynamic configuration...");
+            const configSnapshot = await admin.database().ref('system_config').once('value');
+            if (configSnapshot.exists()) {
+                const config = configSnapshot.val();
+                activeProvider = config.active_ai_provider || "GROQ_API_KEY";
+                
+                const keyData = config.api_keys?.[activeProvider];
+                if (keyData && keyData.keyValue) {
                     try {
-                        const bytes = AES.decrypt(data.keyValue, ENCRYPTION_SECRET);
+                        const bytes = AES.decrypt(keyData.keyValue, ENCRYPTION_SECRET);
                         const decrypted = bytes.toString(encUtf8);
                         if (decrypted) {
                             apiKey = decrypted;
-                            console.log("[System] Successfully decrypted dynamic key.");
+                            console.log(`[System] Using active provider: ${activeProvider}`);
                         }
                     } catch (decErr) {
                         console.error("[System] Decryption failed:", decErr.message);
                     }
                 }
-            } else {
-                console.log("[System] No dynamic key found in DB, using env fallback.");
             }
         } catch (dbError) {
-            console.warn("[System] DB Fetch Error or Timeout:", dbError.message);
+            console.warn("[System] DB Fetch Error:", dbError.message);
         }
 
         if (!apiKey) {
-            console.error("[System] CRITICAL: No API key found in either DB or ENV.");
             return res.status(503).json({
                 error: "Configuration Error",
-                reply: "⚠️ **System Error**: AI Service is missing credentials. Please configure the Groq API Key in the System Configuration tab."
+                reply: "⚠️ **System Error**: Active AI provider is missing credentials. Please configure the key in System Configuration."
             });
+        }
+
+        // --- Provider Configuration ---
+        let baseURL = "https://api.groq.com/openai/v1";
+        let model = "llama-3.3-70b-versatile";
+
+        if (activeProvider === "OPENAI_API_KEY") {
+            baseURL = "https://api.openai.com/v1";
+            model = "gpt-4-turbo-preview"; // High quality fallback
+        } else if (activeProvider === "GEMINI_API_KEY") {
+            baseURL = "https://generativelanguage.googleapis.com/v1beta/openai/";
+            model = "gemini-1.5-pro";
         }
 
         const client = new Internal API({
             apiKey: apiKey,
-            baseURL: "https://api.groq.com/openai/v1"
+            baseURL: baseURL
         });
 
         const messages = [
@@ -145,14 +153,14 @@ export default async function handler(req, res) {
         messages.push({ role: "user", content: prompt });
 
         const completion = await client.chat.completions.create({
-            model: "llama-3.3-70b-versatile",
+            model: model,
             messages: messages,
             temperature: 0.7,
             max_tokens: 1000
         });
 
         // --- COST MONITORING ---
-        console.info(`[COST_MONITOR] AI_COMPLETION | Tokens: ${completion.usage?.total_tokens || 'unknown'} | Model: ${completion.model}`);
+        console.info(`[COST_MONITOR] AI_COMPLETION | Provider: ${activeProvider} | Tokens: ${completion.usage?.total_tokens || 'unknown'} | Model: ${completion.model}`);
 
         return res.status(200).json({ reply: completion.choices[0].message.content });
     } catch (error) {
