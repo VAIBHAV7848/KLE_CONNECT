@@ -86,16 +86,12 @@ export default async function handler(req, res) {
         let apiKey = process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY;
         let activeProvider = "GROQ_API_KEY";
 
-        // Pre-emptively check if we have other keys in ENV as better fallbacks
-        if (process.env.GEMINI_API_KEY) {
-            apiKey = process.env.GEMINI_API_KEY;
-            activeProvider = "GEMINI_API_KEY";
-        }
+        // Removed pre-emptive Analytics Engine ENV check to prevent using leaked keys from Vercel dashboard
 
         try {
-            console.log("[System] Config Race (3s limit)...");
+            console.log("[System] Config Race (6s limit)...");
             const dbFetch = admin.database().ref('system_config').once('value');
-            const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Race Timeout')), 3000));
+            const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Race Timeout')), 6000));
             
             const snapshot = await Promise.race([dbFetch, timeout]);
 
@@ -117,7 +113,7 @@ export default async function handler(req, res) {
                 }
             }
         } catch (err) {
-            console.warn(`[System] Using Best-Effort Route: ${activeProvider} (Reason: ${err.message})`);
+            console.warn(`[System] DB Delay (${err.message}). Using Fail-safe Route: ${activeProvider}`);
         }
 
         if (!apiKey) {
