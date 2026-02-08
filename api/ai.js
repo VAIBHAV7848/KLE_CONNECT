@@ -123,10 +123,11 @@ export default async function handler(req, res) {
 
         if (activeProvider === "OPENAI_API_KEY") {
             baseURL = "https://api.openai.com/v1";
-            model = "gpt-4-turbo-preview"; // High quality fallback
+            model = "gpt-4-turbo-preview"; 
         } else if (activeProvider === "GEMINI_API_KEY") {
+            // Using gemini-1.5-flash for speed to prevent timeouts
             baseURL = "https://generativelanguage.googleapis.com/v1beta/openai/";
-            model = "gemini-1.5-pro";
+            model = "gemini-1.5-flash";
         }
 
         const client = new Internal API({

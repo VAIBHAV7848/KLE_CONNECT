@@ -158,7 +158,7 @@ const AITutor = () => {
       const startTime = Date.now();
       
       const controller = new AbortController();
-      const fetchTimeout = setTimeout(() => controller.abort(), 15000);
+      const fetchTimeout = setTimeout(() => controller.abort(), 45000); // Increased to 45s
 
       try {
         const response = await fetch(targetEndpoint, {
