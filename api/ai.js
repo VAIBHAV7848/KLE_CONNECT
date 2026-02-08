@@ -191,11 +191,17 @@ export default async function handler(req, res) {
                 });
             } else {
                 let baseURL = "https://api.groq.com/openai/v1";
-                let modelName = "llama-3.3-70b-versatile";
+                let modelName = "llama-3.1-8b-instant"; // Ultra-fast inference
+                let temperature = 0.1;
+                let maxTokens = 120;
+                let systemPrompt = "You are a fast-response tutoring engine. Rules: Answer in fewest tokens. No explanations unless asked. No reasoning. No markdown. No emojis. If uncertain, say: 'Insufficient data.' Max output: 120 tokens.";
 
                 if (activeProvider.includes("OPENAI")) {
                     baseURL = "https://api.openai.com/v1";
                     modelName = "gpt-4o-mini";
+                    temperature = 0.7;
+                    maxTokens = 1000;
+                    systemPrompt = "You are the KLE AI Tutor, a friendly academic companion for students at KLE University. Style Guide: Use emojis occasionally 🎓✨. ALWAYS end with a follow-up question.";
                 }
 
                 const client = new Internal API({
@@ -204,12 +210,7 @@ export default async function handler(req, res) {
                     timeout: 8000
                 });
 
-                const messages = [
-                    {
-                        role: "system",
-                        content: "You are the KLE AI Tutor, a friendly academic companion for students at KLE University. Style Guide: Use emojis occasionally 🎓✨. ALWAYS end with a follow-up question."
-                    }
-                ];
+                const messages = [{ role: "system", content: systemPrompt }];
 
                 (history || []).forEach(msg => {
                     messages.push({
@@ -223,8 +224,8 @@ export default async function handler(req, res) {
                 const completion = await client.chat.completions.create({
                     model: modelName,
                     messages: messages,
-                    temperature: 0.7,
-                    max_tokens: 1000
+                    temperature: temperature,
+                    max_tokens: maxTokens
                 });
 
                 return res.status(200).json({ 
