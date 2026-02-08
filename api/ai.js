@@ -1,5 +1,12 @@
 import Internal API from 'openai';
 import admin from 'firebase-admin';
+import CryptoJS from 'crypto-js';
+
+const { AES, enc } = CryptoJS;
+const encUtf8 = enc.Utf8;
+
+// Secret Encryption Key (Must match SystemConfigContext.tsx)
+const ENCRYPTION_SECRET = "TIER_0_GOD_MODE_SECRET";
 
 // Initialize Firebase Admin (Only once)
 if (!admin.apps.length) {
@@ -59,16 +66,42 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: "Prompt is required" });
         }
 
+        // --- DYNAMIC KEY FETCHING ---
         let apiKey = process.env.GROQ_API_KEY;
 
+        try {
+            // Attempt to fetch dynamic key from Firebase
+            const snapshot = await admin.database().ref('system_config/api_keys/GROQ_API_KEY').once('value');
+            if (snapshot.exists()) {
+                const data = snapshot.val();
+                if (data && data.keyValue) {
+                    try {
+                        // Decrypt the key
+                        const bytes = AES.decrypt(data.keyValue, ENCRYPTION_SECRET);
+                        const decrypted = bytes.toString(encUtf8);
+                        if (decrypted) {
+                            apiKey = decrypted;
+                            console.log("[System] Using Dynamic GROQ_API_KEY from Firebase");
+                        }
+                    } catch (decErr) {
+                        console.error("[System] Failed to decrypt dynamic key:", decErr.message);
+                        // Fallback to process.env.GROQ_API_KEY remains
+                    }
+                }
+            }
+        } catch (dbError) {
+            console.warn("[System] Failed to fetch dynamic key config:", dbError.message);
+        }
+
         if (req.body.dynamicKey) {
-            apiKey = req.body.dynamicKey;
+            // Deprecated: Client-side provided key (remove in production if strict)
+            // apiKey = req.body.dynamicKey; 
         }
 
         if (!apiKey) {
-            return res.status(500).json({
+            return res.status(503).json({
                 error: "Configuration Error",
-                reply: "⚠️ **System Error**: GROQ_API_KEY not found."
+                reply: "⚠️ **System Error**: AI Service is currently unavailable (Missing API Key). Please contact the administrator."
             });
         }
 

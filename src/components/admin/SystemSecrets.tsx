@@ -92,7 +92,7 @@ const SystemSecrets: React.FC = () => {
                                     type="text"
                                     value={newKeyName}
                                     onChange={e => setNewKeyName(e.target.value)}
-                                    placeholder="VITE_API_ENDPOINT"
+                                    placeholder="GROQ_API_KEY"
                                     className="w-full bg-black/40 border border-white/5 rounded-2xl px-5 py-4 text-white focus:border-blue-500/50 focus:outline-none font-mono text-xs transition-all placeholder:text-gray-700 shadow-inner"
                                 />
                             </div>
