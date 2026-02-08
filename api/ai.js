@@ -87,12 +87,12 @@ export default async function handler(req, res) {
         let activeProvider = "GROQ_API_KEY";
         let routeStatus = "FALLBACK (ENV_GROQ)";
 
-        // Immediate Fast-Lane: Check for better fallbacks in ENV
+        // Prioritize Internal API as a safer fallback
         if (process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY) {
             apiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
             activeProvider = "OPENAI_API_KEY";
             routeStatus = "FALLBACK (ENV_OPENAI)";
-        } else if (process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY) {
+        } else if (process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY) { // Keep Analytics Engine as a secondary fallback if Internal API isn't present
             apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
             activeProvider = "GEMINI_API_KEY";
             routeStatus = "FALLBACK (ENV_GEMINI)";
@@ -117,10 +117,17 @@ export default async function handler(req, res) {
                             const bytes = AES.decrypt(keyData.keyValue, ENCRYPTION_SECRET);
                             const decrypted = bytes.toString(encUtf8);
                             if (decrypted) {
-                                apiKey = decrypted;
-                                activeProvider = selected;
-                                routeStatus = "LIVE (SYNC)";
-                                console.log(`[System] Data-Sync Success: ${activeProvider}`);
+                                // SECURITY: Check if this is the known leaked key IUfE
+                                if (decrypted.endsWith("IUfE")) {
+                                    console.warn("[SECURITY] Blocked use of LEAKED key IUfE. Falling back to ENV keys.");
+                                    routeStatus = "BLOCKED (LEAKED_KEY_DETECTED)";
+                                    // Do not update apiKey or activeProvider, continue with ENV fallback
+                                } else {
+                                    apiKey = decrypted;
+                                    activeProvider = selected;
+                                    routeStatus = "LIVE (SYNC)";
+                                    console.log(`[System] Data-Sync Success: ${activeProvider}`);
+                                }
                             }
                         } catch (e) { 
                             console.error("[System] Decrypt Fail"); 
@@ -141,8 +148,18 @@ export default async function handler(req, res) {
         }
 
         const keySuffix = String(apiKey).slice(-4);
-        console.log(`[AI_ROUTING] Executing: ${activeProvider} | Model: gemini-2.0-flash | Key: ***${keySuffix}`);
+        
+        // Final Security Check: Never allow the leaked key to hit the execution phase
+        if (keySuffix === "IUfE") {
+            return res.status(403).json({
+                error: "Security Check Failed",
+                reply: `⚠️ **Security Alert**: The key ending in ***IUfE is LEAKED and BLOCKED. Please delete it from Vercel/Admin and use your NEW key.`
+            });
+        }
 
+        console.log(`[AI_ROUTING] Executing: ${activeProvider} | Key: ***${keySuffix}`);
+
+        // --- AI EXECUTION ---
         try {
             if (activeProvider.includes("GEMINI")) {
                 const genAI = new GoogleGenerativeAI(apiKey);
