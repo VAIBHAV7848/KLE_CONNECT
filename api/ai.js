@@ -9,16 +9,18 @@ const encUtf8 = enc.Utf8;
 const ENCRYPTION_SECRET = "TIER_0_GOD_MODE_SECRET";
 
 // Fallback Config (Must match firebase.ts)
-const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || "kleconnect-a7c43";
-const FIREBASE_DATABASE_URL = process.env.VITE_FIREBASE_DATABASE_URL || "https://kleconnect-a7c43-default-rtdb.firebaseio.com";
+const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || "kleconnect-a7c43";
+const FIREBASE_DATABASE_URL = process.env.VITE_FIREBASE_DATABASE_URL || process.env.FIREBASE_DATABASE_URL || "https://kleconnect-a7c43-default-rtdb.firebaseio.com";
+const PRIVATE_KEY = process.env.FIREBASE_PRIVATE_KEY || process.env.VITE_FIREBASE_PRIVATE_KEY;
+const CLIENT_EMAIL = process.env.FIREBASE_CLIENT_EMAIL || process.env.VITE_FIREBASE_CLIENT_EMAIL;
 
 // Initialize Firebase Admin (Only once)
 if (!admin.apps.length) {
     try {
         const cert = {
             projectId: FIREBASE_PROJECT_ID,
-            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-            privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+            clientEmail: CLIENT_EMAIL,
+            privateKey: PRIVATE_KEY?.replace(/\\n/g, '\n'),
         };
 
         // Only use cert if key is present, otherwise fallback to default (works for token verify only in some envs)
