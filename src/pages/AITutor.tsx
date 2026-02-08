@@ -124,24 +124,39 @@ const AITutor = () => {
 
   // --- Real AI Logic (Internal API integration) ---
   const generateResponse = async (query: string, chatId: string, history: Message[]) => {
+    console.log("[AITutor] Starting generateResponse for query:", query);
     setIsLoading(true);
     setStatus('requesting');
     setLastError(null);
 
     try {
       // 1. Get Firebase ID Token
+      console.log("[AITutor] Step 1: Retrieving ID Token...");
       let idToken = "";
       try {
         const { auth } = await import('@/lib/firebase');
         if (auth.currentUser) {
           idToken = await auth.currentUser.getIdToken(true);
+          console.log("[AITutor] ID Token retrieved successfully.");
+        } else {
+          console.warn("[AITutor] No user logged in, sending empty token.");
         }
       } catch (tokenErr) {
-        console.warn("[AITutor] Token retrieval failed:", tokenErr);
+        console.error("[AITutor] Token retrieval total failure:", tokenErr);
       }
 
-      // 2. Call Backend
-      const response = await fetch(aiEndpoint, {
+      // 2. Resolve Endpoint for Local Dev
+      let targetEndpoint = aiEndpoint;
+      if (window.location.hostname === 'localhost' && aiEndpoint.startsWith('/api')) {
+        console.warn("[AITutor] IMPORTANT: You are running locally but your AI endpoint is relative. This will fail unless you use 'vercel dev' or point to the production URL.");
+        // Optional: Hardcode your production URL here if you want local dev to work against the live backend
+        // targetEndpoint = "https://kle-connect.vercel.app" + aiEndpoint;
+      }
+
+      // 3. Call Backend
+      console.log("[AITutor] Step 2: Fetching from", targetEndpoint);
+      const startTime = Date.now();
+      const response = await fetch(targetEndpoint, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
@@ -156,14 +171,24 @@ const AITutor = () => {
         })
       });
 
-      const data = await response.json();
+      console.log(`[AITutor] Server responded with status ${response.status} in ${Date.now() - startTime}ms`);
+
+      let data: any;
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        console.error("[AITutor] Expected JSON but received:", text.slice(0, 100));
+        throw new Error(`Server returned non-JSON response (${response.status})`);
+      }
 
       if (!response.ok) {
-        // Handle security or server errors using the backend's reply if available
         const serverError = data.reply || data.error || `Error ${response.status}`;
         throw new Error(serverError);
       }
 
+      console.log("[AITutor] AI reply received successfully.");
       setMessages(prev => [...prev, {
         role: 'assistant',
         content: data.reply,
@@ -172,7 +197,7 @@ const AITutor = () => {
       setStatus('idle');
 
     } catch (error: any) {
-      console.error("[AITutor] Request failed:", error);
+      console.error("[AITutor] Request flow failed:", error);
       
       let errorMsg = `**Connection Error**\n\n${error.message}`;
       
