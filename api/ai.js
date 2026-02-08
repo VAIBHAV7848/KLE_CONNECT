@@ -127,21 +127,25 @@ export default async function handler(req, res) {
         }
 
         // --- Provider Configuration ---
+        // Default to Groq Llama 3.3
         let baseURL = "https://api.groq.com/openai/v1";
         let model = "llama-3.3-70b-versatile";
 
         if (activeProvider.includes("OPENAI")) {
             baseURL = "https://api.openai.com/v1";
-            model = "gpt-4-turbo-preview"; 
+            model = "gpt-4o-mini"; // Faster and more reliable
         } else if (activeProvider.includes("GEMINI")) {
-            baseURL = "https://generativelanguage.googleapis.com/v1beta/openai/";
+            // Removing trailing slash to prevent //chat/completions 404 error
+            baseURL = "https://generativelanguage.googleapis.com/v1beta/openai";
             model = "gemini-1.5-flash"; 
         }
+
+        console.log(`[System] Dispatching to: ${activeProvider} | URL: ${baseURL} | Model: ${model}`);
 
         const client = new Internal API({
             apiKey: apiKey,
             baseURL: baseURL,
-            timeout: 7000 // Give the AI call 7s max to fit in Vercel's 10s
+            timeout: 8000 // Increased slightly for stability
         });
 
         const messages = [
