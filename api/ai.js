@@ -82,38 +82,50 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: "Prompt is required" });
         }
 
-        // --- DYNAMIC CONFIG WITH SMART ROUTING ---
+        // --- DYNAMIC CONFIG WITH MAXIMUM PATIENCE ---
         let apiKey = process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY;
         let activeProvider = "GROQ_API_KEY";
-
-        // Removed pre-emptive Analytics Engine ENV check to prevent using leaked keys from Vercel dashboard
+        let routeStatus = "FALLBACK (ENV)";
 
         try {
-            console.log("[System] Config Race (6s limit)...");
+            console.log("[System] Config Race (8.5s limit)...");
             const dbFetch = admin.database().ref('system_config').once('value');
-            const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Race Timeout')), 6000));
+            const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('DB_TIMEOUT')), 8500));
             
             const snapshot = await Promise.race([dbFetch, timeout]);
 
             if (snapshot.exists()) {
                 const config = snapshot.val();
-                const selected = config.active_ai_provider || activeProvider;
-                const keyData = config.api_keys?.[selected];
+                const selected = config.active_ai_provider;
                 
-                if (keyData && keyData.keyValue) {
-                    try {
-                        const bytes = AES.decrypt(keyData.keyValue, ENCRYPTION_SECRET);
-                        const decrypted = bytes.toString(encUtf8);
-                        if (decrypted) {
-                            apiKey = decrypted;
-                            activeProvider = selected;
-                            console.log(`[System] Route Verified: ${activeProvider}`);
+                if (selected) {
+                    const keyData = config.api_keys?.[selected];
+                    if (keyData && keyData.keyValue) {
+                        try {
+                            const bytes = AES.decrypt(keyData.keyValue, ENCRYPTION_SECRET);
+                            const decrypted = bytes.toString(encUtf8);
+                            if (decrypted) {
+                                apiKey = decrypted;
+                                activeProvider = selected;
+                                routeStatus = "LIVE (SYNC)";
+                                console.log(`[System] Route Verified: ${activeProvider}`);
+                            }
+                        } catch (e) { 
+                            console.error("[System] Decrypt Fail"); 
+                            routeStatus = "ERROR (DECRYPT)";
                         }
-                    } catch (e) { console.error("[System] Decrypt Fail"); }
+                    } else {
+                        console.warn(`[System] Selected provider ${selected} has no key in DB.`);
+                        routeStatus = `ERROR (MISSING_KEY: ${selected})`;
+                    }
                 }
+            } else {
+                console.warn("[System] DB Snapshot is empty.");
+                routeStatus = "ERROR (EMPTY_DB)";
             }
         } catch (err) {
-            console.warn(`[System] DB Delay (${err.message}). Using Fail-safe Route: ${activeProvider}`);
+            console.warn(`[System] DB Timeout/Error (${err.message}). Using Fail-safe.`);
+            routeStatus = `FALLBACK (${err.message})`;
         }
 
         if (!apiKey) {
@@ -146,7 +158,8 @@ export default async function handler(req, res) {
                 
                 return res.status(200).json({ 
                     reply: response.text(),
-                    provider: "GEMINI"
+                    provider: "GEMINI",
+                    routeStatus: routeStatus
                 });
             } else {
                 let baseURL = "https://api.groq.com/openai/v1";
@@ -188,7 +201,8 @@ export default async function handler(req, res) {
 
                 return res.status(200).json({ 
                     reply: completion.choices[0].message.content,
-                    provider: activeProvider.replace('_API_KEY', '') 
+                    provider: activeProvider.replace('_API_KEY', ''),
+                    routeStatus: routeStatus
                 });
             }
         } catch (execError) {

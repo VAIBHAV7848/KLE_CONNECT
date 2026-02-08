@@ -196,7 +196,7 @@ const AITutor = () => {
           throw new Error(serverError);
         }
 
-        console.log("[AITutor] AI reply received successfully.");
+        console.log(`[AITutor] AI Message Received. Provider: ${data.provider} | Route: ${data.routeStatus || 'N/A'}`);
         setMessages(prev => [...prev, {
           role: 'assistant',
           content: data.reply,
