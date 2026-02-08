@@ -127,15 +127,13 @@ export default async function handler(req, res) {
             });
         }
 
-        // --- AI EXECUTION ---
+        const keySuffix = String(apiKey).slice(-4);
+        console.log(`[AI_ROUTING] Executing: ${activeProvider} | Model: gemini-2.0-flash | Key: ***${keySuffix}`);
+
         try {
             if (activeProvider.includes("GEMINI")) {
-                console.log("[System] Routing to Native Analytics Engine SDK (v1)...");
-                // Force v1 to avoid v1beta retirement issues
                 const genAI = new GoogleGenerativeAI(apiKey);
-                const model = genAI.getGenerativeModel({ 
-                    model: "gemini-2.0-flash"
-                }, { apiVersion: 'v1' });
+                const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" }, { apiVersion: 'v1' });
                 
                 const chatHistory = (history || []).map(m => ({
                     role: m.role === 'user' ? 'user' : 'model',
@@ -155,16 +153,13 @@ export default async function handler(req, res) {
                     provider: "GEMINI"
                 });
             } else {
-                // Internal API / Groq logic
                 let baseURL = "https://api.groq.com/openai/v1";
-                let model = "llama-3.3-70b-versatile";
+                let modelName = "llama-3.3-70b-versatile";
 
                 if (activeProvider.includes("OPENAI")) {
                     baseURL = "https://api.openai.com/v1";
-                    model = "gpt-4o-mini";
+                    modelName = "gpt-4o-mini";
                 }
-
-                console.log(`[System] Routing to Internal API-Compatible SDK (${activeProvider})`);
 
                 const client = new Internal API({
                     apiKey: apiKey,
@@ -189,7 +184,7 @@ export default async function handler(req, res) {
                 messages.push({ role: "user", content: prompt });
 
                 const completion = await client.chat.completions.create({
-                    model: model,
+                    model: modelName,
                     messages: messages,
                     temperature: 0.7,
                     max_tokens: 1000
@@ -202,16 +197,15 @@ export default async function handler(req, res) {
             }
         } catch (execError) {
             console.error("[System] AI Execution Failed:", execError.message);
-            throw execError; // Caught by the global catch
+            const errorMsg = execError.response?.data?.error?.message || execError.message || "Unknown AI Error";
+            return res.status(500).json({ 
+                error: "AI processing failed", 
+                details: errorMsg,
+                reply: `⚠️ **AI Service Error**: ${errorMsg} (Key: ***${keySuffix}). Please check if your key matches the one in Admin.`
+            });
         }
     } catch (error) {
-        console.error("Vercel AI Error:", error);
-        // Clearer error for the frontend
-        const errorMsg = error.response?.data?.error?.message || error.message || "Unknown AI Error";
-        return res.status(500).json({ 
-            error: "AI processing failed", 
-            details: errorMsg,
-            reply: `⚠️ **AI Service Error**: ${errorMsg}. Please try switching the AI Provider in Admin settings.`
-        });
+        console.error("Global AI Handler Error:", error);
+        return res.status(500).json({ error: "System error", details: error.message });
     }
 }
