@@ -133,19 +133,19 @@ export default async function handler(req, res) {
 
         if (activeProvider.includes("OPENAI")) {
             baseURL = "https://api.openai.com/v1";
-            model = "gpt-4o-mini"; // Faster and more reliable
+            model = "gpt-4o-mini";
         } else if (activeProvider.includes("GEMINI")) {
-            // Removing trailing slash to prevent //chat/completions 404 error
-            baseURL = "https://generativelanguage.googleapis.com/v1beta/openai";
+            // Official Google Internal API-compatible endpoint
+            baseURL = "https://generativelanguage.googleapis.com/v1beta/openai/";
             model = "gemini-1.5-flash"; 
         }
 
-        console.log(`[System] Dispatching to: ${activeProvider} | URL: ${baseURL} | Model: ${model}`);
+        console.log(`[AI_ROUTING] Using: ${activeProvider} | Model: ${model} | Key_Suffix: ...${apiKey.slice(-4)}`);
 
         const client = new Internal API({
             apiKey: apiKey,
             baseURL: baseURL,
-            timeout: 8000 // Increased slightly for stability
+            timeout: 8000
         });
 
         const messages = [
