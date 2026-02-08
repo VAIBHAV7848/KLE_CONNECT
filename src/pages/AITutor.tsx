@@ -394,43 +394,28 @@ const AITutor = () => {
                             {/* @ts-ignore - Version mismatch in library types */}
                             <ReactMarkdown
                               components={{
-                                // Headings with better spacing
                                 h1: ({ node, ...props }: any) => <h1 className="text-xl font-bold mb-3 mt-4 text-primary" {...props} />,
                                 h2: ({ node, ...props }: any) => <h2 className="text-lg font-semibold mb-2 mt-3 text-primary" {...props} />,
                                 h3: ({ node, ...props }: any) => <h3 className="text-base font-semibold mb-2 mt-2" {...props} />,
-
-                                // Paragraphs with spacing
                                 p: ({ node, ...props }: any) => <p className="mb-3 last:mb-0 leading-relaxed" {...props} />,
-
-                                // Lists with better styling
                                 ul: ({ node, ...props }: any) => <ul className="list-disc list-inside mb-3 space-y-1 ml-2" {...props} />,
                                 ol: ({ node, ...props }: any) => <ol className="list-decimal list-inside mb-3 space-y-1 ml-2" {...props} />,
                                 li: ({ node, ...props }: any) => <li className="leading-relaxed" {...props} />,
-
-                                // Code blocks with syntax highlighting style
                                 code: ({ node, inline, ...props }: any) =>
                                   inline ? (
                                     <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono text-primary" {...props} />
                                   ) : (
                                     <code className="block bg-muted/50 p-3 rounded-lg my-2 text-xs font-mono overflow-x-auto border border-border/30" {...props} />
                                   ),
-
-                                // Blockquotes
                                 blockquote: ({ node, ...props }: any) => (
                                   <blockquote className="border-l-4 border-primary/30 pl-4 italic my-3 text-muted-foreground" {...props} />
                                 ),
-
-                                // Links
                                 a: ({ node, ...props }: any) => (
                                   <a className="text-primary hover:underline font-medium" target="_blank" rel="noopener noreferrer" {...props} />
                                 ),
-
-                                // Strong/Bold
                                 strong: ({ node, ...props }: any) => <strong className="font-bold text-foreground" {...props} />,
-
-                                // Emphasis/Italic
                                 em: ({ node, ...props }: any) => <em className="italic" {...props} />,
-                              }}
+                              } as any}
                             >
                               {msg.content}
                             </ReactMarkdown>
