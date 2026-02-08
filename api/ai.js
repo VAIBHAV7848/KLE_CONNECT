@@ -139,7 +139,12 @@ export default async function handler(req, res) {
             const envGroq = process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY;
             const envAnalytics Engine = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
 
-            if (envInternal API && !envInternal API.endsWith("IUfE")) {
+            // Prioritize Groq for fallback as it's usually free/active
+            if (envGroq) {
+                apiKey = envGroq;
+                activeProvider = "GROQ_API_KEY";
+                routeStatus = "FALLBACK (ENV_GROQ)";
+            } else if (envInternal API && !envInternal API.endsWith("IUfE")) {
                 apiKey = envInternal API;
                 activeProvider = "OPENAI_API_KEY";
                 routeStatus = "FALLBACK (ENV_OPENAI)";
@@ -147,10 +152,6 @@ export default async function handler(req, res) {
                 apiKey = envAnalytics Engine;
                 activeProvider = "GEMINI_API_KEY";
                 routeStatus = "FALLBACK (ENV_GEMINI)";
-            } else if (envGroq) {
-                apiKey = envGroq;
-                activeProvider = "GROQ_API_KEY";
-                routeStatus = "FALLBACK (ENV_GROQ)";
             }
         }
 
@@ -238,7 +239,7 @@ export default async function handler(req, res) {
             return res.status(500).json({ 
                 error: "AI processing failed", 
                 details: errorMsg,
-                reply: `⚠️ **AI Service Error**: ${errorMsg} (Key: ***${keySuffix}). Please check if your key matches the one in Admin.`
+                reply: `⚠️ **AI Service Error**: ${errorMsg}\n\n**Debug Info:**\n- Node: ***${keySuffix}\n- Provider: ${activeProvider}\n- Route: ${routeStatus}`
             });
         }
     } catch (error) {
