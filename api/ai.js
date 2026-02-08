@@ -165,7 +165,10 @@ export default async function handler(req, res) {
         // --- COST MONITORING ---
         console.info(`[COST_MONITOR] AI_COMPLETION | Provider: ${activeProvider} | Tokens: ${completion.usage?.total_tokens || 'unknown'} | Model: ${completion.model}`);
 
-        return res.status(200).json({ reply: completion.choices[0].message.content });
+        return res.status(200).json({ 
+            reply: completion.choices[0].message.content,
+            provider: activeProvider.replace('_API_KEY', '') 
+        });
     } catch (error) {
         console.error("Vercel AI Error:", error);
         return res.status(500).json({ error: "AI processing failed", details: error.message });
