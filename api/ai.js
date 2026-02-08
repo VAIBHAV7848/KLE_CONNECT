@@ -4,6 +4,7 @@ import CryptoJS from 'crypto-js';
 
 const { AES, enc } = CryptoJS;
 const encUtf8 = enc.Utf8;
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // Secret Encryption Key (Must match SystemConfigContext.tsx)
 const ENCRYPTION_SECRET = "TIER_0_GOD_MODE_SECRET";
@@ -126,60 +127,80 @@ export default async function handler(req, res) {
             });
         }
 
-        // --- Provider Configuration ---
-        // Default to Groq Llama 3.3
-        let baseURL = "https://api.groq.com/openai/v1";
-        let model = "llama-3.3-70b-versatile";
+        // --- AI EXECUTION ---
+        try {
+            if (activeProvider.includes("GEMINI")) {
+                console.log("[System] Routing to Native Analytics Engine SDK...");
+                const genAI = new GoogleGenerativeAI(apiKey);
+                const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+                
+                const chatHistory = (history || []).map(m => ({
+                    role: m.role === 'user' ? 'user' : 'model',
+                    parts: [{ text: m.content || m.parts?.[0]?.text || "" }]
+                }));
 
-        if (activeProvider.includes("OPENAI")) {
-            baseURL = "https://api.openai.com/v1";
-            model = "gpt-4o-mini";
-        } else if (activeProvider.includes("GEMINI")) {
-            // Official Google Internal API-compatible endpoint
-            baseURL = "https://generativelanguage.googleapis.com/v1beta/openai/";
-            model = "gemini-1.5-flash"; 
-        }
-
-        console.log(`[AI_ROUTING] Using: ${activeProvider} | Model: ${model} | Key_Suffix: ...${apiKey.slice(-4)}`);
-
-        const client = new Internal API({
-            apiKey: apiKey,
-            baseURL: baseURL,
-            timeout: 8000
-        });
-
-        const messages = [
-            {
-                role: "system",
-                content: "You are the KLE AI Tutor, a friendly academic companion for students at KLE University. If anyone asks who created or developed you, you should respond that you were developed by the KLE Platform Engineering Team. Style Guide: Use emojis occasionally 🎓✨. Format with clear Markdown. ALWAYS end with a follow-up question."
-            }
-        ];
-
-        if (history && history.length > 0) {
-            history.forEach(msg => {
-                messages.push({
-                    role: msg.role === 'model' ? 'assistant' : msg.role,
-                    content: msg.parts?.[0]?.text || msg.content || ""
+                const chat = model.startChat({
+                    history: chatHistory,
+                    generationConfig: { maxOutputTokens: 1000 }
                 });
-            });
+
+                const result = await chat.sendMessage(prompt);
+                const response = await result.response;
+                
+                return res.status(200).json({ 
+                    reply: response.text(),
+                    provider: "GEMINI"
+                });
+            } else {
+                // Internal API / Groq logic
+                let baseURL = "https://api.groq.com/openai/v1";
+                let model = "llama-3.3-70b-versatile";
+
+                if (activeProvider.includes("OPENAI")) {
+                    baseURL = "https://api.openai.com/v1";
+                    model = "gpt-4o-mini";
+                }
+
+                console.log(`[System] Routing to Internal API-Compatible SDK (${activeProvider})`);
+
+                const client = new Internal API({
+                    apiKey: apiKey,
+                    baseURL: baseURL,
+                    timeout: 8000
+                });
+
+                const messages = [
+                    {
+                        role: "system",
+                        content: "You are the KLE AI Tutor, a friendly academic companion for students at KLE University. Style Guide: Use emojis occasionally 🎓✨. ALWAYS end with a follow-up question."
+                    }
+                ];
+
+                (history || []).forEach(msg => {
+                    messages.push({
+                        role: msg.role === 'model' ? 'assistant' : msg.role,
+                        content: msg.content || msg.parts?.[0]?.text || ""
+                    });
+                });
+
+                messages.push({ role: "user", content: prompt });
+
+                const completion = await client.chat.completions.create({
+                    model: model,
+                    messages: messages,
+                    temperature: 0.7,
+                    max_tokens: 1000
+                });
+
+                return res.status(200).json({ 
+                    reply: completion.choices[0].message.content,
+                    provider: activeProvider.replace('_API_KEY', '') 
+                });
+            }
+        } catch (execError) {
+            console.error("[System] AI Execution Failed:", execError.message);
+            throw execError; // Caught by the global catch
         }
-
-        messages.push({ role: "user", content: prompt });
-
-        const completion = await client.chat.completions.create({
-            model: model,
-            messages: messages,
-            temperature: 0.7,
-            max_tokens: 1000
-        });
-
-        // --- COST MONITORING ---
-        console.info(`[COST_MONITOR] AI_COMPLETION | Provider: ${activeProvider} | Tokens: ${completion.usage?.total_tokens || 'unknown'} | Model: ${completion.model}`);
-
-        return res.status(200).json({ 
-            reply: completion.choices[0].message.content,
-            provider: String(activeProvider).replace('_API_KEY', '') 
-        });
     } catch (error) {
         console.error("Vercel AI Error:", error);
         // Clearer error for the frontend
