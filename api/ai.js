@@ -82,82 +82,79 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: "Prompt is required" });
         }
 
-        // --- DYNAMIC CONFIG WITH FAST-LANE ROUTING ---
-        let apiKey = process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY;
-        let activeProvider = "GROQ_API_KEY";
-        let routeStatus = "FALLBACK (ENV_GROQ)";
-
-        // Prioritize Internal API as a safer fallback
-        if (process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY) {
-            apiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
-            activeProvider = "OPENAI_API_KEY";
-            routeStatus = "FALLBACK (ENV_OPENAI)";
-        } else if (process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY) { // Keep Analytics Engine as a secondary fallback if Internal API isn't present
-            apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
-            activeProvider = "GEMINI_API_KEY";
-            routeStatus = "FALLBACK (ENV_GEMINI)";
-        }
+        // --- MESH-DRIVEN ROUTING ---
+        let apiKey = null;
+        let activeProvider = null;
+        let routeStatus = "INITIALIZING";
 
         try {
-            console.log("[System] Config Race (2.5s lane)...");
+            console.log("[System] Synchronizing with Key Mesh (7s window)...");
             const dbFetch = admin.database().ref('system_config').once('value');
-            // Reducing to 2.5s to leave 7s for the AI to speak
-            const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('DB_TIMEOUT')), 2500));
+            const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('MESH_TIMEOUT')), 7000));
             
             const snapshot = await Promise.race([dbFetch, timeout]);
 
             if (snapshot.exists()) {
                 const config = snapshot.val();
-                const selected = config.active_ai_provider;
+                activeProvider = config.active_ai_provider;
                 
-                if (selected) {
-                    const keyData = config.api_keys?.[selected];
+                if (activeProvider) {
+                    const keyData = config.api_keys?.[activeProvider];
                     if (keyData && keyData.keyValue) {
                         try {
                             const bytes = AES.decrypt(keyData.keyValue, ENCRYPTION_SECRET);
                             const decrypted = bytes.toString(encUtf8);
                             if (decrypted) {
-                                // SECURITY: Check if this is the known leaked key IUfE
+                                // SECURITY: Block leaked key IUfE
                                 if (decrypted.endsWith("IUfE")) {
-                                    console.warn("[SECURITY] Blocked use of LEAKED key IUfE. Falling back to ENV keys.");
-                                    routeStatus = "BLOCKED (LEAKED_KEY_DETECTED)";
-                                    // Do not update apiKey or activeProvider, continue with ENV fallback
-                                } else {
-                                    apiKey = decrypted;
-                                    activeProvider = selected;
-                                    routeStatus = "LIVE (SYNC)";
-                                    console.log(`[System] Data-Sync Success: ${activeProvider}`);
+                                    console.warn("[SECURITY] Blocked leaked key in Mesh.");
+                                    throw new Error("LEAKED_KEY_DETECTED");
                                 }
+                                apiKey = decrypted;
+                                routeStatus = "MESH (SYNCED)";
+                                console.log(`[System] Mesh Node Active: ${activeProvider}`);
                             }
                         } catch (e) { 
-                            console.error("[System] Decrypt Fail"); 
-                            routeStatus = "ERROR (DECRYPT)";
+                            console.error("[System] Mesh Decrypt Fail");
+                            throw new Error("DECRYPT_FAILURE");
                         }
+                    } else {
+                        throw new Error(`MISSING_KEY_FOR_${activeProvider}`);
                     }
                 }
+            } else {
+                console.warn("[System] Mesh Empty. Falling back to Environment.");
+                routeStatus = "MESH (EMPTY)";
             }
         } catch (err) {
-            console.warn(`[System] DB Slow (${err.message}). Using Fast-Lane: ${activeProvider}`);
+            console.warn(`[System] Mesh Sync Error: ${err.message}`);
+            routeStatus = `ERROR (${err.message})`;
+        }
+
+        // --- EMERGENCY FALLBACK (Only if Mesh fails or is empty) ---
+        if (!apiKey) {
+            console.log("[System] Mesh Unavailable. Checking Emergency Backups...");
+            // Use Internal API first, then Groq
+            if (process.env.OPENAI_API_KEY && !process.env.OPENAI_API_KEY.endsWith("IUfE")) {
+                apiKey = process.env.OPENAI_API_KEY;
+                activeProvider = "OPENAI_API_KEY";
+                routeStatus = "FALLBACK (ENV_OPENAI)";
+            } else if (process.env.GROQ_API_KEY) {
+                apiKey = process.env.GROQ_API_KEY;
+                activeProvider = "GROQ_API_KEY";
+                routeStatus = "FALLBACK (ENV_GROQ)";
+            }
         }
 
         if (!apiKey) {
             return res.status(503).json({
-                error: "Configuration Error",
-                reply: "⚠️ **System Error**: No API credentials found. Please check your .env or System Config."
+                error: "System Hub Offline",
+                reply: "⚠️ **System Error**: The Key Mesh is unreachable and no secondary nodes are present. Please check Firebase and Vercel ENV."
             });
         }
 
         const keySuffix = String(apiKey).slice(-4);
-        
-        // Final Security Check: Never allow the leaked key to hit the execution phase
-        if (keySuffix === "IUfE") {
-            return res.status(403).json({
-                error: "Security Check Failed",
-                reply: `⚠️ **Security Alert**: The key ending in ***IUfE is LEAKED and BLOCKED. Please delete it from Vercel/Admin and use your NEW key.`
-            });
-        }
-
-        console.log(`[AI_ROUTING] Executing: ${activeProvider} | Key: ***${keySuffix}`);
+        console.log(`[AI_ROUTING] Executing via: ${activeProvider} | Node: ***${keySuffix} | Status: ${routeStatus}`);
 
         // --- AI EXECUTION ---
         try {
