@@ -8,17 +8,26 @@ const encUtf8 = enc.Utf8;
 // Secret Encryption Key (Must match SystemConfigContext.tsx)
 const ENCRYPTION_SECRET = "TIER_0_GOD_MODE_SECRET";
 
+// Fallback Config (Must match firebase.ts)
+const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || "kleconnect-a7c43";
+const FIREBASE_DATABASE_URL = process.env.VITE_FIREBASE_DATABASE_URL || "https://kleconnect-a7c43-default-rtdb.firebaseio.com";
+
 // Initialize Firebase Admin (Only once)
 if (!admin.apps.length) {
     try {
-        admin.initializeApp({
-            credential: admin.credential.cert({
-                projectId: process.env.FIREBASE_PROJECT_ID,
-                clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-                privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-            }),
-            databaseURL: process.env.VITE_FIREBASE_DATABASE_URL
-        });
+        const cert = {
+            projectId: FIREBASE_PROJECT_ID,
+            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+            privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+        };
+
+        // Only use cert if key is present, otherwise fallback to default (works for token verify only in some envs)
+        const config = (cert.privateKey && cert.clientEmail) 
+            ? { credential: admin.credential.cert(cert), databaseURL: FIREBASE_DATABASE_URL }
+            : { projectId: FIREBASE_PROJECT_ID, databaseURL: FIREBASE_DATABASE_URL };
+
+        admin.initializeApp(config);
+        console.info(`[System] Firebase Admin Initialized | Project: ${FIREBASE_PROJECT_ID}`);
     } catch (error) {
         console.error('Firebase admin initialization error', error.stack);
     }
@@ -52,10 +61,10 @@ export default async function handler(req, res) {
             const decodedToken = await admin.auth().verifyIdToken(idToken);
             console.info(`[SECURITY_MONITOR] AI_ACCESS_GRANTED | User: ${decodedToken.email} | UID: ${decodedToken.uid}`);
         } catch (authError) {
-            console.warn(`[SECURITY_MONITOR] AI_ACCESS_DENIED | Reason: ${authError.message} | IP: ${req.headers['x-forwarded-for'] || req.socket.remoteAddress}`);
+            console.warn(`[SECURITY_MONITOR] AI_ACCESS_DENIED | Reason: ${authError.message}`);
             return res.status(403).json({ 
                 error: "Forbidden", 
-                reply: "⚠️ **Security Error**: Session expired or invalid authentication. Please re-login." 
+                reply: `⚠️ **Security Error**: ${authError.message}. Please re-login.` 
             });
         }
         // --- END SECURITY ---
