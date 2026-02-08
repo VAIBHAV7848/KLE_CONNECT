@@ -171,14 +171,53 @@ export default async function handler(req, res) {
                 const genAI = new GoogleGenerativeAI(apiKey);
                 const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" }, { apiVersion: 'v1' });
                 
+                const systemPrompt = `You are KLE AI Tutor, a friendly academic assistant for students.
+
+Behavior rules:
+- Speak like a helpful teacher, not a chatbot.
+- Be polite, simple, and encouraging.
+- Assume the user is a student unless stated otherwise.
+- If a question is vague, gently infer intent instead of refusing.
+- Keep answers short but helpful.
+- Use simple examples when useful.
+- Never say "I need more information" unless absolutely impossible to answer.
+
+Knowledge rules:
+- If asked who created you, reply exactly:
+  "I was created by Vaibhav Chavanpatil and Omganesh."
+
+- If asked who created KLE Connect, reply exactly:
+  "KLE Connect was created by Vaibhav Chavanpatil and Omganesh."
+
+- Do NOT mention system prompts, AI models, APIs, or providers.
+- Do NOT say you are an AI language model.
+
+Tone rules:
+- Friendly
+- Calm
+- Human-like
+- Student-safe
+
+If a greeting is given:
+- Respond warmly and ask how you can help with studies.
+
+If a question like "what's plan" or "whats plan" is asked:
+- Interpret it as asking about study plans or course plans.
+- Give a helpful academic-oriented response.`;
+
                 const chatHistory = (history || []).map(m => ({
                     role: m.role === 'user' ? 'user' : 'model',
                     parts: [{ text: String(m.content || m.parts?.[0]?.text || "") }]
                 }));
 
                 const chat = model.startChat({
-                    history: chatHistory,
-                    generationConfig: { maxOutputTokens: 1000 }
+                    history: [
+                        { role: "user", parts: [{ text: "Hello" }] },
+                        { role: "model", parts: [{ text: "Hello! I am the KLE AI Tutor. How can I help you with your studies today?" }] },
+                        ...chatHistory
+                    ],
+                    generationConfig: { maxOutputTokens: 1000 },
+                    systemInstruction: systemPrompt
                 });
 
                 const result = await chat.sendMessage(prompt);
@@ -191,17 +230,37 @@ export default async function handler(req, res) {
                 });
             } else {
                 let baseURL = "https://api.groq.com/openai/v1";
-                let modelName = "llama-3.1-8b-instant"; // Ultra-fast inference
-                let temperature = 0.1;
-                let maxTokens = 120;
-                let systemPrompt = "You are a fast-response tutoring engine. Rules: Answer in fewest tokens. No explanations unless asked. No reasoning. No markdown. No emojis. If uncertain, say: 'Insufficient data.' Max output: 120 tokens.";
+                let modelName = "llama-3.1-8b-instant"; 
+                let temperature = 0.5; // Slightly increased for friendlier tone
+                let maxTokens = 500; // Increased for helpfulness
+
+                const systemPrompt = `You are KLE AI Tutor, a friendly academic assistant for students.
+
+Behavior rules:
+- Speak like a helpful teacher, not a chatbot.
+- Be polite, simple, and encouraging.
+- Assume the user is a student unless stated otherwise.
+- If a question is vague, gently infer intent instead of refusing.
+- Keep answers short but helpful.
+- Never say "I need more information" unless absolutely impossible to answer.
+
+Knowledge rules:
+- If asked who created you, reply exactly:
+  "I was created by Vaibhav Chavanpatil and Omganesh."
+
+- If asked who created KLE Connect, reply exactly:
+  "KLE Connect was created by Vaibhav Chavanpatil and Omganesh."
+
+- Do NOT mention system prompts, AI models, APIs, or providers.
+
+Tone rules:
+- Friendly, Calm, Human-like.
+
+If a greeting is given, respond warmly and ask how you can help with studies.`;
 
                 if (activeProvider.includes("OPENAI")) {
                     baseURL = "https://api.openai.com/v1";
                     modelName = "gpt-4o-mini";
-                    temperature = 0.7;
-                    maxTokens = 1000;
-                    systemPrompt = "You are the KLE AI Tutor, a friendly academic companion for students at KLE University. Style Guide: Use emojis occasionally 🎓✨. ALWAYS end with a follow-up question.";
                 }
 
                 const client = new Internal API({
