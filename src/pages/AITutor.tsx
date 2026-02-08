@@ -175,6 +175,57 @@ const AITutor = () => {
     }
 
     } catch (error: any) {
+        // --- Fallback: Direct Client-Side Call (For Local/Free Key Usage) ---
+       // CRITICAL: This is a backup for when the backend is unreachable or not configured.
+       // We use the provided key as a last resort to ensure functionality.
+       const directKey = import.meta.env.VITE_GROQ_API_KEY;
+       
+       if (directKey && (error.message.includes('404') || error.message.includes('403') || error.message.includes('Failed to fetch'))) {
+         try {
+           console.log("Falling back to direct Groq client...");
+           const { default: Internal API } = await import('openai');
+           const client = new Internal API({
+             apiKey: directKey.trim(),
+             baseURL: "https://api.groq.com/openai/v1",
+             dangerouslyAllowBrowser: true // Required for client-side usage
+           });
+
+           const aiMessages: any[] = [
+             { role: "system", content: "You are the KLE AI Tutor, a friendly academic companion. Use emojis occasionally 🎓✨." }
+           ];
+           
+           history.forEach(msg => {
+             aiMessages.push({
+               role: msg.role === 'user' ? 'user' : 'assistant',
+               content: msg.content
+             })
+           });
+           
+           // Add current prompt
+           aiMessages.push({ role: "user", content: query });
+
+           const completion = await client.chat.completions.create({
+             model: "llama-3.3-70b-versatile",
+             messages: aiMessages,
+             temperature: 0.7,
+             max_tokens: 1000
+           });
+
+           const reply = completion.choices[0].message.content || "No response generated.";
+
+            setMessages(prev => [...prev, {
+              role: 'assistant',
+              content: reply,
+              timestamp: Date.now()
+            }]);
+            setStatus('idle');
+            setLastError(null); // Clear error if fallback succeeded
+            return; // Exit successfully
+         } catch (fallbackError: any) {
+           console.error("Direct Groq Error:", fallbackError);
+           // Fall through to original error handling
+         }
+       }
       console.error("BACKEND CALL ERROR:", error);
       let errorMsg = `**AI Connection Error**\n\nUnable to reach the AI server at ${aiEndpoint}. \n\n${error.message}`;
 
