@@ -17,19 +17,23 @@ const CLIENT_EMAIL = process.env.FIREBASE_CLIENT_EMAIL || process.env.VITE_FIREB
 // Initialize Firebase Admin (Only once)
 if (!admin.apps.length) {
     try {
-        const cert = {
+        const config = {
             projectId: FIREBASE_PROJECT_ID,
-            clientEmail: CLIENT_EMAIL,
-            privateKey: PRIVATE_KEY?.replace(/\\n/g, '\n'),
+            databaseURL: FIREBASE_DATABASE_URL
         };
 
-        // Only use cert if key is present, otherwise fallback to default (works for token verify only in some envs)
-        const config = (cert.privateKey && cert.clientEmail) 
-            ? { credential: admin.credential.cert(cert), databaseURL: FIREBASE_DATABASE_URL }
-            : { projectId: FIREBASE_PROJECT_ID, databaseURL: FIREBASE_DATABASE_URL };
+        if (PRIVATE_KEY && CLIENT_EMAIL) {
+            config.credential = admin.credential.cert({
+                projectId: FIREBASE_PROJECT_ID,
+                clientEmail: CLIENT_EMAIL,
+                privateKey: PRIVATE_KEY.replace(/\\n/g, '\n'),
+            });
+            console.info(`[System] Firebase Admin Initialized with Service Account | Project: ${FIREBASE_PROJECT_ID}`);
+        } else {
+            console.warn(`[System] Firebase Admin Initialized with NO Service Account. Database access may fail. | Project: ${FIREBASE_PROJECT_ID}`);
+        }
 
         admin.initializeApp(config);
-        console.info(`[System] Firebase Admin Initialized | Project: ${FIREBASE_PROJECT_ID}`);
     } catch (error) {
         console.error('Firebase admin initialization error', error.stack);
     }
@@ -78,41 +82,42 @@ export default async function handler(req, res) {
         }
 
         // --- DYNAMIC KEY FETCHING ---
-        let apiKey = process.env.GROQ_API_KEY;
+        let apiKey = process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY;
 
         try {
-            // Attempt to fetch dynamic key from Firebase
-            const snapshot = await admin.database().ref('system_config/api_keys/GROQ_API_KEY').once('value');
+            console.log("[System] Attempting to fetch dynamic key...");
+            // Attempt to fetch dynamic key from Firebase with a timeout
+            const dbFetch = admin.database().ref('system_config/api_keys/GROQ_API_KEY').once('value');
+            const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Firebase DB Timeout')), 5000));
+            
+            const snapshot = await Promise.race([dbFetch, timeout]);
+
             if (snapshot.exists()) {
                 const data = snapshot.val();
                 if (data && data.keyValue) {
                     try {
-                        // Decrypt the key
                         const bytes = AES.decrypt(data.keyValue, ENCRYPTION_SECRET);
                         const decrypted = bytes.toString(encUtf8);
                         if (decrypted) {
                             apiKey = decrypted;
-                            console.log("[System] Using Dynamic GROQ_API_KEY from Firebase");
+                            console.log("[System] Successfully decrypted dynamic key.");
                         }
                     } catch (decErr) {
-                        console.error("[System] Failed to decrypt dynamic key:", decErr.message);
-                        // Fallback to process.env.GROQ_API_KEY remains
+                        console.error("[System] Decryption failed:", decErr.message);
                     }
                 }
+            } else {
+                console.log("[System] No dynamic key found in DB, using env fallback.");
             }
         } catch (dbError) {
-            console.warn("[System] Failed to fetch dynamic key config:", dbError.message);
-        }
-
-        if (req.body.dynamicKey) {
-            // Deprecated: Client-side provided key (remove in production if strict)
-            // apiKey = req.body.dynamicKey; 
+            console.warn("[System] DB Fetch Error or Timeout:", dbError.message);
         }
 
         if (!apiKey) {
+            console.error("[System] CRITICAL: No API key found in either DB or ENV.");
             return res.status(503).json({
                 error: "Configuration Error",
-                reply: "⚠️ **System Error**: AI Service is currently unavailable (Missing API Key). Please contact the administrator."
+                reply: "⚠️ **System Error**: AI Service is missing credentials. Please configure the Groq API Key in the System Configuration tab."
             });
         }
 

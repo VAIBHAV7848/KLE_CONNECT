@@ -156,45 +156,58 @@ const AITutor = () => {
       // 3. Call Backend
       console.log("[AITutor] Step 2: Fetching from", targetEndpoint);
       const startTime = Date.now();
-      const response = await fetch(targetEndpoint, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "Authorization": idToken ? `Bearer ${idToken}` : ""
-        },
-        body: JSON.stringify({
-          prompt: query,
-          history: history.slice(0, -1).map(m => ({
-            role: m.role === 'user' ? 'user' : 'model',
-            parts: [{ text: m.content }],
-          }))
-        })
-      });
+      
+      const controller = new AbortController();
+      const fetchTimeout = setTimeout(() => controller.abort(), 15000);
 
-      console.log(`[AITutor] Server responded with status ${response.status} in ${Date.now() - startTime}ms`);
+      try {
+        const response = await fetch(targetEndpoint, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": idToken ? `Bearer ${idToken}` : ""
+          },
+          signal: controller.signal,
+          body: JSON.stringify({
+            prompt: query,
+            history: history.slice(0, -1).map(m => ({
+              role: m.role === 'user' ? 'user' : 'model',
+              parts: [{ text: m.content }],
+            }))
+          })
+        });
 
-      let data: any;
-      const contentType = response.headers.get("content-type");
-      if (contentType && contentType.includes("application/json")) {
-        data = await response.json();
-      } else {
-        const text = await response.text();
-        console.error("[AITutor] Expected JSON but received:", text.slice(0, 100));
-        throw new Error(`Server returned non-JSON response (${response.status})`);
+        clearTimeout(fetchTimeout);
+        console.log(`[AITutor] Server responded with status ${response.status} in ${Date.now() - startTime}ms`);
+
+        let data: any;
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          data = await response.json();
+        } else {
+          const text = await response.text();
+          console.error("[AITutor] Expected JSON but received:", text.slice(0, 100));
+          throw new Error(`Server returned non-JSON response (${response.status})`);
+        }
+
+        if (!response.ok) {
+          const serverError = data.reply || data.error || `Error ${response.status}`;
+          throw new Error(serverError);
+        }
+
+        console.log("[AITutor] AI reply received successfully.");
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: data.reply,
+          timestamp: Date.now()
+        }]);
+        setStatus('idle');
+      } catch (fetchErr: any) {
+        if (fetchErr.name === 'AbortError') {
+          throw new Error("The AI server took too long to respond (15s timeout). Please try again.");
+        }
+        throw fetchErr;
       }
-
-      if (!response.ok) {
-        const serverError = data.reply || data.error || `Error ${response.status}`;
-        throw new Error(serverError);
-      }
-
-      console.log("[AITutor] AI reply received successfully.");
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: data.reply,
-        timestamp: Date.now()
-      }]);
-      setStatus('idle');
 
     } catch (error: any) {
       console.error("[AITutor] Request flow failed:", error);
