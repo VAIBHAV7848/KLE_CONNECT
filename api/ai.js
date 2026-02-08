@@ -88,9 +88,9 @@ export default async function handler(req, res) {
         let routeStatus = "INITIALIZING";
 
         try {
-            console.log("[System] Synchronizing with Key Mesh (7s window)...");
+            console.log("[System] Synchronizing with Key Mesh (1.5s lane)...");
             const dbFetch = admin.database().ref('system_config').once('value');
-            const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('MESH_TIMEOUT')), 7000));
+            const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('MESH_TIMEOUT')), 1500));
             
             const snapshot = await Promise.race([dbFetch, timeout]);
 

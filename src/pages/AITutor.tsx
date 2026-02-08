@@ -433,11 +433,6 @@ const AITutor = () => {
                             <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">
                               {isUser ? 'You' : 'KLE AI Tutor'}
                             </span>
-                            {!isUser && msg.provider && (
-                              <span className="text-[8px] font-black px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase tracking-tighter">
-                                {msg.provider}
-                              </span>
-                            )}
                           </div>
 
                           {/* Chat Bubble */}
