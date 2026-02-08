@@ -82,15 +82,27 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: "Prompt is required" });
         }
 
-        // --- DYNAMIC CONFIG WITH MAXIMUM PATIENCE ---
+        // --- DYNAMIC CONFIG WITH FAST-LANE ROUTING ---
         let apiKey = process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY;
         let activeProvider = "GROQ_API_KEY";
-        let routeStatus = "FALLBACK (ENV)";
+        let routeStatus = "FALLBACK (ENV_GROQ)";
+
+        // Immediate Fast-Lane: Check for better fallbacks in ENV
+        if (process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY) {
+            apiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
+            activeProvider = "OPENAI_API_KEY";
+            routeStatus = "FALLBACK (ENV_OPENAI)";
+        } else if (process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY) {
+            apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+            activeProvider = "GEMINI_API_KEY";
+            routeStatus = "FALLBACK (ENV_GEMINI)";
+        }
 
         try {
-            console.log("[System] Config Race (8.5s limit)...");
+            console.log("[System] Config Race (2.5s lane)...");
             const dbFetch = admin.database().ref('system_config').once('value');
-            const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('DB_TIMEOUT')), 8500));
+            // Reducing to 2.5s to leave 7s for the AI to speak
+            const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('DB_TIMEOUT')), 2500));
             
             const snapshot = await Promise.race([dbFetch, timeout]);
 
@@ -108,24 +120,17 @@ export default async function handler(req, res) {
                                 apiKey = decrypted;
                                 activeProvider = selected;
                                 routeStatus = "LIVE (SYNC)";
-                                console.log(`[System] Route Verified: ${activeProvider}`);
+                                console.log(`[System] Data-Sync Success: ${activeProvider}`);
                             }
                         } catch (e) { 
                             console.error("[System] Decrypt Fail"); 
                             routeStatus = "ERROR (DECRYPT)";
                         }
-                    } else {
-                        console.warn(`[System] Selected provider ${selected} has no key in DB.`);
-                        routeStatus = `ERROR (MISSING_KEY: ${selected})`;
                     }
                 }
-            } else {
-                console.warn("[System] DB Snapshot is empty.");
-                routeStatus = "ERROR (EMPTY_DB)";
             }
         } catch (err) {
-            console.warn(`[System] DB Timeout/Error (${err.message}). Using Fail-safe.`);
-            routeStatus = `FALLBACK (${err.message})`;
+            console.warn(`[System] DB Slow (${err.message}). Using Fast-Lane: ${activeProvider}`);
         }
 
         if (!apiKey) {
