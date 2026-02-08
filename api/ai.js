@@ -81,39 +81,42 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: "Prompt is required" });
         }
 
-        // --- DYNAMIC KEY & PROVIDER FETCHING ---
+        // --- DYNAMIC CONFIG WITH AGGRESSIVE RACING ---
         let apiKey = process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY;
         let activeProvider = "GROQ_API_KEY";
 
         try {
-            console.log("[System] Fetching dynamic configuration...");
-            const configSnapshot = await admin.database().ref('system_config').once('value');
-            if (configSnapshot.exists()) {
-                const config = configSnapshot.val();
+            console.log("[System] Racing for configuration (4s limit)...");
+            const dbFetch = admin.database().ref('system_config').once('value');
+            const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Config Timeout')), 4000));
+            
+            const snapshot = await Promise.race([dbFetch, timeout]);
+
+            if (snapshot.exists()) {
+                const config = snapshot.val();
                 activeProvider = config.active_ai_provider || "GROQ_API_KEY";
-                
                 const keyData = config.api_keys?.[activeProvider];
+                
                 if (keyData && keyData.keyValue) {
                     try {
                         const bytes = AES.decrypt(keyData.keyValue, ENCRYPTION_SECRET);
                         const decrypted = bytes.toString(encUtf8);
                         if (decrypted) {
                             apiKey = decrypted;
-                            console.log(`[System] Using active provider: ${activeProvider}`);
+                            console.log(`[System] Configuration acquired: ${activeProvider}`);
                         }
-                    } catch (decErr) {
-                        console.error("[System] Decryption failed:", decErr.message);
-                    }
+                    } catch (e) { console.error("[System] Decrypt Fail"); }
                 }
             }
-        } catch (dbError) {
-            console.warn("[System] DB Fetch Error:", dbError.message);
+        } catch (err) {
+            console.warn(`[System] Config Race lost (${err.message}). Using ENV Fallback.`);
+            // If race lost, we keep the default ENV apiKey and GROQ provider
         }
 
         if (!apiKey) {
             return res.status(503).json({
                 error: "Configuration Error",
-                reply: "⚠️ **System Error**: Active AI provider is missing credentials. Please configure the key in System Configuration."
+                reply: "⚠️ **System Error**: No API credentials found. Please check your .env or System Config."
             });
         }
 
@@ -125,9 +128,8 @@ export default async function handler(req, res) {
             baseURL = "https://api.openai.com/v1";
             model = "gpt-4-turbo-preview"; 
         } else if (activeProvider === "GEMINI_API_KEY") {
-            // Using gemini-1.5-flash for speed to prevent timeouts
             baseURL = "https://generativelanguage.googleapis.com/v1beta/openai/";
-            model = "gemini-1.5-flash";
+            model = "gemini-1.5-flash"; // Ultra fast to stay under 10s
         }
 
         const client = new Internal API({
