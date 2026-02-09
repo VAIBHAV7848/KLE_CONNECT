@@ -49,7 +49,8 @@ const AITutor = () => {
 
   // For local development, use the current origin to ensure port matches
   // Direct connection to Supabase Edge Function
-  const aiEndpoint = "https://dlwjaqymlobhmtmwraly.supabase.co/functions/v1/ai-tutor";
+  // Use local Vercel API (serverless function) instead of Supabase Edge Function
+  const aiEndpoint = "/api/ai";
   
   console.log("[AITutor] AI Endpoint configured to:", aiEndpoint);
 
