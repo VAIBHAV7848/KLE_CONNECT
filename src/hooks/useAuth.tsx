@@ -208,40 +208,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
         // If no profile exists, create one (for Google OAuth and Anonymous users)
         if (!profile) {
-          console.log('[Auth] No profile found, creating new user profile...');
-          const isAnonymous = session.user.app_metadata?.provider === 'anonymous' || !session.user.email;
-          const displayName = session.user.user_metadata?.display_name || 
-                             session.user.user_metadata?.full_name || 
-                             session.user.user_metadata?.name ||
-                             session.user.email?.split('@')[0] || 
-                             (isAnonymous ? 'Guest User' : 'User');
+          // Profile creation is handled by the Database Trigger (handle_new_user)
+          // We wait for the profile to appear
+          let retries = 0;
+          while (!profile && retries < 3) {
+             await new Promise(r => setTimeout(r, 500));
+             profile = await fetchUserProfile(session.user.id);
+             retries++;
+          }
           
-          try {
-            const { data: insertData, error: insertError } = await (supabase
-              .from('users')
-              .insert as any)({
-                id: session.user.id,
-                email: session.user.email || '',
-                display_name: displayName,
-                role: isEnvOwner ? 'super_admin' : 'user',
-                status: 'Active',
-                is_owner: isEnvOwner,
-              })
-              .select();
-
-            if (insertError) {
-              console.error('[Auth] Failed to create user profile:', insertError);
-              console.error('[Auth] Error details:', JSON.stringify(insertError, null, 2));
-            } else {
-              console.log('[Auth] User profile created successfully:', insertData);
-              // Fetch the newly created profile
-              profile = await fetchUserProfile(session.user.id);
-              if (!profile) {
-                console.warn('[Auth] Profile still not found after insert, using basic info');
-              }
-            }
-          } catch (insertErr: any) {
-            console.error('[Auth] Exception during profile creation:', insertErr);
+          if (!profile) {
+             console.warn('[Auth] Profile not found after trigger wait. Trigger might be broken.');
           }
         }
         
