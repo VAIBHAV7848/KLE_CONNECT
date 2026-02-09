@@ -9,8 +9,7 @@ import { toast } from 'sonner';
 import { EditProfileModal } from '@/components/settings/EditProfileModal';
 import { ChangePasswordModal } from '@/components/settings/ChangePasswordModal';
 import { PrivacyModal } from '@/components/settings/PrivacyModal';
-import { database } from '@/lib/firebase';
-import { ref, update, get } from 'firebase/database';
+import { supabase } from '@/lib/supabase';
 
 interface SettingState {
   pushNotifications: boolean;
@@ -62,33 +61,50 @@ const SettingsPage = () => {
     }
   }, [settings]);
 
-  // Listen to Firebase Settings
+  // Listen to Supabase Settings
   useEffect(() => {
-    if (!user) return;
+    if (!user?.uid) return;
     
     // Check if we have settings in DB
-    const settingsRef = ref(database, `users/${user.uid}/settings`);
-    get(settingsRef).then((snapshot) => {
-        if (snapshot.exists()) {
-            const remoteSettings = snapshot.val();
-            // Merge remote settings with local defaults, preferring remote
-            setSettings(prev => ({
-                ...prev,
-                ...remoteSettings
-            }));
-        }
-    });
+    const fetchSettings = async () => {
+      const { data, error } = await supabase
+        .from('users')
+        .select('settings')
+        .eq('id', user.uid)
+        .single();
+      
+      if (!error && data?.settings) {
+        const remoteSettings = data.settings;
+        // Merge remote settings with local defaults, preferring remote
+        setSettings(prev => ({
+          ...prev,
+          ...remoteSettings
+        }));
+      }
+    };
+    
+    fetchSettings();
   }, [user]);
 
-  const handleToggle = (key: keyof SettingState) => {
+  const handleToggle = async (key: keyof SettingState) => {
     const newValue = !settings[key];
     setSettings(prev => ({ ...prev, [key]: newValue }));
     
-    // Sync to Firebase if user is logged in
-    if (user) {
-      update(ref(database, `users/${user.uid}/settings`), {
-        [key]: newValue
-      });
+    // Sync to Supabase if user is logged in
+    if (user?.uid) {
+      const { error } = await supabase
+        .from('users')
+        .update({
+          settings: {
+            ...settings,
+            [key]: newValue
+          }
+        })
+        .eq('id', user.uid);
+      
+      if (error) {
+        console.error('Error syncing settings:', error);
+      }
     }
 
     toast.success('Settings updated');
@@ -176,8 +192,13 @@ const SettingsPage = () => {
   ];
 
   const handleSignOut = async () => {
-    await signOut();
-    window.location.href = '/#/auth';
+    try {
+      await signOut();
+    } catch (error) {
+      console.error("Sign out error:", error);
+    } finally {
+      window.location.replace('/#/auth');
+    }
   };
 
   return (

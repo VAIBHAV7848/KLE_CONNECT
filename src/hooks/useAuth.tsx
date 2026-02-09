@@ -1,27 +1,6 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
-import {
-  User,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut as firebaseSignOut,
-  signInWithPopup,
-  signInAnonymously as firebaseSignInAnonymously,
-  RecaptchaVerifier,
-  signInWithPhoneNumber,
-  ConfirmationResult,
-  updateProfile,
-  updatePassword
-} from 'firebase/auth';
-import { auth, googleProvider, database } from '@/lib/firebase';
-import { ref, get, set, onValue, update } from 'firebase/database';
-import { UserRole } from '@/types/auth';
-
-declare global {
-  interface Window {
-    recaptchaVerifier: RecaptchaVerifier;
-  }
-}
+import { supabase } from '@/lib/supabase';
+import type { User, UserRole } from '@/types/auth';
 
 interface AuthContextType {
   user: User | null;
@@ -30,8 +9,8 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signInWithGoogle: () => Promise<{ error: Error | null }>;
   signInAnonymously: () => Promise<{ error: Error | null }>;
-  setUpRecaptcha: (elementId: string) => RecaptchaVerifier;
-  signInWithPhone: (phoneNumber: string, appVerifier: RecaptchaVerifier) => Promise<{ confirmationResult: ConfirmationResult | null, error: Error | null }>;
+  signInWithPhone: (phoneNumber: string) => Promise<{ error: Error | null }>;
+  verifyPhoneOtp: (phoneNumber: string, token: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   isAdmin: boolean;
   role: UserRole;
@@ -64,130 +43,275 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const OWNER_EMAIL = import.meta.env.VITE_PLATFORM_OWNER_EMAIL;
 
+  // Fetch user profile from database
+  const fetchUserProfile = async (userId: string): Promise<any> => {
+    try {
+        const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .single();
+        
+        if (error) {
+            // Ignore abort errors which happen on strict mode re-renders
+            if (error.code === '' && error.details?.includes('AbortError')) {
+                return null;
+            }
+            console.error('Error fetching user profile:', error);
+            return null;
+        }
+        return data;
+    } catch (error: any) {
+        if (error.name === 'AbortError' || error.message?.includes('AbortError')) {
+            return null;
+        }
+        console.error('Unexpected error fetching profile:', error);
+        return null;
+    }
+  };
+
+  // Subscribe to user profile changes
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      let isMaintenanceMode = false;
-      const maintenanceRef = ref(database, 'system/maintenance');
-      onValue(maintenanceRef, (snap) => {
-        isMaintenanceMode = snap.val() === true;
-      }, { onlyOnce: true });
+    if (!user?.uid) return;
 
-      if (firebaseUser) {
-        // Sync Basic Profile to DB (Self-Healing)
-        const userRef = ref(database, `users/${firebaseUser.uid}`);
-        
-        const profileUpdate = {
-          email: firebaseUser.email,
-          displayName: firebaseUser.displayName || 'User',
-          lastSeen: Date.now()
-        };
-        update(userRef, profileUpdate);
-
-        // 1. Check if Master Admin (Security Overlay)
-        const email = firebaseUser.email?.toLowerCase().trim() || '';
-        const isMasterAdmin = ADMIN_EMAILS.includes(email);
-        
-        // EXPLICIT OWNER CHECK - Bypass all complex logic
-        const isExactOwner = email === OWNER_EMAIL;
-        
-        if (isExactOwner) {
-             console.log("👑 AUTH: Setting Platform Owner Access [SECURE]");
-             setIsOwner(true);
-             setRole('super_admin');
+    const subscription = supabase
+      .channel('user_profile_changes')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'users', filter: `id=eq.${user.uid}` },
+        async (payload) => {
+          const profile = payload.new as any;
+          if (profile) {
+            setRole(profile.role as UserRole);
+            setIsOwner(profile.is_owner);
+          }
         }
+      )
+      .subscribe();
 
-        if (isMasterAdmin) {
-          if (!isExactOwner) setRole('super_admin'); // Don't double set if already set above
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [user?.uid]);
 
-          // Ensure DB is in sync for these critical users
-          const userRefProps = ref(database, `users/${firebaseUser.uid}`);
-          get(userRefProps).then((snapshot) => {
-            const data = snapshot.val() || {};
-            const updates: any = {};
+  useEffect(() => {
+    let mounted = true;
 
-            if (data.role !== 'super_admin') updates.role = 'super_admin';
-
-            // Only set isOwner=true if it's the specific owner email
-            if (isExactOwner && data.isOwner !== true) {
-              updates.isOwner = true;
-            }
-
-            if (Object.keys(updates).length > 0) {
-              update(userRefProps, updates);
-            }
-          });
-        } else {
-          // 2. Fetch Role & Status from DB
-          const userRef = ref(database, `users/${firebaseUser.uid}`);
-
-          // Real-time listener for status changes (Banning)
-          onValue(userRef, async (snapshot) => {
-            if (snapshot.exists()) {
-              const data = snapshot.val();
-              const userRole = data.role as UserRole || 'user';
-              const userStatus = data.status || 'Active';
-              const ownerStatus = data.isOwner === true;
-
-              // ENFORCE BAN
-              // Owner cannot be banned (Safety)
-              if (userStatus === 'Suspended' && !ownerStatus && !isExactOwner) {
-                await firebaseSignOut(auth);
-                setUser(null);
-                setRole('user');
-                alert("Your account has been suspended by the administrator.");
-                return;
-              }
-
-              // ENFORCE MAINTENANCE (Non-admins gets kicked)
-              if (isMaintenanceMode && userRole === 'user') {
-                await firebaseSignOut(auth);
-                setUser(null);
-                setRole('user');
-                alert("System is currently under maintenance. Please try again later.");
-                return;
-              }
-
-              setRole(userRole);
-              if (!isExactOwner) setIsOwner(ownerStatus); // Don't subscribe to false if we are forced true
-            } else {
-              setRole('user');
-              if (!isExactOwner) setIsOwner(false);
-            }
-          });
-        }
-      } else {
-        setRole('user');
+    // Safety timeout: If Supabase takes too long (e.g. network issues), stop loading
+    // This prevents the "infinite loading screen" issue
+    const safetyTimer = setTimeout(() => {
+      if (mounted && loading) {
+        setLoading(false);
       }
+    }, 2000);
 
-      setUser(firebaseUser);
-      setLoading(false);
+    // Check current session
+    const checkSession = async () => {
+      try {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) throw sessionError;
+
+        if (session?.user) {
+          console.log('[Auth] Session found for:', session.user.email);
+          
+          // 1. Set basic user immediately to unblock UI
+          const isEnvOwner = session.user.email === OWNER_EMAIL;
+          
+          setUser({
+            uid: session.user.id,
+            email: session.user.email || '',
+            displayName: session.user.user_metadata?.display_name || session.user.email?.split('@')[0] || 'User',
+            phoneNumber: session.user.phone || undefined,
+            photoURL: session.user.user_metadata?.avatar_url || undefined,
+          });
+          
+          if (isEnvOwner) {
+            console.log('[Auth] Owner detected via environment variable');
+            setRole('super_admin');
+            setIsOwner(true);
+          }
+
+          // 2. Fetch profile in background
+          fetchUserProfile(session.user.id).then(async (profile) => {
+             // SYNC TO DB: If Env Owner, ensure DB reflects this
+             if (isEnvOwner) {
+                 const needsUpdate = !profile || profile.role !== 'super_admin' || !profile.is_owner;
+                  if (needsUpdate) {
+                      console.log('[Auth] Syncing owner status to Supabase DB...');
+                       const { error: syncError } = await (supabase
+                           .from('users')
+                           .update as any)({ role: 'super_admin', is_owner: true, display_name: session.user.user_metadata?.display_name || 'System Owner' })
+                           .eq('id', session.user.id);
+                     
+                     if (syncError) {
+                         console.warn('[Auth] Could not sync to DB (requires RLS policy):', syncError.message);
+                     } else {
+                         console.log('[Auth] Successfully synced owner status to DB');
+                         // Update profile ref if we just created/updated it
+                         if (!profile) profile = { role: 'super_admin', is_owner: true, display_name: 'System Owner' };
+                         else { profile.role = 'super_admin'; profile.is_owner = true; }
+                     }
+                 }
+             }
+
+             if (profile) {
+                console.log('[Auth] Profile loaded in background');
+                
+                const finalRole = isEnvOwner ? 'super_admin' : (profile.role as UserRole);
+                const finalIsOwner = isEnvOwner ? true : profile.is_owner;
+
+                setUser(prev => prev ? ({
+                  ...prev,
+                  displayName: profile.display_name || prev.displayName,
+                  role: finalRole
+                }) : null);
+                
+                setRole(finalRole);
+                setIsOwner(finalIsOwner);
+             } else if (isEnvOwner) {
+                setRole('super_admin');
+                setIsOwner(true);
+             }
+          });
+          
+        } else {
+            console.log('[Auth] No active session found.');
+        }
+      } catch (error: any) {
+        // Suppress AbortError which happens on strict mode re-mounts
+        if (error.name === 'AbortError' || error.message?.includes('AbortError')) {
+            return;
+        }
+        console.error('[Auth] Unexpected error in checkSession:', error);
+      } finally {
+        if (mounted) {
+            setLoading(false);
+            clearTimeout(safetyTimer);
+        }
+      }
+    };
+
+    checkSession();
+
+    // Subscribe to auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        const isEnvOwner = session.user.email === OWNER_EMAIL;
+        
+        // Optimistically set owner if match
+        if (isEnvOwner) {
+            setRole('super_admin');
+            setIsOwner(true);
+        }
+
+        let profile = await fetchUserProfile(session.user.id);
+        
+        // If no profile exists, create one (for Google OAuth and Anonymous users)
+        if (!profile) {
+          console.log('[Auth] No profile found, creating new user profile...');
+          const isAnonymous = session.user.app_metadata?.provider === 'anonymous' || !session.user.email;
+          const displayName = session.user.user_metadata?.display_name || 
+                             session.user.user_metadata?.full_name || 
+                             session.user.user_metadata?.name ||
+                             session.user.email?.split('@')[0] || 
+                             (isAnonymous ? 'Guest User' : 'User');
+          
+          try {
+            const { data: insertData, error: insertError } = await (supabase
+              .from('users')
+              .insert as any)({
+                id: session.user.id,
+                email: session.user.email || '',
+                display_name: displayName,
+                role: isEnvOwner ? 'super_admin' : 'user',
+                status: 'Active',
+                is_owner: isEnvOwner,
+              })
+              .select();
+
+            if (insertError) {
+              console.error('[Auth] Failed to create user profile:', insertError);
+              console.error('[Auth] Error details:', JSON.stringify(insertError, null, 2));
+            } else {
+              console.log('[Auth] User profile created successfully:', insertData);
+              // Fetch the newly created profile
+              profile = await fetchUserProfile(session.user.id);
+              if (!profile) {
+                console.warn('[Auth] Profile still not found after insert, using basic info');
+              }
+            }
+          } catch (insertErr: any) {
+            console.error('[Auth] Exception during profile creation:', insertErr);
+          }
+        }
+        
+        if (profile) {
+          const finalRole = isEnvOwner ? 'super_admin' : (profile.role as UserRole);
+          const finalIsOwner = isEnvOwner ? true : profile.is_owner;
+
+          setUser({
+            uid: session.user.id,
+            email: session.user.email || '',
+            displayName: profile.display_name || session.user.email?.split('@')[0] || 'User',
+            phoneNumber: session.user.phone || undefined,
+            photoURL: session.user.user_metadata?.avatar_url || undefined,
+            role: finalRole,
+          });
+          setRole(finalRole);
+          setIsOwner(finalIsOwner);
+        } else {
+          setUser({
+            uid: session.user.id,
+            email: session.user.email || '',
+            displayName: session.user.user_metadata?.display_name || session.user.email?.split('@')[0] || 'User',
+            phoneNumber: session.user.phone || undefined,
+            photoURL: session.user.user_metadata?.avatar_url || undefined,
+          });
+          
+          if (isEnvOwner) {
+              setRole('super_admin');
+              setIsOwner(true);
+          }
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setRole('user');
+        setIsOwner(false);
+      }
     });
 
-    return () => unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signUp = async (email: string, password: string, fullName: string) => {
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            display_name: fullName,
+          },
+        },
+      });
 
-      // 1. Update Auth Profile
-      // This is crucial for firebaseUser.displayName to work later
-      // We need to import updateProfile from firebase/auth
-      // Since we can't easily add imports here without finding the top, 
-      // we'll assume the user might have it or we rely on the DB write below which is more important for the dashboard.
-      // actually, let's just write to DB.
+      if (error) throw error;
 
-      // 2. Create User Entry in Realtime Database
-      const newUserProfile = {
-        displayName: fullName,
-        email: email,
-        role: 'user',
-        status: 'Active',
-        createdAt: Date.now()
-      };
+      if (data.user) {
+        // Create user profile in database
+        const { error: profileError } = await (supabase.from('users').insert as any)({
+          id: data.user.id,
+          email: email,
+          display_name: fullName,
+          role: 'user',
+          status: 'Active',
+          is_owner: false,
+        });
 
-      await set(ref(database, `users/${user.uid}`), newUserProfile);
+        if (profileError) throw profileError;
+      }
 
       return { error: null };
     } catch (error) {
@@ -196,11 +320,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signIn = async (email: string, password: string) => {
-    // Master Admin Bypass for Presentation Reliability
     const normalizedEmail = email.trim().toLowerCase();
 
     try {
-      // Call secure server-side admin check
+      // Master Admin Bypass for Presentation Reliability
       const response = await fetch('/api/admin-auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -222,7 +345,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
       return { error: null };
     } catch (error) {
       return { error: error as Error };
@@ -231,87 +359,99 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signInWithGoogle = async () => {
     try {
-      const popupPromise = signInWithPopup(auth, googleProvider);
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Popup timeout')), 60000)
-      );
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin,
+          skipBrowserRedirect: false,
+        },
+      });
 
-      await Promise.race([popupPromise, timeoutPromise]);
+      if (error) throw error;
       return { error: null };
-    } catch (error: any) {
-      console.error('Google Sign-In Error:', error);
-
-      if (error.code === 'auth/popup-closed-by-user') {
-        return { error: new Error('Sign-in cancelled. Please try again.') };
-      }
-      if (error.code === 'auth/popup-blocked') {
-        return { error: new Error('Popup was blocked by your browser.') };
-      }
-      if (error.code === 'auth/unauthorized-domain') {
-        return { error: new Error('This domain is not authorized.') };
-      }
-      if (error.message === 'Popup timeout') {
-        return { error: new Error('Sign-in is taking too long.') };
-      }
-
+    } catch (error) {
       return { error: error as Error };
     }
   };
 
   const signInAnonymously = async () => {
     try {
-      await firebaseSignInAnonymously(auth);
+      const { error } = await supabase.auth.signInAnonymously();
+      if (error) throw error;
       return { error: null };
     } catch (error) {
       return { error: error as Error };
     }
   };
 
-  const setUpRecaptcha = (elementId: string) => {
-    if (window.recaptchaVerifier) {
-      window.recaptchaVerifier.clear();
-    }
+  const signInWithPhone = async (phoneNumber: string) => {
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        phone: phoneNumber,
+      });
 
-    window.recaptchaVerifier = new RecaptchaVerifier(auth, elementId, {
-      'size': 'invisible',
-      'callback': () => {
-        // reCAPTCHA solved
-      }
-    });
-    return window.recaptchaVerifier;
+      if (error) throw error;
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
   };
 
-  const signInWithPhone = async (phoneNumber: string, appVerifier: RecaptchaVerifier) => {
+  const verifyPhoneOtp = async (phoneNumber: string, token: string) => {
     try {
-      const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
-      return { confirmationResult, error: null };
+      const { error } = await supabase.auth.verifyOtp({
+        phone: phoneNumber,
+        token: token,
+        type: 'sms',
+      });
+
+      if (error) throw error;
+      return { error: null };
     } catch (error) {
-      return { confirmationResult: null, error: error as Error };
+      return { error: error as Error };
     }
   };
 
   const signOut = async () => {
-    localStorage.removeItem('admin_session');
-    await firebaseSignOut(auth);
+    // 1. Immediate UI update
     setUser(null);
     setRole('user');
+    setIsOwner(false);
+    
+    // 2. Clear local storage
+    localStorage.removeItem('admin_session');
+    
+    // 3. Attempt supabase logout
+    try {
+        await supabase.auth.signOut();
+    } catch (error) {
+        console.error("Supabase sign out error:", error);
+    }
   };
 
   const updateUserProfile = async (displayName: string) => {
     try {
-      if (!auth.currentUser) throw new Error('No user logged in');
-      
-      // 1. Update Firebase Auth Profile
-      await updateProfile(auth.currentUser, { displayName });
-      
-      // 2. Update Realtime Database Profile
-      // We only update the display name to avoid overwriting other sensitive fields like role/isOwner
-      const userRef = ref(database, `users/${auth.currentUser.uid}`);
-      await update(userRef, { displayName });
-      
-      // Update local state to reflect change immediately
-      setUser({ ...auth.currentUser, displayName } as User);
-      
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) throw new Error('No user logged in');
+
+      // Update auth metadata
+      const { error: authError } = await supabase.auth.updateUser({
+        data: { display_name: displayName }
+      });
+
+      if (authError) throw authError;
+
+      // Update database profile
+      const { error: dbError } = await (supabase
+        .from('users')
+        .update as any)({ display_name: displayName })
+        .eq('id', currentUser.id);
+
+      if (dbError) throw dbError;
+
+      // Update local state
+      setUser(prev => prev ? { ...prev, displayName } : null);
+
       return { error: null };
     } catch (error) {
       return { error: error as Error };
@@ -320,8 +460,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const changePassword = async (newPassword: string) => {
     try {
-      if (!auth.currentUser) throw new Error('No user logged in');
-      await updatePassword(auth.currentUser, newPassword);
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (error) throw error;
       return { error: null };
     } catch (error) {
       return { error: error as Error };
@@ -336,10 +479,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       signIn,
       signInWithGoogle,
       signInAnonymously,
-      setUpRecaptcha,
       signInWithPhone,
+      verifyPhoneOtp,
       signOut,
-      isAdmin: role !== 'user', // Derived from role being non-user
+      isAdmin: role !== 'user',
       role,
       isOwner,
       updateUserProfile,

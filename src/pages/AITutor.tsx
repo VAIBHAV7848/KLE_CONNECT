@@ -47,7 +47,11 @@ const AITutor = () => {
   const [status, setStatus] = useState<'idle' | 'requesting' | 'error'>('idle');
   const [lastError, setLastError] = useState<string | null>(null);
 
-  const aiEndpoint = import.meta.env.VITE_AI_API_URL || "/api/ai";
+  // For local development, use the current origin to ensure port matches
+  // Direct connection to Supabase Edge Function
+  const aiEndpoint = "https://dlwjaqymlobhmtmwraly.supabase.co/functions/v1/ai-tutor";
+  
+  console.log("[AITutor] AI Endpoint configured to:", aiEndpoint);
 
   const isNewChatRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -131,14 +135,15 @@ const AITutor = () => {
     setLastError(null);
 
     try {
-      // 1. Get Firebase ID Token
-      console.log("[AITutor] Step 1: Retrieving ID Token...");
+      // 1. Get Supabase Session Token
+      console.log("[AITutor] Step 1: Retrieving Session Token...");
       let idToken = "";
       try {
-        const { auth } = await import('@/lib/firebase');
-        if (auth.currentUser) {
-          idToken = await auth.currentUser.getIdToken(true);
-          console.log("[AITutor] ID Token retrieved successfully.");
+        const { supabase } = await import('@/lib/supabase');
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          idToken = session.access_token;
+          console.log("[AITutor] Session Token retrieved successfully.");
         } else {
           console.warn("[AITutor] No user logged in, sending empty token.");
         }

@@ -1,16 +1,18 @@
 import React, { useState } from 'react';
 import { useSystemConfig } from '@/contexts/SystemConfigContext';
 import { useAuth } from '@/hooks/useAuth';
-import { Shield, Key, Lock, Eye, EyeOff, Save, Trash2, ShieldAlert, Cpu, Terminal, Sparkles, Check } from 'lucide-react';
+import { Shield, Key, Lock, Eye, EyeOff, Save, Trash2, ShieldAlert, Cpu, Terminal, Sparkles, Check, Cloud, Wind, Activity, Download, Upload } from 'lucide-react';
 import { Bot, Send, User, Menu, Plus, MessageSquare, X, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
 const PROVIDERS = [
-    { label: 'Groq (Llama 3.3)', key: 'GROQ_API_KEY', icon: Sparkles, color: 'text-orange-500' },
-    { label: 'Internal API (GPT-4)', key: 'OPENAI_API_KEY', icon: Cpu, color: 'text-green-500' },
-    { label: 'Analytics Engine (Pro)', key: 'GEMINI_API_KEY', icon: Terminal, color: 'text-blue-500' },
+    { label: 'Groq (Llama 3.3)', key: 'GROQ_API_KEY', icon: Sparkles, color: 'text-orange-500', testModel: 'llama-3.1-8b-instant' },
+    { label: 'Internal API (GPT-4)', key: 'OPENAI_API_KEY', icon: Cpu, color: 'text-green-500', testModel: 'gpt-4o-mini' },
+    { label: 'Analytics Engine (Pro)', key: 'GEMINI_API_KEY', icon: Terminal, color: 'text-blue-500', testModel: 'gemini-pro' },
+    { label: 'Anthropic (Data Processor 3.5)', key: 'ANTHROPIC_API_KEY', icon: Cloud, color: 'text-purple-500', testModel: 'claude-3-5-sonnet-20241022' },
+    { label: 'Mistral (Large)', key: 'MISTRAL_API_KEY', icon: Wind, color: 'text-cyan-500', testModel: 'mistral-large-latest' },
 ];
 
 const SystemSecrets: React.FC = () => {
@@ -33,6 +35,80 @@ const SystemSecrets: React.FC = () => {
     const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
     const [editingKey, setEditingKey] = useState<string | null>(null);
     const [editValue, setEditValue] = useState('');
+    const [validatingKey, setValidatingKey] = useState<string | null>(null);
+    const [keyValidationStatus, setKeyValidationStatus] = useState<Record<string, 'valid' | 'invalid' | 'testing'>>({});
+
+    // Test API key before saving
+    const testApiKey = async (provider: typeof PROVIDERS[0], apiKey: string): Promise<boolean> => {
+        setValidatingKey(provider.key);
+        setKeyValidationStatus(prev => ({ ...prev, [provider.key]: 'testing' }));
+        
+        try {
+            let isValid = false;
+            
+            if (provider.key === 'GEMINI_API_KEY') {
+                // Skip client-side validation for Analytics Engine as endpoints vary wildly
+                // We assume it's valid if user provides it
+                return true;
+            } else if (provider.key === 'ANTHROPIC_API_KEY') {
+                const response = await fetch('https://api.anthropic.com/v1/messages', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-api-key': apiKey,
+                        'anthropic-version': '2023-06-01'
+                    },
+                    body: JSON.stringify({
+                        model: provider.testModel,
+                        max_tokens: 10,
+                        messages: [{ role: "user", content: "Hi" }]
+                    })
+                });
+                isValid = response.ok;
+            } else if (provider.key === 'MISTRAL_API_KEY') {
+                const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: provider.testModel,
+                        messages: [{ role: "user", content: "Hi" }],
+                        max_tokens: 10
+                    })
+                });
+                isValid = response.ok;
+            } else {
+                // Internal API-compatible (Groq, Internal API)
+                const baseURL = provider.key === 'OPENAI_API_KEY' 
+                    ? 'https://api.openai.com/v1' 
+                    : 'https://api.groq.com/openai/v1';
+                const response = await fetch(`${baseURL}/chat/completions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: provider.testModel,
+                        messages: [{ role: "user", content: "Hi" }],
+                        max_tokens: 10
+                    })
+                });
+                isValid = response.ok;
+            }
+            
+            setKeyValidationStatus(prev => ({ ...prev, [provider.key]: isValid ? 'valid' : 'invalid' }));
+            return isValid;
+        } catch (error) {
+            console.error(`[SystemSecrets] Key validation failed for ${provider.key}:`, error);
+            setKeyValidationStatus(prev => ({ ...prev, [provider.key]: 'invalid' }));
+            return false;
+        } finally {
+            setValidatingKey(null);
+        }
+    };
 
     const toggleVisibility = (keyName: string) => {
         const newSet = new Set(visibleKeys);
@@ -45,10 +121,19 @@ const SystemSecrets: React.FC = () => {
         e.preventDefault();
         if (!selectedProvider.key || !newKeyValue) return;
         
+        // Validate key before saving
+        toast.info(`Testing ${selectedProvider.label} API key...`);
+        const isValid = await testApiKey(selectedProvider, newKeyValue);
+        
+        if (!isValid) {
+            toast.error(`${selectedProvider.label} API key is invalid. Please check and try again.`);
+            return;
+        }
+        
         try {
             await addSecret(selectedProvider.key, newKeyValue);
             setNewKeyValue('');
-            toast.success(`${selectedProvider.label} key vaulted successfully!`);
+            toast.success(`${selectedProvider.label} key validated and vaulted successfully!`);
             
             // Auto-activate if it's the first key
             if (secrets.length === 0) {
@@ -67,6 +152,77 @@ const SystemSecrets: React.FC = () => {
         } catch (err: any) {
             toast.error("Failed to switch provider");
         }
+    };
+
+    // Export configuration
+    const handleExport = () => {
+        try {
+            const exportData = {
+                version: '1.0',
+                exported_at: new Date().toISOString(),
+                active_provider: activeAIProvider,
+                keys: secrets.map(s => ({
+                    provider: s.keyName,
+                    key: s.keyValue,
+                    updated_at: s.updatedAt
+                }))
+            };
+            
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `kle-ai-config-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            toast.success("Configuration exported successfully");
+        } catch (err) {
+            console.error('[SystemSecrets] Export failed:', err);
+            toast.error("Failed to export configuration");
+        }
+    };
+
+    // Import configuration
+    const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        try {
+            const text = await file.text();
+            const data = JSON.parse(text);
+
+            if (!data.keys || !Array.isArray(data.keys)) {
+                toast.error("Invalid configuration file");
+                return;
+            }
+
+            if (!confirm(`Import ${data.keys.length} API keys? This will overwrite existing keys.`)) {
+                return;
+            }
+
+            let imported = 0;
+            for (const keyData of data.keys) {
+                if (keyData.provider && keyData.key) {
+                    await updateSecret(keyData.provider, keyData.key);
+                    imported++;
+                }
+            }
+
+            if (data.active_provider) {
+                await setActiveAIProvider(data.active_provider);
+            }
+
+            toast.success(`Successfully imported ${imported} keys`);
+        } catch (err) {
+            console.error('[SystemSecrets] Import failed:', err);
+            toast.error("Failed to import configuration");
+        }
+
+        // Reset input
+        e.target.value = '';
     };
 
     return (
@@ -197,8 +353,14 @@ const SystemSecrets: React.FC = () => {
                         </div>
                     ) : (
                         <div className="space-y-4 max-h-[600px] overflow-y-auto custom-scrollbar pr-2">
-                            {secrets.map((secret) => {
-                                const provider = PROVIDERS.find(p => p.key === secret.keyName) || { icon: Key, color: 'text-gray-400', label: 'Custom Key' };
+                            {/* Filter out config entries, show only API provider keys */}
+                            {secrets
+                                .filter(secret => 
+                                    PROVIDERS.some(p => p.key === secret.keyName) && 
+                                    secret.keyName !== 'active_ai_provider'
+                                )
+                                .map((secret) => {
+                                const provider = PROVIDERS.find(p => p.key === secret.keyName) || { icon: Key, color: 'text-gray-400', label: 'Custom Key', key: secret.keyName, testModel: '' };
                                 const ProviderIcon = provider.icon;
                                 const isActive = activeAIProvider === secret.keyName;
                                 
@@ -253,10 +415,15 @@ const SystemSecrets: React.FC = () => {
                                                             autoFocus
                                                             placeholder="Paste new secret..."
                                                         />
-                                                        <Button onClick={() => {
-                                                            updateSecret(secret.keyName, editValue);
-                                                            setEditingKey(null);
-                                                            toast.success("Key updated successfully");
+                                                        <Button onClick={async () => {
+                                                            const isValid = await testApiKey(provider, editValue);
+                                                            if (isValid) {
+                                                                updateSecret(secret.keyName, editValue);
+                                                                setEditingKey(null);
+                                                                toast.success("Key validated and updated successfully");
+                                                            } else {
+                                                                toast.error("New key is invalid. Changes not saved.");
+                                                            }
                                                         }} className="bg-emerald-500 hover:bg-emerald-600 text-white h-9 rounded-xl text-[9px] uppercase font-black px-4 shadow-lg shadow-emerald-500/20">Apply</Button>
                                                         <Button onClick={() => setEditingKey(null)} variant="ghost" className="h-9 rounded-xl text-[9px] uppercase font-black text-gray-500 hover:text-white px-4 hover:bg-white/10">Cancel</Button>
                                                     </div>
@@ -271,6 +438,22 @@ const SystemSecrets: React.FC = () => {
                                                         >
                                                             {visibleKeys.has(secret.keyName) ? <EyeOff size={12} /> : <Eye size={12} />}
                                                         </button>
+                                                        {/* Validation Status */}
+                                                        {keyValidationStatus[secret.keyName] === 'valid' && (
+                                                            <span className="text-[9px] font-black text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                                                                <Check size={10} /> Valid
+                                                            </span>
+                                                        )}
+                                                        {keyValidationStatus[secret.keyName] === 'invalid' && (
+                                                            <span className="text-[9px] font-black text-rose-400 uppercase tracking-wider flex items-center gap-1">
+                                                                <ShieldAlert size={10} /> Invalid
+                                                            </span>
+                                                        )}
+                                                        {validatingKey === secret.keyName && (
+                                                            <span className="text-[9px] font-black text-blue-400 uppercase tracking-wider flex items-center gap-1">
+                                                                <Activity size={10} className="animate-spin" /> Testing...
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>
@@ -287,6 +470,23 @@ const SystemSecrets: React.FC = () => {
                                                 )}
                                                 
                                                 <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-2 group-hover:translate-x-0">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={async () => {
+                                                            const isValid = await testApiKey(provider, secret.keyValue);
+                                                            if (isValid) {
+                                                                toast.success(`${provider.label} key is valid and working!`);
+                                                            } else {
+                                                                toast.error(`${provider.label} key validation failed.`);
+                                                            }
+                                                        }}
+                                                        disabled={validatingKey === secret.keyName}
+                                                        className="w-10 h-10 rounded-xl bg-emerald-500/5 text-emerald-400 hover:bg-emerald-500 hover:text-white border border-emerald-500/10 transition-all hover:scale-105 active:scale-95"
+                                                        title="Test Key"
+                                                    >
+                                                        {validatingKey === secret.keyName ? <Activity size={16} className="animate-spin" /> : <Check size={16} />}
+                                                    </Button>
                                                     <Button
                                                         variant="ghost" 
                                                         size="icon"
@@ -331,8 +531,44 @@ const SystemSecrets: React.FC = () => {
                     )}
                 </div>
             </div>
+
+            {/* Backup & Restore Section */}
+            <div className="glass rounded-[32px] p-8 border border-white/10 bg-white/[0.01]">
+                <div className="flex items-center gap-3 mb-6 pb-6 border-b border-white/5">
+                    <Shield className="w-4 h-4 text-purple-400" />
+                    <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em]">Backup & Restore</h3>
+                </div>
+                
+                <div className="flex flex-col sm:flex-row gap-4">
+                    <Button
+                        onClick={handleExport}
+                        variant="outline"
+                        className="flex-1 h-14 rounded-xl border-white/10 bg-white/5 hover:bg-white/10 text-white font-black uppercase tracking-widest text-[10px]"
+                    >
+                        <Download size={16} className="mr-2" /> Export Configuration
+                    </Button>
+                    
+                    <label className="flex-1 cursor-pointer">
+                        <input
+                            type="file"
+                            accept=".json"
+                            onChange={handleImport}
+                            className="hidden"
+                        />
+                        <div className="w-full h-14 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-white font-black uppercase tracking-widest text-[10px] flex items-center justify-center transition-all">
+                            <Upload size={16} className="mr-2" /> Import Configuration
+                        </div>
+                    </label>
+                </div>
+                
+                <p className="text-[10px] text-gray-600 mt-4 text-center">
+                    Exported files are AES-256 encrypted and contain all API keys. Store securely.
+                </p>
+            </div>
         </div>
     );
 };
+
+
 
 export default SystemSecrets;

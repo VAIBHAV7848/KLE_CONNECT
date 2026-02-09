@@ -1,9 +1,27 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
+// Allowed origins for CORS
+const ALLOWED_ORIGINS = [
+    'https://kle-connect.vercel.app',
+    'https://kle-connect.firebaseapp.com',
+    'http://localhost:3000',
+    'http://localhost:5173'
+];
+
+function getCorsOrigin(req) {
+    const origin = req.headers.origin;
+    if (!origin) return ALLOWED_ORIGINS[0];
+    if (ALLOWED_ORIGINS.includes(origin)) return origin;
+    return null;
+}
+
 export default async function handler(req, res) {
-    // 1. Enable CORS
-    res.setHeader('Access-Control-Allow-Credentials', true);
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    // 1. Enable CORS with restricted origins
+    const corsOrigin = getCorsOrigin(req);
+    if (corsOrigin) {
+        res.setHeader('Access-Control-Allow-Origin', corsOrigin);
+        res.setHeader('Access-Control-Allow-Credentials', true);
+    }
     res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
     res.setHeader(
         'Access-Control-Allow-Headers',

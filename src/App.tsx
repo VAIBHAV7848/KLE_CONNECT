@@ -4,12 +4,11 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import {
   createHashRouter,
   RouterProvider,
-  Outlet
 } from "react-router-dom";
-import { AnimatePresence } from "framer-motion";
-import { AuthProvider } from "@/hooks/useAuth";
-import { ThemeProvider } from "@/hooks/useTheme";
 import { Analytics } from "@vercel/analytics/react";
+import React, { Suspense, lazy, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { Loader2 } from "lucide-react";
 
 // Pages
 import Dashboard from "./pages/Dashboard";
@@ -25,18 +24,23 @@ import Doubts from "./pages/Doubts";
 import SeniorConnect from "./pages/SeniorConnect";
 import StudentHelp from "./pages/StudentHelp";
 import SettingsPage from "./pages/Settings";
-import React, { Suspense, lazy } from "react";
-// ... other imports
-
-// Lazy load Admin module
-const Admin = lazy(() => import("./pages/Admin"));
 import Support from "./pages/Support";
 import NotFound from "./pages/NotFound";
+import Community from "./pages/Community";
+
+// Components
 import ErrorBoundary from "./components/ErrorBoundary";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminProtectedRoute from "./components/AdminProtectedRoute";
-import Community from "./pages/Community";
 
+// Hooks
+import { ThemeProvider } from "@/hooks/useTheme";
+import AuthCallback from "./components/AuthCallback";
+
+// Lazy load Admin module
+const Admin = lazy(() => import("./pages/Admin"));
+
+// App.tsx - Optimized routing
 const router = createHashRouter([
   {
     path: "/auth",
@@ -56,7 +60,7 @@ const router = createHashRouter([
       <AdminProtectedRoute allowedRoles={['ops_admin', 'super_admin']}>
         <Suspense fallback={
           <div className="h-screen w-full flex items-center justify-center bg-background">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <Loader2 className="w-10 h-10 animate-spin text-primary opacity-50" />
           </div>
         }>
           <Admin />
@@ -178,7 +182,7 @@ const router = createHashRouter([
   },
   {
     path: "*",
-    element: <NotFound />,
+    element: <AuthCallback />,
   },
 ], {
   future: {
@@ -194,14 +198,12 @@ const router = createHashRouter([
 const App = () => (
   <ErrorBoundary>
     <ThemeProvider>
-      <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <RouterProvider router={router} future={{ v7_startTransition: true }} />
-          <Analytics />
-        </TooltipProvider>
-      </AuthProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <RouterProvider router={router} />
+        <Analytics />
+      </TooltipProvider>
     </ThemeProvider>
   </ErrorBoundary>
 );

@@ -2,9 +2,29 @@
  * Admin Authentication Proxy
  * Moves master password verification to server-side
  */
+
+// Allowed origins for CORS
+const ALLOWED_ORIGINS = [
+    'https://kle-connect.vercel.app',
+    'https://kle-connect.firebaseapp.com',
+    'http://localhost:3000',
+    'http://localhost:5173'
+];
+
+function getCorsOrigin(req) {
+    const origin = req.headers.origin;
+    if (!origin) return ALLOWED_ORIGINS[0];
+    if (ALLOWED_ORIGINS.includes(origin)) return origin;
+    return null;
+}
+
 export default async function handler(req, res) {
-    // Enable CORS
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    // Enable CORS with restricted origins
+    const corsOrigin = getCorsOrigin(req);
+    if (corsOrigin) {
+        res.setHeader('Access-Control-Allow-Origin', corsOrigin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
     res.setHeader('Access-Control-Allow-Methods', 'POST');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 

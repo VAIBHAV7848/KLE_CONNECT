@@ -5,8 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
-import { database } from '@/lib/firebase';
-import { ref, update, get } from 'firebase/database';
+import { supabase } from '@/lib/supabase';
 
 interface PrivacyModalProps {
   isOpen: boolean;
@@ -20,12 +19,17 @@ export function PrivacyModal({ isOpen, onClose, defaultVisibility = 'public' }: 
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (user) {
+    if (user?.uid) {
       // Fetch current visibility setting
       const fetchSettings = async () => {
-        const snapshot = await get(ref(database, `users/${user.uid}/settings/profileVisibility`));
-        if (snapshot.exists()) {
-          setVisibility(snapshot.val());
+        const { data, error } = await supabase
+          .from('users')
+          .select('settings')
+          .eq('id', user.uid)
+          .single();
+        
+        if (!error && data?.settings?.profileVisibility) {
+          setVisibility(data.settings.profileVisibility);
         }
       };
       fetchSettings();
@@ -33,13 +37,21 @@ export function PrivacyModal({ isOpen, onClose, defaultVisibility = 'public' }: 
   }, [user]);
 
   const handleSave = async () => {
-    if (!user) return;
+    if (!user?.uid) return;
     
     setIsLoading(true);
     try {
-      await update(ref(database, `users/${user.uid}/settings`), {
-        profileVisibility: visibility
-      });
+      const { error } = await supabase
+        .from('users')
+        .update({
+          settings: {
+            profileVisibility: visibility
+          }
+        })
+        .eq('id', user.uid);
+      
+      if (error) throw error;
+      
       toast.success('Privacy settings updated');
       onClose();
     } catch (error) {

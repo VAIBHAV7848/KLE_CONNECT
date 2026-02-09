@@ -12,11 +12,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import SystemSecrets from '@/components/admin/SystemSecrets';
+import AIAnalytics from '@/components/admin/AIAnalytics';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { database } from '@/lib/firebase';
-import { ref, set, onValue, update, remove, push } from 'firebase/database';
+import { supabase } from '@/lib/supabase';
 import { sanitizeInput, RateLimiter } from '@/lib/security';
 
 interface AdminStat {
@@ -36,12 +36,26 @@ interface ManagedUser {
     isOwner: boolean;
 }
 
+interface BroadcastData {
+    message: string;
+    timestamp: number;
+    active: boolean;
+    sentBy: string;
+    endedAt?: number;
+    stoppedBy?: string;
+}
 
+interface SystemSettings {
+    id: number;
+    broadcast?: BroadcastData;
+    lockdown?: boolean;
+    maintenance?: boolean;
+}
 
 const Admin = () => {
     const { toast } = useToast();
     const { role: currentAdminRole, user: currentUser, isOwner: iAmOwner } = useAuth();
-    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'rooms' | 'moderation' | 'system_config'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'rooms' | 'moderation' | 'system_config' | 'analytics'>('overview');
     const [isLive, setIsLive] = useState(true);
     const [isLockdownActive, setIsLockdownActive] = useState(false);
     const [isStopping, setIsStopping] = useState(false);
@@ -60,135 +74,239 @@ const Admin = () => {
 
     // 1. Initialize data and persistence
     useEffect(() => {
-        // Load Broadcast from Firebase (GLOBAL)
-        const broadcastRef = ref(database, 'system/broadcast');
-        const unsubscribeBroadcast = onValue(broadcastRef, (snapshot) => {
-            const data = snapshot.val();
-            if (data && data.active) {
-                setBroadcast(data.message);
-            } else {
-                setBroadcast('');
+        // Load Broadcast from Supabase (GLOBAL)
+        const loadBroadcast = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('system_settings')
+                    .select('broadcast')
+                    .eq('id', 1)
+                    .single();
+
+                if (error) throw error;
+
+                if (data?.broadcast?.active) {
+                    setBroadcast(data.broadcast.message);
+                } else {
+                    setBroadcast('');
+                }
+            } catch (error) {
+                console.error('[Admin] Error fetching broadcast:', error);
             }
-        });
+        };
+
+        loadBroadcast();
+
+        // Subscribe to broadcast changes
+        const broadcastSubscription = supabase
+            .channel('broadcast_changes')
+            .on('postgres_changes', 
+                { event: '*', schema: 'public', table: 'system_settings', filter: 'id=eq.1' },
+                (payload) => {
+                    const newData = payload.new as SystemSettings;
+                    if (newData?.broadcast?.active) {
+                        setBroadcast(newData.broadcast.message);
+                    } else {
+                        setBroadcast('');
+                    }
+                }
+            )
+            .subscribe();
 
         // Load Users (for management tab)
-        const usersRef = ref(database, 'users');
-        const unsubscribeUsers = onValue(usersRef, (snapshot) => {
-            if (snapshot.exists()) {
-                const data = snapshot.val();
+        const loadUsers = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('users')
+                    .select('*');
 
-                // DEBUG: Log user count for verification
-                console.log(`[Admin] Fetched ${Object.keys(data).length} users from Firebase.`);
+                if (error) throw error;
 
-                const userList: ManagedUser[] = Object.keys(data).map(key => ({
-                    id: key,
-                    name: data[key].displayName || 'Unknown User', // Fallback for display
-                    email: data[key].email || 'No Email',
-                    // TESTING MODE SAFEGUARD: If role is missing/NULL, display as 'user'. 
-                    // Do NOT persist this fallback to DB to avoid overwriting legacy data.
-                    role: data[key].role || 'user',
-                    // TESTING MODE SAFEGUARD: Default to 'Active' if status is missing.
-                    status: data[key].status || 'Active',
-                    isOwner: data[key].isOwner === true
-                }));
-                setUsers(userList);
-            } else {
-                console.log('[Admin] No users found in database.');
-                setUsers([]);
+                if (data) {
+                    // DEBUG: Log user count for verification
+                    console.log(`[Admin] Fetched ${data.length} users from Supabase.`);
+
+                    const userList: ManagedUser[] = data.map(user => ({
+                        id: user.id,
+                        name: user.display_name || 'Unknown User',
+                        email: user.email || 'No Email',
+                        role: user.role || 'user',
+                        status: user.status || 'Active',
+                        isOwner: user.is_owner === true
+                    }));
+                    setUsers(userList);
+                } else {
+                    console.log('[Admin] No users found in database.');
+                    setUsers([]);
+                }
+            } catch (error) {
+                console.error('[Admin] Error fetching users:', error);
+                toast({
+                    title: "Access Error",
+                    description: "Database Permission Denied. Please check your Supabase permissions.",
+                    variant: "destructive"
+                });
             }
-        }, (error) => {
-            console.error('[Admin] Error fetching users:', error);
-            toast({
-                title: "Access Error",
-                description: "Database Permission Denied. Please ensure you have deployed the latest validation rules (database.rules.json) to Firebase Console.",
-                variant: "destructive"
-            });
-        });
+        };
 
-        // Load Rooms from Firebase (real-time active study rooms)
-        const roomsRef = ref(database, 'rooms');
-        const unsubscribeRooms = onValue(roomsRef, (snapshot) => {
-            if (snapshot.exists()) {
-                const roomsData = snapshot.val();
-                const roomsList = Object.keys(roomsData).map(key => ({
-                    id: key,
-                    name: roomsData[key].name || 'Unnamed Room',
-                    topic: roomsData[key].topic || 'General',
-                    host: 'Student', // Can be enhanced to track actual host
-                    participants: roomsData[key].participants || 0,
-                    uptime: Math.floor((Date.now() - (roomsData[key].createdAt || Date.now())) / 60000) + 'm'
-                })).filter(room => room.participants > 0); // Only show active rooms
-                
-                setRooms(roomsList);
-            } else {
-                setRooms([]);
+        loadUsers();
+
+        // Subscribe to users changes
+        const usersSubscription = supabase
+            .channel('users_changes')
+            .on('postgres_changes', 
+                { event: '*', schema: 'public', table: 'users' },
+                () => {
+                    loadUsers();
+                }
+            )
+            .subscribe();
+
+        // Load Rooms from Supabase (real-time active study rooms)
+        const loadRooms = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('rooms')
+                    .select('*');
+
+                if (error) throw error;
+
+                if (data) {
+                    const roomsList = data
+                        .filter(room => (room.participants || 0) > 0)
+                        .map(room => ({
+                            id: room.id,
+                            name: room.name || 'Unnamed Room',
+                            topic: room.topic || 'General',
+                            host: 'Student',
+                            participants: room.participants || 0,
+                            uptime: Math.floor((Date.now() - new Date(room.created_at || Date.now()).getTime()) / 60000) + 'm'
+                        }));
+                    
+                    setRooms(roomsList);
+                } else {
+                    setRooms([]);
+                }
+            } catch (error) {
+                console.error('[Admin] Error fetching rooms:', error);
             }
-        });
+        };
 
-        // Load Lockdown State from Firebase (GLOBAL)
-        const lockdownRef = ref(database, 'system/lockdown');
-        const unsubscribeLockdown = onValue(lockdownRef, (snapshot) => {
-            const status = snapshot.val();
-            setIsLockdownActive(status === true);
-        });
+        loadRooms();
+
+        // Subscribe to rooms changes
+        const roomsSubscription = supabase
+            .channel('rooms_changes')
+            .on('postgres_changes', 
+                { event: '*', schema: 'public', table: 'rooms' },
+                () => {
+                    loadRooms();
+                }
+            )
+            .subscribe();
+
+        // Load Lockdown State from Supabase (GLOBAL)
+        const loadLockdown = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('system_settings')
+                    .select('lockdown')
+                    .eq('id', 1)
+                    .single();
+
+                if (error) throw error;
+
+                setIsLockdownActive(data?.lockdown === true);
+            } catch (error) {
+                console.error('[Admin] Error fetching lockdown state:', error);
+            }
+        };
+
+        loadLockdown();
+
+        // Subscribe to lockdown changes
+        const lockdownSubscription = supabase
+            .channel('lockdown_changes')
+            .on('postgres_changes', 
+                { event: '*', schema: 'public', table: 'system_settings', filter: 'id=eq.1' },
+                (payload) => {
+                    const newData = payload.new as SystemSettings;
+                    setIsLockdownActive(newData?.lockdown === true);
+                }
+            )
+            .subscribe();
 
         // --- FETCH REAL STATS ---
-        // We listen to specific nodes to be efficient and secure
-        const doubtsRef = ref(database, 'doubts');
-        const unsubscribeStats = onValue(doubtsRef, (snapshot) => {
-            const data = snapshot.val() || {};
-            const doubtCount = Object.keys(data).length;
+        const loadDoubtCount = async () => {
+            try {
+                const { count, error } = await supabase
+                    .from('forum_questions')
+                    .select('*', { count: 'exact', head: true });
 
-            // We update stats using the live counts
-            // Note: users count is derived from the users state or a separate listener if needed.
-            // Since we already have a users listener above, we can use that, but `users` state might update frequent.
-            // For simplicity in this `useEffect`, we reference the 'users' data if we want, 
-            // but `users` state is inside the component.
-            // Best approach: Update stats when `users` or `doubts` changes.
-            // However, inside this callback, we only know about doubts.
+                if (error) throw error;
 
-            // We will set a local ref for doubt count to combine with user count later OR
-            // just let this effect manage the stats fully if we duplicate the user listener or use a separate counter.
-            // To avoid complexity, we can just update the stats here, assuming user count comes from the usersRef above? 
-            // Actually, the usersRef above sets `setUsers`. 
-            // Let's create a combined state updater or just listen to users again for the count metric? 
-            // No, listening twice is redundant.
-            // Let's make `stats` dependent on `users` length in the render, 
-            // OR strictly, let's keep the logic here but fetch users "count" lightly? 
-            // Firebase doesn't support "count" queries easily without cloud functions.
-            // We will stick to client side counting.
+                setDoubtCountState(count || 0);
+            } catch (error) {
+                console.error('[Admin] Error fetching doubt count:', error);
+                setDoubtCountState(0);
+            }
+        };
 
-            // We'll update the 'Doubts' part of the stats here, and let the Users part update when `users` changes.
-            // Actually, `setStats` overwrites. Better to use functional state update?
-            // Or easier: Just define `stats` as a derived variable from `users.length`, `mockRooms.length`, etc.
-            // BUT `doubts` is not in state as a list.
-            // So: Add `doubtCount` to state.
-            setDoubtCountState(doubtCount); // We need to add this state variable
-        });
+        loadDoubtCount();
+
+        // Subscribe to forum_questions changes for live count
+        const doubtsSubscription = supabase
+            .channel('doubts_changes')
+            .on('postgres_changes', 
+                { event: '*', schema: 'public', table: 'forum_questions' },
+                () => {
+                    loadDoubtCount();
+                }
+            )
+            .subscribe();
 
         // Load Audit Logs (for Session Activity monitor)
-        const auditRef = ref(database, 'system/audit_logs');
-        const unsubscribeAudit = onValue(auditRef, (snapshot) => {
-            if (snapshot.exists()) {
-                const data = snapshot.val();
-                const logs = Object.keys(data).map(key => ({
-                    id: key,
-                    ...data[key]
-                })).sort((a, b) => b.timestamp - a.timestamp).slice(0, 10);
-                setAuditLogs(logs);
-            } else {
-                setAuditLogs([]);
-            }
-        });
+        const loadAuditLogs = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('audit_logs')
+                    .select('*')
+                    .order('timestamp', { ascending: false })
+                    .limit(10);
 
-        // Cleanup Firebase listeners on unmount
+                if (error) throw error;
+
+                if (data) {
+                    setAuditLogs(data);
+                } else {
+                    setAuditLogs([]);
+                }
+            } catch (error) {
+                console.error('[Admin] Error fetching audit logs:', error);
+            }
+        };
+
+        loadAuditLogs();
+
+        // Subscribe to audit_logs changes
+        const auditSubscription = supabase
+            .channel('audit_logs_changes')
+            .on('postgres_changes', 
+                { event: '*', schema: 'public', table: 'audit_logs' },
+                () => {
+                    loadAuditLogs();
+                }
+            )
+            .subscribe();
+
+        // Cleanup Supabase subscriptions on unmount
         return () => {
-            unsubscribeBroadcast();
-            unsubscribeUsers();
-            unsubscribeRooms();
-            unsubscribeAudit();
-            unsubscribeLockdown();
-            unsubscribeStats();
+            broadcastSubscription.unsubscribe();
+            usersSubscription.unsubscribe();
+            roomsSubscription.unsubscribe();
+            lockdownSubscription.unsubscribe();
+            doubtsSubscription.unsubscribe();
+            auditSubscription.unsubscribe();
         };
     }, []);
 
@@ -222,11 +340,21 @@ const Admin = () => {
         // Sanitize input to prevent XSS
         const sanitizedMessage = sanitizeInput(broadcast);
 
-        const payload = { message: sanitizedMessage, timestamp: Date.now(), active: true, sentBy: 'Admin' };
+        const payload: BroadcastData = { 
+            message: sanitizedMessage, 
+            timestamp: Date.now(), 
+            active: true, 
+            sentBy: 'Admin' 
+        };
 
         try {
-            // Push to Firebase Realtime Database
-            await set(ref(database, 'system/broadcast'), payload);
+            // Update in Supabase
+            const { error } = await supabase
+                .from('system_settings')
+                .update({ broadcast: payload })
+                .eq('id', 1);
+
+            if (error) throw error;
 
             logAdminAction('push_broadcast', 'global', `Message: ${sanitizedMessage.substring(0, 50)}...`);
 
@@ -248,14 +376,21 @@ const Admin = () => {
     const clearBroadcast = async () => {
         setIsStopping(true);
         try {
-            // SOFT DELETE: Update status instead of removing
-            // This preserves the record for history but kills the display
-            const broadcastRef = ref(database, 'system/broadcast');
-            await update(broadcastRef, {
+            const payload: BroadcastData = {
+                message: broadcast,
+                timestamp: Date.now(),
                 active: false,
                 endedAt: Date.now(),
-                stoppedBy: currentUser?.uid || 'unknown'
-            });
+                stoppedBy: currentUser?.uid || 'unknown',
+                sentBy: 'Admin'
+            };
+
+            const { error } = await supabase
+                .from('system_settings')
+                .update({ broadcast: payload })
+                .eq('id', 1);
+
+            if (error) throw error;
 
             setBroadcast('');
             logAdminAction('STOP_ACTIVE_BROADCAST', 'global', 'Emergency stop of broadcast triggered by admin');
@@ -276,17 +411,20 @@ const Admin = () => {
     // --- AUDIT LOGGING ---
     const logAdminAction = async (action: string, targetId: string, details: string, wasBlocked: boolean = false) => {
         try {
-            const logRef = push(ref(database, 'system/audit_logs'));
-            await set(logRef, {
-                actorId: currentUser?.uid || 'unknown',
-                actorEmail: currentUser?.email || 'unknown',
-                role: currentAdminRole,
-                action,
-                targetId,
-                details,
-                blocked: wasBlocked,
-                timestamp: Date.now()
-            });
+            const { error } = await supabase
+                .from('audit_logs')
+                .insert({
+                    actor_id: currentUser?.uid || 'unknown',
+                    actor_email: currentUser?.email || 'unknown',
+                    role: currentAdminRole,
+                    action,
+                    target_id: targetId,
+                    details,
+                    blocked: wasBlocked,
+                    timestamp: Date.now()
+                });
+
+            if (error) throw error;
         } catch (err) {
             console.error('Audit log failed', err);
         }
@@ -314,14 +452,18 @@ const Admin = () => {
             return;
         }
 
-        const userRef = ref(database, `users/${id}`);
-
         try {
-            await update(userRef, { role: newRole });
+            const { error } = await supabase
+                .from('users')
+                .update({ role: newRole })
+                .eq('id', id);
+
+            if (error) throw error;
+
             logAdminAction('change_role', id, `Changed role to ${newRole}`);
             toast({ title: "Role Updated", description: `User promoted to ${newRole}.` });
         } catch (error) {
-            logAdminAction('change_role', id, `Firebase Write Error: ${error}`, true);
+            logAdminAction('change_role', id, `Supabase Write Error: ${error}`, true);
             toast({ title: "Update Failed", description: "Database rule prevented this action.", variant: "destructive" });
         }
     };
@@ -332,11 +474,23 @@ const Admin = () => {
 
         const nextStatus = userToUpdate.status === 'Active' ? 'Suspended' : 'Active';
 
-        // Update in Firebase
-        const userRef = ref(database, `users/${id}`);
-        await update(userRef, { status: nextStatus });
+        try {
+            const { error } = await supabase
+                .from('users')
+                .update({ status: nextStatus })
+                .eq('id', id);
 
-        toast({ title: "User Status Updated", description: `User marked as ${nextStatus}.` });
+            if (error) throw error;
+
+            toast({ title: "User Status Updated", description: `User marked as ${nextStatus}.` });
+        } catch (error) {
+            console.error('Error updating user status:', error);
+            toast({ 
+                title: "Update Failed", 
+                description: "Could not update user status.", 
+                variant: "destructive" 
+            });
+        }
     };
 
     const deleteUser = async (id: string) => {
@@ -358,27 +512,38 @@ const Admin = () => {
 
         if (!confirm('Are you sure you want to permanently delete this user? This action cannot be undone.')) return;
 
-        // Remove from Firebase
-        const userRef = ref(database, `users/${id}`);
-
         try {
-            await remove(userRef);
+            const { error } = await supabase
+                .from('users')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+
             logAdminAction('delete_user', id, "User deleted successfully");
             toast({ title: "User Revoked", description: "Student access has been permanently removed from the portal." });
         } catch (error) {
+            console.error('Error deleting user:', error);
             toast({ title: "Delete Failed", description: "Database rule prevented this action.", variant: "destructive" });
         }
     };
 
     const terminateRoom = async (id: string) => {
         try {
-            await remove(ref(database, `rooms/${id}`));
+            const { error } = await supabase
+                .from('rooms')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+
             logAdminAction('terminate_room', id, 'Room terminated by admin');
             toast({
                 title: "Session Terminated",
                 description: `Intercepted and killed Room ${id} successfully. Stream terminated.`,
             });
         } catch (error) {
+            console.error('Error terminating room:', error);
             toast({
                 title: "Kill Failed",
                 description: "Permission denied or network error.",
@@ -391,15 +556,27 @@ const Admin = () => {
         const nextState = !isLive;
         setIsLive(nextState);
 
-        // Update in Firebase (GLOBAL)
-        const sysRef = ref(database, 'system/maintenance');
-        await set(sysRef, !nextState); // if isLive is false, maintenance is true
+        try {
+            const { error } = await supabase
+                .from('system_settings')
+                .update({ maintenance: !nextState })
+                .eq('id', 1);
 
-        toast({
-            title: nextState ? "System Operational" : "Maintenance Mode ACTIVE",
-            description: nextState ? "All normal services restored." : "Access restricted for global maintenance.",
-            variant: nextState ? "default" : "destructive"
-        });
+            if (error) throw error;
+
+            toast({
+                title: nextState ? "System Operational" : "Maintenance Mode ACTIVE",
+                description: nextState ? "All normal services restored." : "Access restricted for global maintenance.",
+                variant: nextState ? "default" : "destructive"
+            });
+        } catch (error) {
+            console.error('Error toggling maintenance mode:', error);
+            toast({
+                title: "Action Failed",
+                description: "Could not update maintenance mode.",
+                variant: "destructive"
+            });
+        }
     };
 
     const toggleLockdown = async () => {
@@ -416,22 +593,35 @@ const Admin = () => {
         const nextState = !isLockdownActive;
         setIsLockdownActive(nextState);
 
-        // Write to Firebase Realtime Database (GLOBAL)
-        const lockdownRef = ref(database, 'system/lockdown');
-        await set(lockdownRef, nextState);
+        try {
+            const { error } = await supabase
+                .from('system_settings')
+                .update({ lockdown: nextState })
+                .eq('id', 1);
 
-        if (nextState) {
-            // Activate Lockdown
+            if (error) throw error;
+
+            if (nextState) {
+                // Activate Lockdown
+                toast({
+                    title: "EMERGENCY LOCKDOWN ACTIVATED",
+                    description: "All student accounts suspended globally. Sessions terminated. Only admins can access the platform.",
+                    variant: "destructive"
+                });
+            } else {
+                // Deactivate Lockdown
+                toast({
+                    title: "LOCKDOWN DEACTIVATED",
+                    description: "Normal operations restored globally. All student accounts reactivated.",
+                });
+            }
+        } catch (error) {
+            console.error('Error toggling lockdown:', error);
+            setIsLockdownActive(!nextState); // Revert state on error
             toast({
-                title: "🚨 EMERGENCY LOCKDOWN ACTIVATED",
-                description: "All student accounts suspended globally. Sessions terminated. Only admins can access the platform.",
+                title: "Action Failed",
+                description: "Could not update lockdown state.",
                 variant: "destructive"
-            });
-        } else {
-            // Deactivate Lockdown
-            toast({
-                title: "✅ LOCKDOWN DEACTIVATED",
-                description: "Normal operations restored globally. All student accounts reactivated.",
             });
         }
     };
@@ -517,7 +707,10 @@ const Admin = () => {
                         { id: 'users', label: 'User Directory', icon: Users },
                         { id: 'rooms', label: 'Active Meetings', icon: Video },
                         { id: 'moderation', label: 'Security Lab', icon: Lock },
-                        ...(iAmOwner ? [{ id: 'system_config', label: 'System Configuration', icon: ShieldCheck }] : [])
+                        ...(iAmOwner ? [
+                            { id: 'system_config', label: 'System Configuration', icon: ShieldCheck },
+                            { id: 'analytics', label: 'Analytics', icon: BarChart3 }
+                        ] : [])
                     ].map(tab => (
                         <button
                             key={tab.id}
@@ -541,7 +734,7 @@ const Admin = () => {
                             )}
                             <tab.icon className={cn(
                                 "w-4 h-4 relative z-10 transition-transform duration-300 group-hover:scale-110", 
-                                tab.id === 'system_config' && "text-rose-500",
+                                (tab.id === 'system_config' || tab.id === 'analytics') && "text-rose-500",
                                 activeTab === tab.id && "text-blue-400"
                             )} />
                             <span className="relative z-10">{tab.label}</span>
@@ -891,7 +1084,7 @@ const Admin = () => {
                                                         )} />
                                                         <div>
                                                             <p className="text-[11px] font-black uppercase tracking-widest text-gray-200">{log.action.replace(/_/g, ' ')}</p>
-                                                            <p className="text-[9px] text-gray-600 font-mono mt-1">OBJ: {log.targetId}</p>
+                                                            <p className="text-[9px] text-gray-600 font-mono mt-1">OBJ: {log.target_id || log.targetId}</p>
                                                         </div>
                                                     </div>
                                                     <div className="text-right">
@@ -994,6 +1187,18 @@ const Admin = () => {
                             >
                                 <ErrorBoundary>
                                     <SystemSecrets />
+                                </ErrorBoundary>
+                            </motion.div>
+                        )}
+
+                        {activeTab === 'analytics' && iAmOwner && (
+                            <motion.div
+                                key="analytics"
+                                initial={{ opacity: 0, scale: 0.98 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                            >
+                                <ErrorBoundary>
+                                    <AIAnalytics />
                                 </ErrorBoundary>
                             </motion.div>
                         )}

@@ -20,18 +20,13 @@ import {
   Bell,
   X
 } from 'lucide-react';
-import { database } from '@/lib/firebase';
-import { ref, onValue } from 'firebase/database';
+import { supabase } from '@/lib/supabase';
 
 /**
  * Dashboard - Main landing page for KLE CONNECT
  */
 const Dashboard = () => {
   const { user, loading, signOut, isAdmin } = useAuth();
-
-  // Stats Data ... (state is already defined below)
-
-  // ... (keeping the existing useEffect for stats)
 
   const quickActions = [
     {
@@ -94,18 +89,46 @@ const Dashboard = () => {
       { label: 'Pending Tasks', value: taskCount.toString(), icon: Target, change: taskCount > 0 ? 'Action needed' : 'Clear' },
     ]);
 
-    // 3. Load Global Announcement from Firebase
-    const broadcastRef = ref(database, 'system/broadcast');
-    const unsubscribeBroadcast = onValue(broadcastRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data && data.active) {
-        setAnnouncement(data);
-      } else {
-        setAnnouncement(null);
+    // 3. Load Global Announcement from Supabase
+    const fetchBroadcast = async () => {
+      const { data, error } = await supabase
+        .from('system_settings')
+        .select('broadcast')
+        .eq('id', 1)
+        .single();
+      
+      if (!error && data?.broadcast) {
+        setAnnouncement({
+          message: data.broadcast,
+          timestamp: Date.now()
+        });
       }
-    });
+    };
+    
+    fetchBroadcast();
 
-    return () => unsubscribeBroadcast();
+    // Subscribe to broadcast changes
+    const subscription = supabase
+      .channel('system_settings_broadcast')
+      .on('postgres_changes', 
+        { event: 'UPDATE', schema: 'public', table: 'system_settings', filter: 'id=eq.1' },
+        (payload) => {
+          const newData = payload.new as any;
+          if (newData?.broadcast) {
+            setAnnouncement({
+              message: newData.broadcast,
+              timestamp: Date.now()
+            });
+          } else {
+            setAnnouncement(null);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   return (
@@ -186,8 +209,14 @@ const Dashboard = () => {
                   variant="outline"
                   size="sm"
                   onClick={async () => {
-                    await signOut();
-                    window.location.href = '/#/auth';
+                    try {
+                      await signOut();
+                    } catch (error) {
+                      console.error("Sign out error:", error);
+                    } finally {
+                      // Force redirect to auth page
+                      window.location.replace('/#/auth');
+                    }
                   }}
                 >
                   Sign Out

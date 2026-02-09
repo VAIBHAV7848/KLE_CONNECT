@@ -1,4 +1,13 @@
-export type UserRole = 'user' | 'moderator' | 'ops_admin' | 'super_admin';
+export type UserRole = 'user' | 'ops_admin' | 'super_admin';
+
+export interface User {
+    uid: string;
+    email: string;
+    displayName: string;
+    phoneNumber?: string;
+    photoURL?: string;
+    role?: UserRole;
+}
 
 export interface UserProfile {
     uid: string;

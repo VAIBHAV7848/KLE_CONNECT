@@ -3,30 +3,50 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Loader2, ShieldAlert } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { database } from '@/lib/firebase';
-import { ref, onValue } from 'firebase/database';
+import { supabase } from '@/lib/supabase';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     const { user, loading, isAdmin } = useAuth();
     const [isLockdownActive, setIsLockdownActive] = useState(false);
 
     useEffect(() => {
-        // Listen to Firebase Realtime Database for global lockdown status
-        const lockdownRef = ref(database, 'system/lockdown');
-        const unsubscribe = onValue(lockdownRef, (snapshot) => {
-            const status = snapshot.val();
-            setIsLockdownActive(status === true);
-        });
+        // Listen to Supabase for global lockdown status
+        const fetchLockdownStatus = async () => {
+            const { data, error } = await supabase
+                .from('system_settings')
+                .select('lockdown')
+                .eq('id', 1)
+                .single();
 
-        // Cleanup listener on unmount
-        return () => unsubscribe();
+            if (!error && data) {
+                setIsLockdownActive(data.lockdown === true);
+            }
+        };
+
+        fetchLockdownStatus();
+
+        // Subscribe to realtime changes
+        const subscription = supabase
+            .channel('system_settings_changes')
+            .on('postgres_changes', 
+                { event: 'UPDATE', schema: 'public', table: 'system_settings', filter: 'id=eq.1' },
+                (payload) => {
+                    const newData = payload.new as any;
+                    setIsLockdownActive(newData.lockdown === true);
+                }
+            )
+            .subscribe();
+
+        return () => {
+            subscription.unsubscribe();
+        };
     }, []);
 
     // FIRST: Check if loading
     if (loading) {
         return (
             <div className="h-screen w-full flex items-center justify-center bg-background">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                <Loader2 className="w-10 h-10 animate-spin text-primary opacity-50" />
             </div>
         );
     }

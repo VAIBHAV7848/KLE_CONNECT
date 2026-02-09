@@ -2,13 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { GraduationCap, Mail, Lock, User, ArrowLeft, Loader2, Phone, UserCircle, ShieldCheck } from 'lucide-react';
 import { z } from 'zod';
-import { ConfirmationResult } from 'firebase/auth';
 
 const signUpSchema = z.object({
   fullName: z.string().min(2, 'Name must be at least 2 characters').max(100),
@@ -23,6 +23,7 @@ const signInSchema = z.object({
 
 const Auth = () => {
   const [isSignUp, setIsSignUp] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState(false);
 
   // Email Auth State
   const [email, setEmail] = useState('');
@@ -32,20 +33,80 @@ const Auth = () => {
   // Phone Auth State
   const [phoneNumber, setPhoneNumber] = useState('');
   const [otp, setOtp] = useState('');
-  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
-  const [isRecaptchaVerified, setIsRecaptchaVerified] = useState(false);
-  const recaptchaVerifierRef = useRef<any>(null);
+  const [otpSent, setOtpSent] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const { signUp, signIn, signInWithGoogle, signInAnonymously, setUpRecaptcha, signInWithPhone, user, loading: authLoading } = useAuth();
+  const { signUp, signIn, signInWithGoogle, signInAnonymously, signInWithPhone, verifyPhoneOtp, user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  // Handle OAuth callback
+  useEffect(() => {
+    const handleOAuthCallback = async () => {
+      const hash = window.location.hash;
+      
+      // Check for OAuth success (access_token in hash)
+      if (hash.includes('access_token=')) {
+        setOauthLoading(true);
+        try {
+          const accessTokenIndex = hash.indexOf('access_token=');
+          const paramsString = hash.substring(accessTokenIndex);
+          const params = new URLSearchParams(paramsString);
+          
+          const accessToken = params.get('access_token');
+          const refreshToken = params.get('refresh_token');
+          
+          if (accessToken) {
+            console.log('[Auth] Processing OAuth callback...');
+            const { error } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken || '',
+            });
+            
+            if (error) throw error;
+            
+            // Clear the hash to clean up URL
+            window.history.replaceState(null, '', '/#/auth');
+            
+            toast({
+              title: 'Signed in successfully',
+              description: 'Welcome back!',
+            });
+            
+            // Navigation will happen automatically via the user state change
+          }
+        } catch (error: any) {
+          console.error('[Auth] OAuth callback error:', error);
+          toast({
+            title: 'Sign in failed',
+            description: error.message || 'Failed to complete sign in',
+            variant: 'destructive',
+          });
+          setOauthLoading(false);
+        }
+      }
+      
+      // Check for error in hash
+      if (hash.includes('error=')) {
+        const params = new URLSearchParams(hash.substring(hash.indexOf('error=')));
+        const errorDescription = params.get('error_description');
+        toast({
+          title: 'Sign in failed',
+          description: errorDescription || 'An error occurred during sign in',
+          variant: 'destructive',
+        });
+      }
+    };
+
+    handleOAuthCallback();
+  }, [navigate, toast]);
+
+  // Redirect to home if already authenticated
   useEffect(() => {
     if (user && !authLoading) {
-      navigate('/');
+      navigate('/', { replace: true });
     }
   }, [user, authLoading, navigate]);
 
@@ -143,7 +204,7 @@ const Auth = () => {
       formattedNumber = `+${formattedNumber}`;
     }
 
-    // Basic validation before sending to Firebase
+    // Basic validation before sending
     // E.164 format: +[country code][number]
     const phoneRegex = /^\+[1-9]\d{1,14}$/;
     if (!phoneRegex.test(formattedNumber)) {
@@ -155,30 +216,13 @@ const Auth = () => {
     setErrors({}); // Clear previous errors
 
     try {
-      if (!recaptchaVerifierRef.current) {
-        // Ensure the container exists
-        const container = document.getElementById('recaptcha-container');
-        if (container) {
-          recaptchaVerifierRef.current = setUpRecaptcha('recaptcha-container');
-        } else {
-          throw new Error("Recaptcha container not found");
-        }
-      }
-
-      const { confirmationResult, error } = await signInWithPhone(formattedNumber, recaptchaVerifierRef.current);
+      const { error } = await signInWithPhone(formattedNumber);
       if (error) {
         console.error("OTP Send Error:", error);
-        // Reset recaptcha if there's an error to allow retrying
-        if (recaptchaVerifierRef.current) {
-          recaptchaVerifierRef.current.clear();
-          recaptchaVerifierRef.current = null;
-        }
 
         let errorMessage = error.message;
-        if (error.message.includes('auth/invalid-phone-number')) {
+        if (error.message.includes('invalid-phone-number')) {
           errorMessage = "Invalid phone number format. We added +91 automatically, but it still failed. Please check the number.";
-        } else if (error.message.includes('reCAPTCHA')) {
-          errorMessage = "Verification failed. Please try again.";
         }
 
         toast({
@@ -187,7 +231,7 @@ const Auth = () => {
           variant: 'destructive',
         });
       } else {
-        setConfirmationResult(confirmationResult);
+        setOtpSent(true);
         toast({
           title: 'OTP Sent',
           description: `We've sent a code to ${formattedNumber}`,
@@ -195,11 +239,6 @@ const Auth = () => {
       }
     } catch (err: any) {
       console.error("Catch Error:", err);
-      // Reset recaptcha on error
-      if (recaptchaVerifierRef.current) {
-        recaptchaVerifierRef.current.clear();
-        recaptchaVerifierRef.current = null;
-      }
 
       toast({
         title: 'Error',
@@ -213,16 +252,34 @@ const Auth = () => {
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!otp || !confirmationResult) return;
+    if (!otp || !otpSent) return;
+
+    // Format phone number again
+    let formattedNumber = phoneNumber.replace(/\D/g, '');
+    if (formattedNumber.length === 10) {
+      formattedNumber = `+91${formattedNumber}`;
+    } else if (!phoneNumber.startsWith('+')) {
+      formattedNumber = `+${formattedNumber}`;
+    } else {
+      formattedNumber = `+${formattedNumber}`;
+    }
 
     setLoading(true);
     try {
-      await confirmationResult.confirm(otp);
-      toast({
-        title: 'Success',
-        description: 'Phone number verified successfully!',
-      });
-      navigate('/');
+      const { error } = await verifyPhoneOtp(formattedNumber, otp);
+      if (error) {
+        toast({
+          title: 'Verification Failed',
+          description: 'Invalid OTP. Please try again.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Success',
+          description: 'Phone number verified successfully!',
+        });
+        navigate('/');
+      }
     } catch (error: any) {
       toast({
         title: 'Verification Failed',
@@ -253,13 +310,45 @@ const Auth = () => {
     }
   };
 
+  // Show loading state while processing OAuth
+  if (oauthLoading) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
+        <div className="relative mb-8">
+          <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full scale-150 animate-pulse"></div>
+          <div className="relative glass w-20 h-20 rounded-2xl flex items-center justify-center border-primary/30">
+            <Loader2 className="w-10 h-10 animate-spin text-primary" />
+          </div>
+        </div>
+        <motion.div
+           initial={{ opacity: 0, y: 10 }}
+           animate={{ opacity: 1, y: 0 }}
+           className="space-y-4 max-w-sm"
+        >
+          <h2 className="text-2xl font-bold font-display text-gradient">Securing Session</h2>
+          <p className="text-muted-foreground">
+            We're finalizing your secure connection to KLE CONNECT. This usually takes just a moment...
+          </p>
+          <div className="pt-4">
+            <button 
+              onClick={() => {
+                setOauthLoading(false);
+                window.history.replaceState(null, '', '/#/auth');
+              }}
+              className="text-xs text-muted-foreground hover:text-primary underline underline-offset-4 transition-colors p-2"
+            >
+              Take me back to sign-in
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4 relative overflow-hidden">
       {/* Ambient background */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden" />
-
-      {/* Recaptcha Container */}
-      <div id="recaptcha-container"></div>
 
       {/* Back button */}
       <Link
@@ -384,7 +473,7 @@ const Auth = () => {
             </TabsContent>
 
             <TabsContent value="phone">
-              {!confirmationResult ? (
+              {!otpSent ? (
                 <form onSubmit={handleSendOtp} className="space-y-4">
                   <div>
                     <div className="relative">
@@ -433,7 +522,7 @@ const Auth = () => {
                   </Button>
                   <button
                     type="button"
-                    onClick={() => setConfirmationResult(null)}
+                    onClick={() => setOtpSent(false)}
                     className="w-full text-xs text-muted-foreground hover:text-primary mt-2"
                   >
                     Change phone number
@@ -458,19 +547,13 @@ const Auth = () => {
               onClick={async () => {
                 setLoading(true);
                 const { error } = await signInWithGoogle();
-                setLoading(false);
                 if (error) {
+                  setLoading(false);
                   toast({
                     title: 'Google Sign In failed',
                     description: error.message,
                     variant: 'destructive',
                   });
-                } else {
-                  toast({
-                    title: 'Welcome!',
-                    description: 'Successfully signed in with Google.',
-                  });
-                  navigate('/');
                 }
               }}
             >

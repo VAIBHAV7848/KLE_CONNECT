@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { saveRoomToFirebase, subscribeToRooms, FirebaseRoom, joinRoom, leaveRoom } from '@/lib/roomSync';
+import { subscribeToRooms, joinRoom, leaveRoom, getRoomByName } from '@/lib/roomSync';
 import AgoraRTC, {
   AgoraRTCProvider,
   useJoin,
@@ -25,8 +25,7 @@ import AgoraRTC, {
   LocalUser
 } from "agora-rtc-react";
 import { motion, AnimatePresence } from 'framer-motion';
-import { database } from '@/lib/firebase';
-import { ref, onValue, set, update, remove, push } from 'firebase/database';
+import { supabase } from '@/lib/supabase';
 
 /**
  * CONFIGURATION
@@ -217,19 +216,10 @@ const Lobby = ({ onJoin }: { onJoin: (code: string) => void }) => {
   const { user } = useAuth();
 
   useEffect(() => {
-    // Listen to Firebase rooms in real-time
-    const roomsRef = ref(database, 'rooms');
-    const unsubscribe = onValue(roomsRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const roomsData = snapshot.val();
-        const roomsArray = Object.keys(roomsData).map(key => ({
-          id: key,
-          ...roomsData[key]
-        })).filter(room => room.participants > 0);
-        setRooms(roomsArray);
-      } else {
-        setRooms([]);
-      }
+    // Listen to Supabase rooms in real-time
+    const unsubscribe = subscribeToRooms((roomList) => {
+      const filteredRooms = roomList.filter(room => room.participants > 0);
+      setRooms(filteredRooms);
     });
 
     return () => unsubscribe();
@@ -238,18 +228,26 @@ const Lobby = ({ onJoin }: { onJoin: (code: string) => void }) => {
   const handleCreateRoom = async () => {
     if (!newRoomName.trim()) return;
     
-    const roomsRef = ref(database, 'rooms');
-    const newRoomRef = push(roomsRef);
     const newRoom = {
       name: newRoomName,
       topic: newRoomTopic,
-      participants: 0, // Will be updated when someone joins
-      createdAt: Date.now()
+      participants: 0,
+      hostId: user?.uid || null
     };
     
-    await set(newRoomRef, newRoom);
+    const { data, error } = await supabase
+      .from('rooms')
+      .insert(newRoom)
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Error creating room:', error);
+      return;
+    }
+    
     setIsCreateOpen(false);
-    onJoin(newRoomName); // Join immediately
+    onJoin(newRoomName);
   };
 
   return (
@@ -586,30 +584,35 @@ const LiveMeeting = (props: {
   useEffect(() => {
     if (!props.roomCode) return;
 
-    const roomsRef = ref(database, 'rooms');
-    const unsubscribe = onValue(roomsRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const roomsData = snapshot.val();
-        const roomKey = Object.keys(roomsData).find(
-          key => roomsData[key].name === props.roomCode
-        );
-        
-        // If room no longer exists in DB, it was terminated by Admin
-        if (!roomKey) {
-          toast({
-            title: "Session Terminated",
-            description: "This study room has been closed by a moderator.",
-            variant: "destructive"
-          });
-          props.onLeave();
+    // Subscribe to room changes using Supabase real-time
+    const subscription = supabase
+      .channel(`room_${props.roomCode}`)
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'rooms', filter: `name=eq.${props.roomCode}` },
+        (payload) => {
+          // If room is deleted or no longer exists
+          if (payload.eventType === 'DELETE' || !payload.new) {
+            toast({
+              title: "Session Terminated",
+              description: "This study room has been closed by a moderator.",
+              variant: "destructive"
+            });
+            props.onLeave();
+          }
         }
-      } else {
-        // Entire rooms node is gone
+      )
+      .subscribe();
+
+    // Check if room exists initially
+    getRoomByName(props.roomCode).then(room => {
+      if (!room) {
         props.onLeave();
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [props.roomCode, props.onLeave]);
 
   // Handle Mic Errors
@@ -693,28 +696,22 @@ const LiveMeeting = (props: {
 
   const remoteUsers = useRemoteUsers();
 
-  // Update Firebase participant count in real-time
+  // Update Supabase participant count in real-time
   useEffect(() => {
     if (!props.roomCode) return;
 
-    const roomsRef = ref(database, 'rooms');
-    onValue(roomsRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const roomsData = snapshot.val();
-        // Find the room that matches this meeting
-        const roomKey = Object.keys(roomsData).find(
-          key => roomsData[key].name === props.roomCode
-        );
-        
-        if (roomKey) {
-          // Update participant count (remoteUsers + 1 for local user)
-          const participantCount = remoteUsers.length + 1;
-          update(ref(database, `rooms/${roomKey}`), {
-            participants: participantCount
-          });
-        }
+    const updateParticipantCount = async () => {
+      const room = await getRoomByName(props.roomCode);
+      if (room) {
+        const participantCount = remoteUsers.length + 1;
+        await supabase
+          .from('rooms')
+          .update({ participants: participantCount })
+          .eq('id', room.id);
       }
-    }, { onlyOnce: true }); // Only query once per update
+    };
+
+    updateParticipantCount();
   }, [remoteUsers.length, props.roomCode]);
 
   // Cleanup: Reset participant count when leaving
@@ -723,21 +720,17 @@ const LiveMeeting = (props: {
       // When component unmounts (user leaves), reset participants to 0
       if (!props.roomCode) return;
 
-      const roomsRef = ref(database, 'rooms');
-      onValue(roomsRef, (snapshot) => {
-        if (snapshot.exists()) {
-          const roomsData = snapshot.val();
-          const roomKey = Object.keys(roomsData).find(
-            key => roomsData[key].name === props.roomCode
-          );
-          
-          if (roomKey) {
-            update(ref(database, `rooms/${roomKey}`), {
-              participants: 0
-            });
-          }
+      const resetParticipantCount = async () => {
+        const room = await getRoomByName(props.roomCode);
+        if (room) {
+          await supabase
+            .from('rooms')
+            .update({ participants: 0 })
+            .eq('id', room.id);
         }
-      }, { onlyOnce: true });
+      };
+
+      resetParticipantCount();
     };
   }, [props.roomCode]);
 
@@ -751,7 +744,7 @@ const LiveMeeting = (props: {
     }
   }, [remoteUsers, screenShareOn]);
 
-  // Firebase: Track participant join/leave
+  // Supabase: Track participant join/leave
   useEffect(() => {
     if (isConnected && user && props.roomCode) {
       const userId = user.uid || String(uid);
