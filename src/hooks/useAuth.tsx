@@ -198,15 +198,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (event === 'SIGNED_IN' && session?.user) {
         const isEnvOwner = session.user.email === OWNER_EMAIL;
         
-        // Optimistically set owner if match
-        if (isEnvOwner) {
-            setRole('super_admin');
-            setIsOwner(true);
+        const isAnonymous = session.user.app_metadata?.provider === 'anonymous' || !session.user.email;
+        
+        // DIRECT GUEST LOGIN: Skip profile lookup for anonymous users
+        if (isAnonymous) {
+          setUser({
+            uid: session.user.id,
+            email: '',
+            displayName: 'Guest User',
+            role: 'user',
+          });
+          setRole('user');
+          setIsOwner(false);
+          setLoading(false);
+          return;
         }
 
         let profile = await fetchUserProfile(session.user.id);
         
-        // If no profile exists, create one (for Google OAuth and Anonymous users)
+        // If no profile exists for non-guest users, wait for the trigger
         if (!profile) {
           // Profile creation is handled by the Database Trigger (handle_new_user)
           // We wait for the profile to appear
