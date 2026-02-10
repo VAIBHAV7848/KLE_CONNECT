@@ -144,12 +144,20 @@ const Auth = () => {
       if (isSignUp) {
         const { error } = await signUp(email, password, fullName);
         if (error) {
-          if (error.message.includes('already registered')) {
+          // DETERMINISTIC ERROR HANDLING: Display error from Supabase without automatic mode switching
+          // Automatic switching causes auth loops - let user decide to switch manually
+          const shouldRedirectToSignIn = (error as any).shouldRedirectToSignIn;
+          
+          if (shouldRedirectToSignIn || 
+              error.message?.includes('User already registered') ||
+              error.message?.includes('already exists')) {
             toast({
-              title: 'Account exists',
-              description: 'This email is already registered. Try signing in instead.',
+              title: 'Account Already Exists',
+              description: 'This email is already registered. Please sign in instead, or use "Forgot Password" if you need to reset your credentials.',
               variant: 'destructive',
             });
+            // CRITICAL: Do NOT auto-switch modes - this causes infinite loops
+            // Instead, show clear message and let user manually switch
           } else {
             toast({
               title: 'Sign up failed',
@@ -167,11 +175,27 @@ const Auth = () => {
       } else {
         const { error } = await signIn(email, password);
         if (error) {
-          toast({
-            title: 'Sign in failed',
-            description: 'Invalid email or password. Please try again.',
-            variant: 'destructive',
-          });
+          // DETERMINISTIC ERROR HANDLING: Map Supabase error codes to user-friendly messages
+          // Error information comes ONLY from Supabase - no client-side inference
+          if (error.message?.includes('Invalid login credentials')) {
+            toast({
+              title: 'Invalid Credentials',
+              description: 'The email or password you entered is incorrect. Please try again or use "Forgot Password" to reset.',
+              variant: 'destructive',
+            });
+          } else if (error.message?.includes('Email not confirmed')) {
+            toast({
+              title: 'Email Not Confirmed',
+              description: 'Please check your email and click the confirmation link before signing in.',
+              variant: 'destructive',
+            });
+          } else {
+            toast({
+              title: 'Sign in failed',
+              description: error.message || 'Unable to sign in. Please try again.',
+              variant: 'destructive',
+            });
+          }
         } else {
           toast({
             title: 'Welcome back!',

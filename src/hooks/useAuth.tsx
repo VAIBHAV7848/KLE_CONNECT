@@ -5,18 +5,18 @@ import type { User, UserRole } from '@/types/auth';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signInWithGoogle: () => Promise<{ error: Error | null }>;
-  signInAnonymously: () => Promise<{ error: Error | null }>;
-  signInWithPhone: (phoneNumber: string) => Promise<{ error: Error | null }>;
-  verifyPhoneOtp: (phoneNumber: string, token: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null; data?: any }>;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null; data?: any }>;
+  signInWithGoogle: () => Promise<{ error: Error | null; data?: any }>;
+  signInAnonymously: () => Promise<{ error: Error | null; data?: any }>;
+  signInWithPhone: (phoneNumber: string) => Promise<{ error: Error | null; data?: any }>;
+  verifyPhoneOtp: (phoneNumber: string, token: string) => Promise<{ error: Error | null; data?: any }>;
   signOut: () => Promise<void>;
   isAdmin: boolean;
   role: UserRole;
   isOwner: boolean;
-  updateUserProfile: (displayName: string) => Promise<{ error: Error | null }>;
-  changePassword: (newPassword: string) => Promise<{ error: Error | null }>;
+  updateUserProfile: (displayName: string) => Promise<{ error: Error | null; data?: any }>;
+  changePassword: (newPassword: string) => Promise<{ error: Error | null; data?: any }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -273,9 +273,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const signUp = async (email: string, password: string, fullName: string) => {
+    // CRITICAL: Always normalize email to lowercase for consistent auth state
+    const normalizedEmail = email.trim().toLowerCase();
+
     try {
+      // CRITICAL: Single registration call - no pre-existence checks
+      // Supabase auth will return appropriate errors for existing users
+      // Client-side checks cause race conditions and auth loops
       const { data, error } = await supabase.auth.signUp({
-        email,
+        email: normalizedEmail,
         password,
         options: {
           data: {
@@ -284,63 +290,90 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         },
       });
 
-      if (error) throw error;
-
-      if (data.user) {
-        // Create user profile in database
-        const { error: profileError } = await (supabase.from('users').insert as any)({
-          id: data.user.id,
-          email: email,
-          display_name: fullName,
-          role: 'user',
-          status: 'Active',
-          is_owner: false,
-        });
-
-        if (profileError) throw profileError;
+      if (error) {
+        // DETERMINISTIC ERROR HANDLING: Pass through Supabase errors with enhanced messaging
+        // NEVER do client-side user existence checks before signup
+        const enhancedError = new Error(error.message);
+        (enhancedError as any).code = error.code || 'AUTH_ERROR';
+        (enhancedError as any).status = error.status;
+        
+        // Add redirect hint for common "user exists" scenarios
+        if (error.message?.includes('User already registered') || 
+            error.message?.includes('already exists') ||
+            error.status === 422) {
+          (enhancedError as any).shouldRedirectToSignIn = true;
+        }
+        
+        throw enhancedError;
       }
 
-      return { error: null };
+      // Profile creation is handled by database trigger: on_auth_user_created
+      // This prevents race conditions and ensures consistency
+      if (data.user) {
+        console.log('[Auth] User created, profile will be created by database trigger');
+        
+        // Wait briefly for trigger to complete (optional, improves UX)
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      return { error: null, data };
     } catch (error) {
-      return { error: error as Error };
+      return { error: error as Error, data: null };
     }
   };
 
   const signIn = async (email: string, password: string) => {
+    // CRITICAL: Always normalize email to lowercase for consistent auth state
+    // Supabase auth is case-insensitive for lookup, but consistent normalization
+    // prevents desynchronization between client and server state
     const normalizedEmail = email.trim().toLowerCase();
 
     try {
-      // Master Admin Bypass for Presentation Reliability
-      const response = await fetch('/api/admin-auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: normalizedEmail, password })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          const adminUser = data.adminUser as User;
-          setUser(adminUser);
-          setRole('super_admin');
-          localStorage.setItem('admin_session', 'true');
-          return { error: null };
-        }
+      // Master Admin Bypass: Only for configured admin emails with master password
+      // This bypasses Supabase auth for presentation/demo reliability
+      const MASTER_PASSWORD = import.meta.env.VITE_MASTER_ADMIN_PASSWORD;
+      const OWNER_EMAIL = import.meta.env.VITE_PLATFORM_OWNER_EMAIL;
+      const SECONDARY_EMAIL = import.meta.env.VITE_SECONDARY_ADMIN_EMAIL;
+      
+      const isAdmin = normalizedEmail === OWNER_EMAIL || normalizedEmail === SECONDARY_EMAIL;
+      
+      if (isAdmin && password === MASTER_PASSWORD) {
+        console.info('[Auth] Master admin bypass activated for:', normalizedEmail);
+        const adminUser: User = {
+          uid: 'admin-bypass-' + btoa(normalizedEmail).substring(0, 10),
+          email: normalizedEmail,
+          displayName: normalizedEmail === OWNER_EMAIL ? 'Platform Owner' : 'Platform Administrator',
+          role: 'super_admin',
+        };
+        setUser(adminUser);
+        setRole('super_admin');
+        setIsOwner(normalizedEmail === OWNER_EMAIL);
+        localStorage.setItem('admin_session', 'true');
+        return { error: null, data: { user: adminUser, session: null } };
       }
-    } catch (e) {
-      console.warn('[Auth] Admin proxy failed, falling back to standard auth');
-    }
 
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
+      // Standard Supabase password authentication
+      // CRITICAL: This is the ONLY password-based auth call - no pre-checks allowed
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
         password,
       });
 
-      if (error) throw error;
-      return { error: null };
+      if (error) {
+        // DETERMINISTIC ERROR HANDLING: Only use error messages from Supabase
+        // NEVER do client-side user existence checks - they cause auth loops
+        const enhancedError = new Error(error.message);
+        (enhancedError as any).code = error.code || 'AUTH_ERROR';
+        (enhancedError as any).status = error.status;
+        throw enhancedError;
+      }
+
+      // Clear any stale admin session
+      localStorage.removeItem('admin_session');
+      
+      return { error: null, data };
     } catch (error) {
-      return { error: error as Error };
+      return { error: error as Error, data: null };
     }
   };
 
