@@ -47,10 +47,9 @@ const AITutor = () => {
   const [status, setStatus] = useState<'idle' | 'requesting' | 'error'>('idle');
   const [lastError, setLastError] = useState<string | null>(null);
 
-  // For local development, use the current origin to ensure port matches
-  // Direct connection to Supabase Edge Function
-  // Use local Vercel API (serverless function) instead of Supabase Edge Function
-  const aiEndpoint = "/api/ai";
+  // Dynamic AI Endpoint: Use environment variable for local dev, fallback to relative for production
+  // This allows local testing against deployed backend while keeping relative paths in production
+  const aiEndpoint = import.meta.env.VITE_AI_API_URL || "/api/ai";
   
   console.log("[AITutor] AI Endpoint configured to:", aiEndpoint);
 
@@ -152,15 +151,8 @@ const AITutor = () => {
         console.error("[AITutor] Token retrieval total failure:", tokenErr);
       }
 
-      // 2. Resolve Endpoint for Local Dev
-      let targetEndpoint = aiEndpoint;
-      if (window.location.hostname === 'localhost' && aiEndpoint.startsWith('/api')) {
-        console.warn("[AITutor] IMPORTANT: You are running locally but your AI endpoint is relative. This will fail unless you use 'vercel dev' or point to the production URL.");
-        // Optional: Hardcode your production URL here if you want local dev to work against the live backend
-        // targetEndpoint = "https://kle-connect.vercel.app" + aiEndpoint;
-      }
-
-      // 3. Call Backend
+      // 2. Use configured endpoint (env var for local, relative for production)
+      const targetEndpoint = aiEndpoint;
       console.log("[AITutor] Step 2: Fetching from", targetEndpoint);
       const startTime = Date.now();
       
