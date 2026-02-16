@@ -4,14 +4,16 @@
 
 **KLE CONNECT** is the ultimate college companion platform designed for students. It features authentication, an Advanced tutor, study material planning, campus navigation, and detailed student resources.
 
-## Features
+## Key Features
 
-- **Authentication**: Secure login and signup flows.
-- **Dashboard**: Overview of study stats and quick actions.
-- **AI Tutor**: Integrated AI for academic assistance.
-- **Campus Map**: Interactive visualization of the campus.
-- **Study Planner**: Tools to organize your schedule.
-- **Notes & Resources**: Access to important study materials.
+- **🔐 Secure Authentication**: Robust login/signup flow powered by **Supabase Auth**.
+- **💬 Real-Time Community**: Live chat channels (#general, #academic) with instant messaging via **Supabase Realtime**.
+- **📚 Collaborative Notes**: Shared repository for study materials and notes, accessible to all peers.
+- **🎓 AI Tutor**: Intelligent academic assistant powered by **Google Analytics Engine** for instant concept clarification.
+- **🎥 Virtual Study Rooms**: Live audio/video study sessions powered by **Agora RTC**, enabling remote group study.
+- **📅 Study Planner**: Personal task management to organize academic schedules (Local-first).
+- **🗺️ Campus Map**: Interactive navigation guide for the college campus.
+- **📊 Admin Dashboard**: Dedicated portal for administrators to manage users, announcements, and system health.
 
 ## Getting Started
 
@@ -25,10 +27,12 @@
    npm install
    ```
 
-3. **Copy env template and fill values**:
+3. **Configure Environment**:
+   Copy `.env.example` to `.env` and fill in your credentials:
    ```sh
    cp .env.example .env
-   # add Supabase keys, AI endpoint, Agora APP_ID, token server URL
+   # Required: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
+   # Optional: VITE_AGORA_APP_ID, VITE_GEMINI_API_KEY
    ```
 
 4. **Run the development server**:
@@ -38,21 +42,35 @@
 
 ## Technologies Used
 
-- **Vite**
-- **React**
+### Frontend
+- **React 18** (Vite)
 - **TypeScript**
-- **Tailwind CSS**
-- **Shadcn UI**
-- **Firebase** (Authentication & Hosting)
-- **Groq (LLM)** via `/api/ai`
+- **Tailwind CSS** & **Shadcn UI** (Styling)
+- **Framer Motion** (Animations)
+
+### Backend & Services
+- **Supabase**: 
+  - **Auth**: User management & RLS policies.
+  - **Database**: PostgreSQL for structured data.
+  - **Realtime**: WebSocket subscriptions for Chat & Notes.
+- **Google Analytics Engine**: AI Model integration.
+- **Agora RTC**: Real-time voice and video communication.
 
 ## Deployment
 
-Primary: Firebase Hosting (static) + Vercel-style serverless route `/api/ai` for Groq.
-Run `npm run build` followed by `firebase deploy` for the frontend. Deploy `/api/ai` on your serverless host (e.g., Vercel) and set `VITE_AI_API_URL` to that URL.
+Primary: **Vercel** (Recommended) or GitHub Pages.
+
+### Vercel Deployment
+1. Install Vercel CLI: `npm i -g vercel`
+2. Run `vercel` to deploy.
+3. Add your environment variables in the Vercel Dashboard.
+
+### GitHub Pages
+1. Update `homepage` in `package.json`
+2. Run `npm run deploy`
 
 ### Environment variables
 
-- Supabase: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`
-- AI backend: `VITE_AI_API_URL` (points to `/api/ai` you deploy), `GROQ_API_KEY` on the serverless host
-- Agora Study Rooms: `VITE_AGORA_APP_ID`, `VITE_TOKEN_SERVER_URL`
+- **Supabase**: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (Required for Auth/DB)
+- **Agora**: `VITE_AGORA_APP_ID`, `VITE_TOKEN_SERVER_URL` (For Video Rooms)
+- **AI**: `VITE_GEMINI_API_KEY` (Direct integration) or `VITE_AI_API_URL` (Proxy)
