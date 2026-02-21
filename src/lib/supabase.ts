@@ -1,8 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
+const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || '').replace(/[\r\n]/g, '').trim();
+const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').replace(/[\r\n]/g, '').trim();
 
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error(

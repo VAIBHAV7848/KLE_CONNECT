@@ -97,7 +97,7 @@ const Dashboard = () => {
         .eq('id', 1)
         .single();
 
-      const broadcast = data?.broadcast;
+      const broadcast = data ? (data as any).broadcast : null;
       // Handle both old string format and new object format
       if (!error && broadcast) {
         if (typeof broadcast === 'object' && broadcast !== null) {
