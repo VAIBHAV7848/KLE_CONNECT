@@ -96,29 +96,53 @@ const Dashboard = () => {
         .select('broadcast')
         .eq('id', 1)
         .single();
-      
-      if (!error && data?.broadcast) {
-        setAnnouncement({
-          message: data.broadcast,
-          timestamp: Date.now()
-        });
+
+      const broadcast = data?.broadcast;
+      // Handle both old string format and new object format
+      if (!error && broadcast) {
+        if (typeof broadcast === 'object' && broadcast !== null) {
+          if (broadcast.active) {
+            setAnnouncement({
+              message: broadcast.message || '',
+              timestamp: broadcast.timestamp || Date.now()
+            });
+          }
+        } else if (typeof broadcast === 'string') {
+          setAnnouncement({
+            message: broadcast,
+            timestamp: Date.now()
+          });
+        }
       }
     };
-    
+
     fetchBroadcast();
 
     // Subscribe to broadcast changes
     const subscription = supabase
       .channel('system_settings_broadcast')
-      .on('postgres_changes', 
+      .on('postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'system_settings', filter: 'id=eq.1' },
         (payload) => {
           const newData = payload.new as any;
-          if (newData?.broadcast) {
-            setAnnouncement({
-              message: newData.broadcast,
-              timestamp: Date.now()
-            });
+          const broadcast = newData?.broadcast;
+
+          if (broadcast) {
+            if (typeof broadcast === 'object' && broadcast !== null) {
+              if (broadcast.active) {
+                setAnnouncement({
+                  message: broadcast.message || '',
+                  timestamp: broadcast.timestamp || Date.now()
+                });
+              } else {
+                setAnnouncement(null);
+              }
+            } else if (typeof broadcast === 'string') {
+              setAnnouncement({
+                message: broadcast,
+                timestamp: Date.now()
+              });
+            }
           } else {
             setAnnouncement(null);
           }
