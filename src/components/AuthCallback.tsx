@@ -8,14 +8,14 @@ import { useAuth } from '@/hooks/useAuth';
 
 const AuthCallback = () => {
     const navigate = useNavigate();
-    const { user } = useAuth(); // Consume auth context
+    const { user } = useAuth();
     const [isProcessing, setIsProcessing] = useState(true);
     const [isNotFound, setIsNotFound] = useState(false);
 
-    // 1. Watch for user state update - this is the safest way to know Supabase has synced
+    // Watch for user state — once set, redirect home
     useEffect(() => {
         if (user) {
-            console.log('[AuthCallback] User context updated, redirecting to home...');
+            console.log('[AuthCallback] User ready, redirecting home...');
             navigate('/', { replace: true });
         }
     }, [user, navigate]);
@@ -24,154 +24,108 @@ const AuthCallback = () => {
         let mounted = true;
 
         const handleCallback = async () => {
-            const hash = window.location.hash;
-            const search = window.location.search;
+            const hash = window.location.hash;       // e.g. "#/access_token=..." or "#access_token=..."
+            const search = window.location.search;   // e.g. "?error=server_error&..."
             const searchParams = new URLSearchParams(search);
 
-            console.log('[AuthCallback] handling hash:', hash, 'search:', search);
+            console.log('[AuthCallback] hash:', hash, '| search:', search);
 
-            // ✅ Helper: parse error from URLSearchParams-style string
-            const extractOAuthError = (paramString: string) => {
-                const params = new URLSearchParams(paramString);
-                return {
-                    error: params.get('error'),
-                    description: params.get('error_description'),
-                };
-            };
+            // ─── Helper ──────────────────────────────────────────────────────
+            const parseParams = (str: string) => new URLSearchParams(str);
 
-            // ✅ 1. Check for errors in QUERY PARAMS (?error=...)
+            // Strip leading "#/" or "#" to get raw param string
+            const hashContent = hash.startsWith('#/') ? hash.slice(2)
+                : hash.startsWith('#') ? hash.slice(1)
+                    : '';
+
+            // ─── 1. Error in query params (?error=...) ───────────────────────
             const queryError = searchParams.get('error');
-            const queryErrorDescription = searchParams.get('error_description');
             if (queryError) {
-                console.error('[AuthCallback] OAuth error in query params:', queryError, queryErrorDescription);
+                const desc = searchParams.get('error_description') || 'Please try again.';
+                console.error('[AuthCallback] Error in query params:', queryError, desc);
                 if (mounted) {
-                    toast({
-                        title: "Google Sign-In Failed",
-                        description: queryErrorDescription
-                            ? decodeURIComponent(queryErrorDescription)
-                            : "Unable to complete sign-in. Please try again.",
-                        variant: "destructive"
-                    });
+                    toast({ title: 'Google Sign-In Failed', description: decodeURIComponent(desc), variant: 'destructive' });
                     window.history.replaceState(null, '', '/');
                     navigate('/auth', { replace: true });
                 }
                 return;
             }
 
-            // ✅ 2. Check for errors in HASH PATH (/#/error=... from HashRouter)
-            // e.g. hash = "#/error=server_error&error_description=..."
-            const hashPath = hash.startsWith('#/') ? hash.slice(2) : hash.slice(1);
-            if (hashPath.startsWith('error=')) {
-                const { error: hashError, description: hashDesc } = extractOAuthError(hashPath);
-                console.error('[AuthCallback] OAuth error in hash path:', hashError, hashDesc);
+            // ─── 2. Error in hash path (/#/error=...) ───────────────────────
+            if (hashContent.startsWith('error=')) {
+                const p = parseParams(hashContent);
+                const desc = p.get('error_description') || 'Please try again.';
+                console.error('[AuthCallback] Error in hash path:', p.get('error'), desc);
                 if (mounted) {
-                    toast({
-                        title: "Google Sign-In Failed",
-                        description: hashDesc
-                            ? decodeURIComponent(hashDesc)
-                            : "Unable to complete sign-in. Please try again.",
-                        variant: "destructive"
-                    });
+                    toast({ title: 'Google Sign-In Failed', description: decodeURIComponent(desc), variant: 'destructive' });
                     window.history.replaceState(null, '', '/');
                     navigate('/auth', { replace: true });
                 }
                 return;
             }
 
-            // Check if this is a successful OAuth callback (has access_token)
-            const hasAccessToken = hash.includes('access_token=');
-            const hasError = hash.includes('error=');
-
-            if (!hasAccessToken && !hasError) {
-                // Not an OAuth callback, redirect to auth
-                if (!user && mounted) {
-                    navigate('/auth', { replace: true });
-                }
-                return;
-            }
-
-
-            // Supabase auto-detects tokens from URL, so we just wait
-            // The onAuthStateChange listener in useAuth will handle the rest
-            console.log('[AuthCallback] Waiting for Supabase to auto-detect session...');
-
-            // Give Supabase time to process (it reads hash automatically)
-            setTimeout(async () => {
-                if (!mounted) return;
-
+            // ─── 3. Success: access_token in hash ────────────────────────────
+            // HashRouter makes it /#/access_token=... so Supabase can't auto-parse.
+            // We manually extract and call setSession().
+            if (hashContent.includes('access_token=')) {
+                console.log('[AuthCallback] access_token found — setting session manually...');
                 try {
-                    const { data: { session }, error } = await supabase.auth.getSession();
+                    const params = parseParams(hashContent);
+                    const accessToken = params.get('access_token');
+                    const refreshToken = params.get('refresh_token') || '';
 
-                    if (error) {
-                        console.error('[AuthCallback] getSession error:', error);
-                        if (mounted) {
-                            setIsProcessing(false);
-                            setIsNotFound(true);
-                        }
-                        return;
-                    }
+                    if (!accessToken) throw new Error('No access_token found in URL');
 
-                    if (session) {
-                        console.log('[AuthCallback] Session detected:', session.user.email);
-                        // Clear hash to clean up URL
-                        window.history.replaceState(null, '', '/#/auth');
-                        if (mounted) {
-                            toast({
-                                title: "Signed in successfully",
-                                description: "Welcome back!",
-                            });
-                        }
-                    } else {
-                        console.warn('[AuthCallback] No session detected');
-                        if (mounted) {
-                            setIsProcessing(false);
-                            setIsNotFound(true);
-                        }
-                    }
-                } catch (error: any) {
-                    // Handle AbortError silently - it's normal in StrictMode
-                    if (error.name === 'AbortError' || error.message?.includes('AbortError')) {
-                        console.log('[AuthCallback] Aborted (StrictMode), session will be detected by listener');
-                        return;
-                    }
+                    const { data, error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+                    if (error) throw error;
 
-                    console.error('[AuthCallback] Error:', error);
+                    window.history.replaceState(null, '', '/#/auth');
+                    console.log('[AuthCallback] Session set:', data.session?.user?.email);
+
                     if (mounted) {
                         toast({
-                            title: "Authentication Error",
-                            description: error.message || "Failed to complete sign in",
-                            variant: "destructive"
+                            title: 'Signed in successfully',
+                            description: `Welcome, ${data.session?.user?.user_metadata?.full_name || data.session?.user?.email}!`,
                         });
-                        setIsProcessing(false);
-                        setIsNotFound(true);
+                    }
+                    // Navigation triggered by user state update in effect above
+                } catch (err: any) {
+                    console.error('[AuthCallback] setSession error:', err);
+                    if (mounted) {
+                        toast({ title: 'Sign-in failed', description: err.message || 'Could not complete sign-in.', variant: 'destructive' });
+                        window.history.replaceState(null, '', '/');
+                        navigate('/auth', { replace: true });
                     }
                 }
-            }, 500); // Wait 500ms for Supabase to process
+                return;
+            }
+
+            // ─── 4. Nothing OAuth-related — redirect to auth ─────────────────
+            if (!user && mounted) {
+                navigate('/auth', { replace: true });
+            }
         };
 
         if (!user) {
             handleCallback();
         }
 
-        return () => {
-            mounted = false;
-        };
-    }, [navigate, toast, user]);
+        return () => { mounted = false; };
+    }, [navigate, user]);
 
-    // Safety timeout: if processing takes too long, show error
+    // Safety timeout
     useEffect(() => {
         const timeout = setTimeout(() => {
             if (isProcessing && !user) {
-                console.log('[AuthCallback] Timeout reached, stopping processing');
+                console.warn('[AuthCallback] Timeout — showing 404');
                 setIsProcessing(false);
                 setIsNotFound(true);
             }
-        }, 10000); // 10 second timeout
-
+        }, 10000);
         return () => clearTimeout(timeout);
     }, [isProcessing, user]);
 
-    if (isProcessing || user) { // Keep showing loader if we have a user (waiting for redirect)
+    if (isProcessing || user) {
         return (
             <div className="h-screen w-full flex items-center justify-center bg-background">
                 <Loader2 className="w-10 h-10 animate-spin text-primary opacity-50" />
