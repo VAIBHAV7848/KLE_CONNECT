@@ -96,233 +96,105 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     let mounted = true;
 
-    // Safety timeout: prevents infinite loading screen on network issues
+    // Safety timeout: prevents infinite loading screen
     const safetyTimer = setTimeout(() => {
-      if (mounted && loading) {
-        setLoading(false);
-      }
-    }, 2000);
+      if (mounted && loading) setLoading(false);
+    }, 2500);
 
-    // Check current session on mount
-    const checkSession = async () => {
-      try {
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-        if (sessionError) throw sessionError;
-
-        if (session?.user) {
-          console.log('[Auth] Session found for:', session.user.email);
-
-          const isEnvOwner = session.user.email === OWNER_EMAIL;
-
-          setUser({
-            uid: session.user.id,
-            email: session.user.email || '',
-            displayName: session.user.user_metadata?.display_name || session.user.email?.split('@')[0] || 'User',
-            phoneNumber: session.user.phone || undefined,
-            photoURL: session.user.user_metadata?.avatar_url || undefined,
-          });
-
-          if (isEnvOwner) {
-            console.log('[Auth] Owner detected via environment variable');
-            setRole('super_admin');
-            setIsOwner(true);
-          }
-
-          // Fetch profile in background
-          fetchUserProfile(session.user.id).then(async (profile) => {
-            // SYNC TO DB: If Env Owner, ensure DB reflects this
-            if (isEnvOwner) {
-              const needsUpdate = !profile || profile.role !== 'super_admin' || !profile.is_owner;
-              if (needsUpdate) {
-                console.log('[Auth] Syncing owner status to Supabase DB...');
-                const { error: syncError } = await (supabase
-                  .from('users')
-                  .update as any)({ role: 'super_admin', is_owner: true, display_name: session.user.user_metadata?.display_name || 'System Owner' })
-                  .eq('id', session.user.id);
-
-                if (syncError) {
-                  console.warn('[Auth] Could not sync to DB:', syncError.message);
-                } else {
-                  console.log('[Auth] Successfully synced owner status to DB');
-                  if (!profile) profile = { role: 'super_admin', is_owner: true, display_name: 'System Owner' };
-                  else { profile.role = 'super_admin'; profile.is_owner = true; }
-                }
-              }
-            }
-
-            if (profile) {
-              console.log('[Auth] Profile loaded in background');
-
-              const finalRole = isEnvOwner ? 'super_admin' : (profile.role as UserRole);
-              const finalIsOwner = isEnvOwner ? true : profile.is_owner;
-
-              setUser(prev => prev ? ({
-                ...prev,
-                displayName: profile.display_name || prev.displayName,
-                role: finalRole
-              }) : null);
-
-              setRole(finalRole);
-              setIsOwner(finalIsOwner);
-            } else if (isEnvOwner) {
-              setRole('super_admin');
-              setIsOwner(true);
-            }
-          });
-
-        } else {
-          console.log('[Auth] No active session found.');
-        }
-      } catch (error: any) {
-        if (error.name === 'AbortError' || error.message?.includes('AbortError')) return;
-        console.error('[Auth] Unexpected error in checkSession:', error);
-      } finally {
-        if (mounted) {
-          setLoading(false);
-          clearTimeout(safetyTimer);
-        }
-      }
-    };
-
-    checkSession();
-
-    // Subscribe to auth state changes
+    // Single source of truth for Auth State
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('[Auth] State change event:', event);
+      console.log('[Auth] Event:', event);
 
-      if (event === 'SIGNED_IN' && session?.user) {
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
         const isEnvOwner = session.user.email === OWNER_EMAIL;
         const isAnonymous = session.user.app_metadata?.provider === 'anonymous' || !session.user.email;
         const isGoogle = session.user.app_metadata?.provider === 'google';
         const isPhone = session.user.app_metadata?.provider === 'phone';
 
-        // Determine login event type for history
-        let loginEventType: 'SIGNED_IN' | 'GUEST_LOGIN' | 'GOOGLE_LOGIN' | 'PHONE_LOGIN' | 'EMAIL_LOGIN' = 'EMAIL_LOGIN';
+        // Determine login event type
+        let loginEventType: any = 'EMAIL_LOGIN';
         if (isAnonymous) loginEventType = 'GUEST_LOGIN';
         else if (isGoogle) loginEventType = 'GOOGLE_LOGIN';
         else if (isPhone) loginEventType = 'PHONE_LOGIN';
 
-        // DIRECT GUEST LOGIN: Skip profile lookup for anonymous users
-        if (isAnonymous) {
-          setUser({
-            uid: session.user.id,
-            email: '',
-            displayName: 'Guest User',
-            role: 'user',
-          });
-          setRole('user');
-          setIsOwner(false);
-          setLoading(false);
+        // 1. Set basic user info immediately
+        const userData: User = {
+          uid: session.user.id,
+          email: session.user.email || '',
+          displayName: session.user.user_metadata?.display_name || session.user.email?.split('@')[0] || (isAnonymous ? 'Guest User' : 'User'),
+          phoneNumber: session.user.phone || undefined,
+          photoURL: session.user.user_metadata?.avatar_url || undefined,
+          role: isEnvOwner ? 'super_admin' : 'user',
+        };
 
-          // Log guest login event
-          await logLoginEvent(
-            session.user.id,
-            null,
-            'Guest User',
-            'GUEST_LOGIN',
-            session.access_token
-          );
-          return;
-        }
-
-        let profile = await fetchUserProfile(session.user.id);
-
-        // Wait for trigger-created profile if not found yet
-        if (!profile) {
-          let retries = 0;
-          while (!profile && retries < 3) {
-            await new Promise(r => setTimeout(r, 500));
-            profile = await fetchUserProfile(session.user.id);
-            retries++;
-          }
-
-          if (!profile) {
-            console.warn('[Auth] Profile not found after trigger wait. Trigger might be broken.');
-          }
-        }
-
-        if (profile) {
-          const finalRole = isEnvOwner ? 'super_admin' : (profile.role as UserRole);
-          const finalIsOwner = isEnvOwner ? true : profile.is_owner;
-
-          setUser({
-            uid: session.user.id,
-            email: session.user.email || '',
-            displayName: profile.display_name || session.user.email?.split('@')[0] || 'User',
-            phoneNumber: session.user.phone || undefined,
-            photoURL: session.user.user_metadata?.avatar_url || undefined,
-            role: finalRole,
-          });
-          setRole(finalRole);
-          setIsOwner(finalIsOwner);
-        } else {
-          setUser({
-            uid: session.user.id,
-            email: session.user.email || '',
-            displayName: session.user.user_metadata?.display_name || session.user.email?.split('@')[0] || 'User',
-            phoneNumber: session.user.phone || undefined,
-            photoURL: session.user.user_metadata?.avatar_url || undefined,
-          });
-
+        if (mounted) {
+          setUser(userData);
           if (isEnvOwner) {
             setRole('super_admin');
             setIsOwner(true);
           }
         }
 
-        // Log login event to login_history (non-blocking)
-        await logLoginEvent(
-          session.user.id,
-          session.user.email || null,
-          profile?.display_name || session.user.user_metadata?.display_name || session.user.email?.split('@')[0] || 'User',
-          loginEventType,
-          session.access_token
-        );
-
-        // Update last_seen in users table
-        supabase
-          .from('users')
-          .update({ last_seen: new Date().toISOString() })
-          .eq('id', session.user.id)
-          .then(() => { });
-
-      } else if (event === 'SIGNED_OUT') {
-        // Log sign out — get user info before clearing state
-        const currentUserId = user?.uid;
-        const currentEmail = user?.email;
-        const currentName = user?.displayName;
-
-        setUser(null);
-        setRole('user');
-        setIsOwner(false);
-
-        if (currentUserId) {
-          await logLoginEvent(
-            currentUserId,
-            currentEmail || null,
-            currentName || null,
-            'SIGNED_OUT'
+        // 2. Log login event ONLY if it's a fresh SIGNED_IN (not just a refresh/initial)
+        if (event === 'SIGNED_IN') {
+          logLoginEvent(
+            session.user.id,
+            session.user.email || null,
+            userData.displayName,
+            loginEventType,
+            session.access_token
           );
+
+          // Update last_seen
+          (supabase.from('users').update as any)({ last_seen: new Date().toISOString() }).eq('id', session.user.id).then(() => { });
         }
 
+        // 3. Fetch detailed profile in background
+        if (!isAnonymous) {
+          fetchUserProfile(session.user.id).then(profile => {
+            if (mounted && profile) {
+              const finalRole = isEnvOwner ? 'super_admin' : (profile.role as UserRole);
+              const finalIsOwner = isEnvOwner ? true : profile.is_owner;
+
+              setUser(prev => prev ? ({ ...prev, displayName: profile.display_name || prev.displayName, role: finalRole }) : null);
+              setRole(finalRole);
+              setIsOwner(finalIsOwner);
+            }
+            if (mounted) setLoading(false);
+          });
+        } else {
+          if (mounted) setLoading(false);
+        }
+
+      } else if (event === 'SIGNED_OUT') {
+        if (mounted) {
+          const prevUser = user;
+          setUser(null);
+          setRole('user');
+          setIsOwner(false);
+          setLoading(false);
+
+          if (prevUser?.uid) {
+            logLoginEvent(prevUser.uid, prevUser.email || null, prevUser.displayName, 'SIGNED_OUT');
+          }
+        }
       } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-        // Silently log token refresh
-        logLoginEvent(
-          session.user.id,
-          session.user.email || null,
-          null,
-          'TOKEN_REFRESHED',
-          session.access_token
-        );
+        logLoginEvent(session.user.id, session.user.email || null, null, 'TOKEN_REFRESHED', session.access_token);
+      } else {
+        // Handle case where INITIAL_SESSION is null (no user logged in)
+        if (mounted && event === 'INITIAL_SESSION') {
+          setLoading(false);
+        }
       }
     });
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
+      clearTimeout(safetyTimer);
     };
   }, []);
+
 
   const signUp = async (email: string, password: string, fullName: string) => {
     const normalizedEmail = email.trim().toLowerCase();
