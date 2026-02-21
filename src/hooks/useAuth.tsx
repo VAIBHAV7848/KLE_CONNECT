@@ -38,11 +38,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Define admin emails from environment variables
   const ADMIN_EMAILS = [
-    import.meta.env.VITE_PLATFORM_OWNER_EMAIL,
-    import.meta.env.VITE_SECONDARY_ADMIN_EMAIL
+    import.meta.env.VITE_PLATFORM_OWNER_EMAIL?.trim(),
+    import.meta.env.VITE_SECONDARY_ADMIN_EMAIL?.trim()
   ].filter(Boolean);
 
-  const OWNER_EMAIL = import.meta.env.VITE_PLATFORM_OWNER_EMAIL;
+  const OWNER_EMAIL = import.meta.env.VITE_PLATFORM_OWNER_EMAIL?.trim();
 
   // Fetch user profile from database
   const fetchUserProfile = async (userId: string): Promise<any> => {
