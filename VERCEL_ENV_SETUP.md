@@ -1,4 +1,5 @@
 # 🔧 Environment Variables Setup for Vercel
+## ⚡ New Supabase Project Active: thrshfigvpafopddosto
 
 ## Current Status
 

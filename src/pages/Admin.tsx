@@ -5,7 +5,7 @@ import {
     ShieldCheck, Users, Video, AlertCircle, TrendingUp,
     MessageSquare, Calendar, Trash2, Power, CheckCircle2,
     Activity, BarChart3, Bell, Lock, Globe, Command,
-    RefreshCcw, UserMinus, ShieldAlert, Zap, X
+    RefreshCcw, UserMinus, ShieldAlert, Zap, X, LogIn, LogOut, History
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -55,7 +55,7 @@ interface SystemSettings {
 const Admin = () => {
     const { toast } = useToast();
     const { role: currentAdminRole, user: currentUser, isOwner: iAmOwner } = useAuth();
-    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'rooms' | 'moderation' | 'system_config' | 'analytics'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'rooms' | 'moderation' | 'login_history' | 'system_config' | 'analytics'>('overview');
     const [isLive, setIsLive] = useState(true);
     const [isLockdownActive, setIsLockdownActive] = useState(false);
     const [isStopping, setIsStopping] = useState(false);
@@ -67,6 +67,7 @@ const Admin = () => {
     const [stats, setStats] = useState<AdminStat[]>([]);
     const [doubtCountState, setDoubtCountState] = useState(0);
     const [auditLogs, setAuditLogs] = useState<any[]>([]);
+    const [loginHistory, setLoginHistory] = useState<any[]>([]);
 
     // Rate limiters for security
     const broadcastLimiter = useRef(new RateLimiter(10, 60000)); // 10 broadcasts per minute
@@ -100,7 +101,7 @@ const Admin = () => {
         // Subscribe to broadcast changes
         const broadcastSubscription = supabase
             .channel('broadcast_changes')
-            .on('postgres_changes', 
+            .on('postgres_changes',
                 { event: '*', schema: 'public', table: 'system_settings', filter: 'id=eq.1' },
                 (payload) => {
                     const newData = payload.new as SystemSettings;
@@ -154,7 +155,7 @@ const Admin = () => {
         // Subscribe to users changes
         const usersSubscription = supabase
             .channel('users_changes')
-            .on('postgres_changes', 
+            .on('postgres_changes',
                 { event: '*', schema: 'public', table: 'users' },
                 () => {
                     loadUsers();
@@ -182,7 +183,7 @@ const Admin = () => {
                             participants: room.participants || 0,
                             uptime: Math.floor((Date.now() - new Date(room.created_at || Date.now()).getTime()) / 60000) + 'm'
                         }));
-                    
+
                     setRooms(roomsList);
                 } else {
                     setRooms([]);
@@ -197,7 +198,7 @@ const Admin = () => {
         // Subscribe to rooms changes
         const roomsSubscription = supabase
             .channel('rooms_changes')
-            .on('postgres_changes', 
+            .on('postgres_changes',
                 { event: '*', schema: 'public', table: 'rooms' },
                 () => {
                     loadRooms();
@@ -227,7 +228,7 @@ const Admin = () => {
         // Subscribe to lockdown changes
         const lockdownSubscription = supabase
             .channel('lockdown_changes')
-            .on('postgres_changes', 
+            .on('postgres_changes',
                 { event: '*', schema: 'public', table: 'system_settings', filter: 'id=eq.1' },
                 (payload) => {
                     const newData = payload.new as SystemSettings;
@@ -257,7 +258,7 @@ const Admin = () => {
         // Subscribe to forum_questions changes for live count
         const doubtsSubscription = supabase
             .channel('doubts_changes')
-            .on('postgres_changes', 
+            .on('postgres_changes',
                 { event: '*', schema: 'public', table: 'forum_questions' },
                 () => {
                     loadDoubtCount();
@@ -291,10 +292,39 @@ const Admin = () => {
         // Subscribe to audit_logs changes
         const auditSubscription = supabase
             .channel('audit_logs_changes')
-            .on('postgres_changes', 
+            .on('postgres_changes',
                 { event: '*', schema: 'public', table: 'audit_logs' },
                 () => {
                     loadAuditLogs();
+                }
+            )
+            .subscribe();
+
+        // Load Login History
+        const loadLoginHistory = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('login_history')
+                    .select('*')
+                    .order('timestamp', { ascending: false })
+                    .limit(50);
+
+                if (error) throw error;
+                setLoginHistory(data || []);
+            } catch (error) {
+                console.error('[Admin] Error fetching login history:', error);
+            }
+        };
+
+        loadLoginHistory();
+
+        // Subscribe to login_history for live updates
+        const loginHistorySubscription = supabase
+            .channel('login_history_admin')
+            .on('postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'login_history' },
+                (payload) => {
+                    setLoginHistory(prev => [payload.new, ...prev].slice(0, 50));
                 }
             )
             .subscribe();
@@ -307,13 +337,14 @@ const Admin = () => {
             lockdownSubscription.unsubscribe();
             doubtsSubscription.unsubscribe();
             auditSubscription.unsubscribe();
+            loginHistorySubscription.unsubscribe();
         };
     }, []);
 
     useEffect(() => {
         // Mock jitter for load
         const load = (12 + Math.floor(Math.random() * 5)) + '%';
-        
+
         setStats([
             { label: 'Total Students', value: users.length.toLocaleString(), trend: '+ Live', icon: Users, color: 'text-blue-400' },
             { label: 'Active Sessions', value: rooms.length, trend: 'Live', icon: Activity, color: 'text-green-400' },
@@ -340,11 +371,11 @@ const Admin = () => {
         // Sanitize input to prevent XSS
         const sanitizedMessage = sanitizeInput(broadcast);
 
-        const payload: BroadcastData = { 
-            message: sanitizedMessage, 
-            timestamp: Date.now(), 
-            active: true, 
-            sentBy: 'Admin' 
+        const payload: BroadcastData = {
+            message: sanitizedMessage,
+            timestamp: Date.now(),
+            active: true,
+            sentBy: 'Admin'
         };
 
         try {
@@ -485,10 +516,10 @@ const Admin = () => {
             toast({ title: "User Status Updated", description: `User marked as ${nextStatus}.` });
         } catch (error) {
             console.error('Error updating user status:', error);
-            toast({ 
-                title: "Update Failed", 
-                description: "Could not update user status.", 
-                variant: "destructive" 
+            toast({
+                title: "Update Failed",
+                description: "Could not update user status.",
+                variant: "destructive"
             });
         }
     };
@@ -632,8 +663,8 @@ const Admin = () => {
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-2">
                     <div className="space-y-1">
                         <div className="flex items-center gap-2 mb-2">
-                             <div className="h-1 w-8 bg-blue-500 rounded-full" />
-                             <span className="text-[10px] font-bold text-blue-500 uppercase tracking-[0.2em]">System Terminal v4.0</span>
+                            <div className="h-1 w-8 bg-blue-500 rounded-full" />
+                            <span className="text-[10px] font-bold text-blue-500 uppercase tracking-[0.2em]">System Terminal v4.0</span>
                         </div>
                         <h1 className="text-4xl md:text-5xl font-black tracking-tight text-white leading-none">
                             Mission <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-500">Control</span>
@@ -669,15 +700,15 @@ const Admin = () => {
                             className="relative group"
                         >
                             {/* Card Glow Effect */}
-                            <div className={cn("absolute -inset-0.5 rounded-[32px] opacity-0 group-hover:opacity-20 transition duration-500 blur-xl", 
+                            <div className={cn("absolute -inset-0.5 rounded-[32px] opacity-0 group-hover:opacity-20 transition duration-500 blur-xl",
                                 stat.color.replace('text-', 'bg-')
                             )} />
-                            
+
                             <div className="relative glass p-6 rounded-[32px] border border-white/10 bg-gradient-to-b from-white/[0.05] to-transparent h-full flex flex-col justify-between overflow-hidden">
                                 <div className="absolute -right-4 -top-4 opacity-[0.03] group-hover:opacity-[0.08] group-hover:scale-125 transition-all duration-700">
                                     <stat.icon className="w-24 h-24" />
                                 </div>
-                                
+
                                 <div className="flex justify-between items-center mb-6">
                                     <div className={cn("p-3 rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10", stat.color)}>
                                         <stat.icon className="w-5 h-5" />
@@ -690,7 +721,7 @@ const Admin = () => {
                                         </span>
                                     </div>
                                 </div>
-                                
+
                                 <div>
                                     <h4 className="text-3xl font-black tracking-tight text-white mb-1">{stat.value}</h4>
                                     <p className="text-[10px] text-gray-500 font-bold uppercase tracking-[0.15em]">{stat.label}</p>
@@ -707,8 +738,9 @@ const Admin = () => {
                         { id: 'users', label: 'User Directory', icon: Users },
                         { id: 'rooms', label: 'Active Meetings', icon: Video },
                         { id: 'moderation', label: 'Security Lab', icon: Lock },
+                        { id: 'login_history', label: 'Login History', icon: History },
                         ...(iAmOwner ? [
-                            { id: 'system_config', label: 'System Configuration', icon: ShieldCheck },
+                            { id: 'system_config', label: 'System Config', icon: ShieldCheck },
                             { id: 'analytics', label: 'Analytics', icon: BarChart3 }
                         ] : [])
                     ].map(tab => (
@@ -723,18 +755,20 @@ const Admin = () => {
                             )}
                         >
                             {activeTab === tab.id && (
-                                <motion.div 
+                                <motion.div
                                     layoutId="nav_active"
                                     className={cn(
                                         "absolute inset-0 z-0",
-                                        tab.id === 'system_config' ? "bg-rose-500/20" : "bg-white/[0.08]"
+                                        tab.id === 'system_config' ? "bg-rose-500/20" :
+                                            tab.id === 'login_history' ? "bg-emerald-500/20" : "bg-white/[0.08]"
                                     )}
                                     transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                                 />
                             )}
                             <tab.icon className={cn(
-                                "w-4 h-4 relative z-10 transition-transform duration-300 group-hover:scale-110", 
+                                "w-4 h-4 relative z-10 transition-transform duration-300 group-hover:scale-110",
                                 (tab.id === 'system_config' || tab.id === 'analytics') && "text-rose-500",
+                                tab.id === 'login_history' && "text-emerald-400",
                                 activeTab === tab.id && "text-blue-400"
                             )} />
                             <span className="relative z-10">{tab.label}</span>
@@ -755,12 +789,12 @@ const Admin = () => {
                                 {/* Priority Control Center */}
                                 <div className="lg:col-span-2 relative">
                                     <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/10 to-transparent blur-3xl -z-10" />
-                                    
+
                                     <div className="glass rounded-[40px] p-10 border border-white/10 bg-gradient-to-br from-white/[0.05] to-transparent shadow-2xl relative overflow-hidden h-full">
                                         <div className="absolute top-0 right-0 p-12 opacity-[0.03] rotate-12 pointer-events-none">
                                             <Globe className="w-64 h-64" />
                                         </div>
-                                        
+
                                         <div className="flex items-center justify-between mb-10">
                                             <div className="space-y-1">
                                                 <div className="flex items-center gap-3">
@@ -771,7 +805,7 @@ const Admin = () => {
                                                 </div>
                                                 <p className="text-xs text-gray-500 font-medium ml-12">Authorized system message propagation</p>
                                             </div>
-                                            
+
                                             {broadcast && (
                                                 <Button
                                                     onClick={clearBroadcast}
@@ -793,7 +827,7 @@ const Admin = () => {
                                                     placeholder="Type official notification for immediate broadcast..."
                                                 />
                                             </div>
-                                            
+
                                             <Button
                                                 onClick={handlePushBroadcast}
                                                 disabled={!broadcast.trim()}
@@ -814,10 +848,10 @@ const Admin = () => {
                                         </h3>
                                         <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                                     </div>
-                                    
+
                                     <div className="space-y-6 relative">
                                         <div className="absolute left-4 top-2 bottom-2 w-px bg-gradient-to-b from-white/10 via-white/5 to-transparent" />
-                                        
+
                                         {[
                                             { msg: 'Broadcast synchronized', time: '1m ago', color: 'text-emerald-500', icon: CheckCircle2 },
                                             { msg: 'Persistence updated', time: '12m ago', color: 'text-blue-400', icon: Activity },
@@ -870,7 +904,7 @@ const Admin = () => {
                                         </Button>
                                     </div>
                                 </div>
-                                
+
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left border-collapse">
                                         <thead>
@@ -997,7 +1031,7 @@ const Admin = () => {
                                                 <div className="absolute top-0 right-0 p-10 opacity-[0.02] group-hover:opacity-[0.06] group-hover:rotate-12 group-hover:scale-125 transition-all duration-700 pointer-events-none">
                                                     <Video className="w-48 h-48" />
                                                 </div>
-                                                
+
                                                 <div className="flex justify-between items-start mb-10 relative z-10">
                                                     <div className="flex items-center gap-4">
                                                         <div className="w-14 h-14 rounded-[20px] bg-blue-500/10 flex items-center justify-center border border-blue-500/20 shadow-inner group-hover:bg-blue-500 group-hover:text-white transition-all duration-500">
@@ -1034,7 +1068,7 @@ const Admin = () => {
                                                         <p className="text-sm font-black text-gray-400 tracking-tight font-mono">{room.uptime}</p>
                                                     </div>
                                                 </div>
-                                                
+
                                                 <div className="mt-8">
                                                     <Button className="w-full bg-white/5 hover:bg-blue-600 text-gray-400 hover:text-white border border-white/5 h-12 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all">
                                                         Attach to Session
@@ -1068,7 +1102,7 @@ const Admin = () => {
                                         </div>
                                         <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
                                     </div>
-                                    
+
                                     <div className="space-y-4 max-h-[450px] overflow-y-auto custom-scrollbar pr-2">
                                         {auditLogs.length === 0 ? (
                                             <div className="py-20 text-center opacity-30">
@@ -1102,14 +1136,14 @@ const Admin = () => {
                                 <div className="space-y-8">
                                     <div className={cn(
                                         "glass rounded-[40px] p-10 border border-white/10 shadow-2xl transition-all duration-700 relative overflow-hidden",
-                                        isLockdownActive 
-                                            ? "bg-rose-600/10 border-rose-500/30" 
+                                        isLockdownActive
+                                            ? "bg-rose-600/10 border-rose-500/30"
                                             : "bg-white/[0.01]"
                                     )}>
                                         {isLockdownActive && (
                                             <div className="absolute inset-0 bg-rose-500/5 animate-pulse" />
                                         )}
-                                        
+
                                         <div className="flex items-center justify-between mb-10 relative z-10">
                                             <div className="flex items-center gap-4">
                                                 <div className={cn("p-3 rounded-2xl transition-colors", isLockdownActive ? "bg-rose-500/20 text-rose-500" : "bg-gray-500/10 text-gray-500")}>
@@ -1139,8 +1173,8 @@ const Admin = () => {
                                             variant={isLockdownActive ? "default" : "destructive"}
                                             className={cn(
                                                 "w-full h-16 rounded-[24px] font-black uppercase tracking-[0.3em] text-[11px] transition-all relative z-10",
-                                                isLockdownActive 
-                                                    ? "bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/20" 
+                                                isLockdownActive
+                                                    ? "bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/20"
                                                     : "bg-rose-600 hover:bg-rose-500 text-white shadow-rose-500/20"
                                             )}
                                         >
@@ -1175,6 +1209,138 @@ const Admin = () => {
                                             </div>
                                         </div>
                                     </div>
+                                </div>
+                            </motion.div>
+                        )}
+
+                        {activeTab === 'login_history' && (
+                            <motion.div
+                                key="login_history"
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="glass rounded-[40px] border border-white/10 bg-white/[0.02] overflow-hidden shadow-2xl"
+                            >
+                                <div className="p-10 border-b border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-gradient-to-r from-emerald-500/5 to-transparent">
+                                    <div className="space-y-1">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
+                                                <History className="w-5 h-5 text-emerald-400" />
+                                            </div>
+                                            <h3 className="text-2xl font-black text-white tracking-tight">Live Login History</h3>
+                                        </div>
+                                        <p className="text-xs text-gray-500 font-medium ml-12">Real-time record of all authentication events across the platform</p>
+                                    </div>
+                                    <div className="flex gap-3 items-center">
+                                        <div className="bg-black/20 border border-emerald-500/20 rounded-2xl px-4 py-2 flex items-center gap-3">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                                            <span className="text-[10px] font-black uppercase text-emerald-400 tracking-widest">LIVE SYNC</span>
+                                        </div>
+                                        <div className="bg-black/20 border border-white/10 rounded-2xl px-4 py-2">
+                                            <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">{loginHistory.length} Events</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black">
+                                                <th className="py-6 px-10 border-b border-white/5">Event</th>
+                                                <th className="py-6 px-10 border-b border-white/5">User</th>
+                                                <th className="py-6 px-10 border-b border-white/5">Method</th>
+                                                <th className="py-6 px-10 border-b border-white/5">Timestamp</th>
+                                                <th className="py-6 px-10 border-b border-white/5">Device</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-white/[0.03]">
+                                            {loginHistory.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={5} className="py-24 text-center">
+                                                        <div className="flex flex-col items-center gap-4 opacity-30">
+                                                            <History className="w-12 h-12" />
+                                                            <p className="text-xs font-black uppercase tracking-widest">No events recorded yet</p>
+                                                            <p className="text-xs text-gray-500">Events will appear here as users log in/out</p>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                loginHistory.map((entry) => {
+                                                    const isSignIn = entry.event_type !== 'SIGNED_OUT';
+                                                    const eventLabels: Record<string, string> = {
+                                                        'SIGNED_IN': 'Sign In',
+                                                        'EMAIL_LOGIN': 'Email Login',
+                                                        'GOOGLE_LOGIN': 'Google Login',
+                                                        'PHONE_LOGIN': 'Phone Login',
+                                                        'GUEST_LOGIN': 'Guest Login',
+                                                        'SIGNED_OUT': 'Sign Out',
+                                                        'TOKEN_REFRESHED': 'Token Refresh',
+                                                    };
+                                                    const ts = entry.timestamp ? new Date(entry.timestamp) : new Date();
+                                                    const timeAgo = Math.floor((Date.now() - ts.getTime()) / 60000);
+                                                    const timeStr = timeAgo < 1 ? 'Just now' : timeAgo < 60 ? `${timeAgo}m ago` : timeAgo < 1440 ? `${Math.floor(timeAgo / 60)}h ago` : `${Math.floor(timeAgo / 1440)}d ago`;
+                                                    const shortAgent = entry.user_agent ? (
+                                                        entry.user_agent.includes('Chrome') ? 'Chrome' :
+                                                            entry.user_agent.includes('Firefox') ? 'Firefox' :
+                                                                entry.user_agent.includes('Safari') ? 'Safari' :
+                                                                    entry.user_agent.includes('Edge') ? 'Edge' : 'Browser'
+                                                    ) + (entry.user_agent.includes('Mobile') ? ' / Mobile' : ' / Desktop') : 'Unknown';
+
+                                                    return (
+                                                        <tr key={entry.id} className="group hover:bg-white/[0.02] transition-all duration-200">
+                                                            <td className="py-5 px-10">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className={cn(
+                                                                        "w-8 h-8 rounded-xl flex items-center justify-center border",
+                                                                        isSignIn
+                                                                            ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                                                                            : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+                                                                    )}>
+                                                                        {isSignIn ? <LogIn className="w-4 h-4" /> : <LogOut className="w-4 h-4" />}
+                                                                    </div>
+                                                                    <span className={cn(
+                                                                        "text-[11px] font-black uppercase tracking-wider",
+                                                                        isSignIn ? 'text-emerald-400' : 'text-rose-400'
+                                                                    )}>
+                                                                        {eventLabels[entry.event_type] || entry.event_type}
+                                                                    </span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-5 px-10">
+                                                                <div className="space-y-0.5">
+                                                                    <p className="text-xs font-bold text-gray-200">{entry.user_name || 'Unknown'}</p>
+                                                                    <p className="text-[10px] font-mono text-gray-500">{entry.user_email || 'No email'}</p>
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-5 px-10">
+                                                                <span className={cn(
+                                                                    "text-[9px] font-black uppercase px-2.5 py-1 rounded-full border tracking-widest",
+                                                                    entry.event_type === 'GOOGLE_LOGIN' ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' :
+                                                                        entry.event_type === 'GUEST_LOGIN' ? 'bg-gray-500/10 border-gray-500/20 text-gray-400' :
+                                                                            entry.event_type === 'PHONE_LOGIN' ? 'bg-purple-500/10 border-purple-500/20 text-purple-400' :
+                                                                                entry.event_type === 'TOKEN_REFRESHED' ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400' :
+                                                                                    isSignIn ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+                                                                )}>
+                                                                    {entry.event_type === 'GOOGLE_LOGIN' ? 'Google' :
+                                                                        entry.event_type === 'GUEST_LOGIN' ? 'Anonymous' :
+                                                                            entry.event_type === 'PHONE_LOGIN' ? 'OTP' :
+                                                                                entry.event_type === 'TOKEN_REFRESHED' ? 'Refresh' : 'Email'}
+                                                                </span>
+                                                            </td>
+                                                            <td className="py-5 px-10">
+                                                                <div className="space-y-0.5">
+                                                                    <p className="text-[11px] font-bold text-gray-300">{timeStr}</p>
+                                                                    <p className="text-[9px] font-mono text-gray-600">{ts.toLocaleString()}</p>
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-5 px-10">
+                                                                <span className="text-[10px] font-mono text-gray-500">{shortAgent}</span>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })
+                                            )}
+                                        </tbody>
+                                    </table>
                                 </div>
                             </motion.div>
                         )}
