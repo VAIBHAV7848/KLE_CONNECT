@@ -17,6 +17,7 @@ interface AuthContextType {
   isOwner: boolean;
   updateUserProfile: (displayName: string) => Promise<{ error: Error | null; data?: any }>;
   changePassword: (newPassword: string) => Promise<{ error: Error | null; data?: any }>;
+  resetPassword: (email: string) => Promise<{ error: Error | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -407,6 +408,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return { error: error as Error };
     }
   };
+  const resetPassword = async (email: string) => {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/#/auth?reset=true`,
+      });
+      if (error) throw error;
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
+  };
 
   return (
     <AuthContext.Provider value={{
@@ -423,7 +435,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       role,
       isOwner,
       updateUserProfile,
-      changePassword
+      changePassword,
+      resetPassword
     }}>
       {children}
     </AuthContext.Provider>

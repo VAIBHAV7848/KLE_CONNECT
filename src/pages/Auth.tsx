@@ -38,15 +38,17 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const { signUp, signIn, signInWithGoogle, signInAnonymously, signInWithPhone, verifyPhoneOtp, user, loading: authLoading } = useAuth();
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+
+  const { signUp, signIn, signInWithGoogle, signInAnonymously, signInWithPhone, verifyPhoneOtp, resetPassword, changePassword, user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
   // Handle OAuth callback
   useEffect(() => {
+    const hash = window.location.hash;
     const handleOAuthCallback = async () => {
-      const hash = window.location.hash;
-      
       // Check for OAuth success (access_token in hash)
       if (hash.includes('access_token=')) {
         setOauthLoading(true);
@@ -54,27 +56,27 @@ const Auth = () => {
           const accessTokenIndex = hash.indexOf('access_token=');
           const paramsString = hash.substring(accessTokenIndex);
           const params = new URLSearchParams(paramsString);
-          
+
           const accessToken = params.get('access_token');
           const refreshToken = params.get('refresh_token');
-          
+
           if (accessToken) {
             console.log('[Auth] Processing OAuth callback...');
             const { error } = await supabase.auth.setSession({
               access_token: accessToken,
               refresh_token: refreshToken || '',
             });
-            
+
             if (error) throw error;
-            
+
             // Clear the hash to clean up URL
             window.history.replaceState(null, '', '/#/auth');
-            
+
             toast({
               title: 'Signed in successfully',
               description: 'Welcome back!',
             });
-            
+
             // Navigation will happen automatically via the user state change
           }
         } catch (error: any) {
@@ -87,7 +89,7 @@ const Auth = () => {
           setOauthLoading(false);
         }
       }
-      
+
       // Check for error in hash
       if (hash.includes('error=')) {
         const params = new URLSearchParams(hash.substring(hash.indexOf('error=')));
@@ -99,6 +101,15 @@ const Auth = () => {
         });
       }
     };
+
+    // Check for recovery token
+    if (hash.includes('type=recovery')) {
+      setIsResettingPassword(true);
+      toast({
+        title: 'Reset Password',
+        description: 'Please enter your new password below.',
+      });
+    }
 
     handleOAuthCallback();
   }, [navigate, toast]);
@@ -147,10 +158,10 @@ const Auth = () => {
           // DETERMINISTIC ERROR HANDLING: Display error from Supabase without automatic mode switching
           // Automatic switching causes auth loops - let user decide to switch manually
           const shouldRedirectToSignIn = (error as any).shouldRedirectToSignIn;
-          
-          if (shouldRedirectToSignIn || 
-              error.message?.includes('User already registered') ||
-              error.message?.includes('already exists')) {
+
+          if (shouldRedirectToSignIn ||
+            error.message?.includes('User already registered') ||
+            error.message?.includes('already exists')) {
             toast({
               title: 'Account Already Exists',
               description: 'This email is already registered. Please sign in instead, or use "Forgot Password" if you need to reset your credentials.',
@@ -315,6 +326,55 @@ const Auth = () => {
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) {
+      setErrors({ email: 'Email is required' });
+      return;
+    }
+    setLoading(true);
+    const { error } = await resetPassword(email);
+    setLoading(false);
+    if (error) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } else {
+      toast({
+        title: 'Reset link sent',
+        description: 'Check your email for the password reset link.',
+      });
+      setIsForgotPassword(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password.length < 6) {
+      setErrors({ password: 'Password must be at least 6 characters' });
+      return;
+    }
+    setLoading(true);
+    const { error } = await changePassword(password);
+    setLoading(false);
+    if (error) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } else {
+      toast({
+        title: 'Success',
+        description: 'Your password has been reset. You can now sign in.',
+      });
+      setIsResettingPassword(false);
+      navigate('/auth');
+    }
+  };
+
   const handleGuestLogin = async () => {
     setLoading(true);
     const { error } = await signInAnonymously();
@@ -345,16 +405,16 @@ const Auth = () => {
           </div>
         </div>
         <motion.div
-           initial={{ opacity: 0, y: 10 }}
-           animate={{ opacity: 1, y: 0 }}
-           className="space-y-4 max-w-sm"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-4 max-w-sm"
         >
           <h2 className="text-2xl font-bold font-display text-gradient">Securing Session</h2>
           <p className="text-muted-foreground">
             We're finalizing your secure connection to KLE CONNECT. This usually takes just a moment...
           </p>
           <div className="pt-4">
-            <button 
+            <button
               onClick={() => {
                 setOauthLoading(false);
                 window.history.replaceState(null, '', '/#/auth');
@@ -416,26 +476,29 @@ const Auth = () => {
             </TabsList>
 
             <TabsContent value="email">
-              <form onSubmit={handleEmailSubmit} className="space-y-4">
-                {isSignUp && (
-                  <div>
-                    <div className="relative">
-                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        type="text"
-                        placeholder="Full Name"
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        className="pl-10 bg-muted border-border"
-                      />
-                    </div>
-                    {errors.fullName && (
-                      <p className="text-destructive text-xs mt-1">{errors.fullName}</p>
-                    )}
+              {isResettingPassword ? (
+                <form onSubmit={handleResetPassword} className="space-y-4">
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      type="password"
+                      placeholder="New Password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="pl-10 bg-muted border-border"
+                    />
                   </div>
-                )}
-
-                <div>
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : 'Update Password'}
+                  </Button>
+                  <div className="text-center mt-2">
+                    <button type="button" onClick={() => setIsResettingPassword(false)} className="text-xs text-muted-foreground hover:text-primary">
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : isForgotPassword ? (
+                <form onSubmit={handleForgotPassword} className="space-y-4">
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
@@ -446,54 +509,107 @@ const Auth = () => {
                       className="pl-10 bg-muted border-border"
                     />
                   </div>
-                  {errors.email && (
-                    <p className="text-destructive text-xs mt-1">{errors.email}</p>
-                  )}
-                </div>
-
-                <div>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      type="password"
-                      placeholder="Password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="pl-10 bg-muted border-border"
-                    />
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : 'Send Reset Link'}
+                  </Button>
+                  <div className="text-center mt-2">
+                    <button type="button" onClick={() => setIsForgotPassword(false)} className="text-xs text-muted-foreground hover:text-primary">
+                      Back to Login
+                    </button>
                   </div>
-                  {errors.password && (
-                    <p className="text-destructive text-xs mt-1">{errors.password}</p>
+                </form>
+              ) : (
+                <form onSubmit={handleEmailSubmit} className="space-y-4">
+                  {isSignUp && (
+                    <div>
+                      <div className="relative">
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          type="text"
+                          placeholder="Full Name"
+                          value={fullName}
+                          onChange={(e) => setFullName(e.target.value)}
+                          className="pl-10 bg-muted border-border"
+                        />
+                      </div>
+                      {errors.fullName && (
+                        <p className="text-destructive text-xs mt-1">{errors.fullName}</p>
+                      )}
+                    </div>
                   )}
-                </div>
 
-                <Button
-                  type="submit"
-                  className="w-full bg-primary hover:bg-primary/90"
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      {isSignUp ? 'Creating account...' : 'Signing in...'}
-                    </>
-                  ) : (
-                    isSignUp ? 'Create Account' : 'Sign In'
+                  <div>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        type="email"
+                        placeholder="Email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="pl-10 bg-muted border-border"
+                      />
+                    </div>
+                    {errors.email && (
+                      <p className="text-destructive text-xs mt-1">{errors.email}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        type="password"
+                        placeholder="Password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="pl-10 bg-muted border-border"
+                      />
+                    </div>
+                    {errors.password && (
+                      <p className="text-destructive text-xs mt-1">{errors.password}</p>
+                    )}
+                  </div>
+
+                  {!isSignUp && (
+                    <div className="text-right">
+                      <button
+                        type="button"
+                        onClick={() => setIsForgotPassword(true)}
+                        className="text-[10px] text-muted-foreground hover:text-primary uppercase tracking-wider font-bold"
+                      >
+                        Forgot Password?
+                      </button>
+                    </div>
                   )}
-                </Button>
-                <div className="text-center mt-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsSignUp(!isSignUp);
-                      setErrors({});
-                    }}
-                    className="text-xs text-muted-foreground hover:text-primary transition-colors"
+
+                  <Button
+                    type="submit"
+                    className="w-full bg-primary hover:bg-primary/90"
+                    disabled={loading}
                   >
-                    {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
-                  </button>
-                </div>
-              </form>
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        {isSignUp ? 'Creating account...' : 'Signing in...'}
+                      </>
+                    ) : (
+                      isSignUp ? 'Create Account' : 'Sign In'
+                    )}
+                  </Button>
+                  <div className="text-center mt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsSignUp(!isSignUp);
+                        setErrors({});
+                      }}
+                      className="text-xs text-muted-foreground hover:text-primary transition-colors"
+                    >
+                      {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
+                    </button>
+                  </div>
+                </form>
+              )}
             </TabsContent>
 
             <TabsContent value="phone">
@@ -598,10 +714,9 @@ const Auth = () => {
               Continue as Guest
             </Button>
           </div>
-
         </div>
-      </motion.div >
-    </div >
+      </motion.div>
+    </div>
   );
 };
 
