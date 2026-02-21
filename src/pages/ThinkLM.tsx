@@ -168,6 +168,10 @@ const ThinkLM = () => {
 
       // 2. Fallback to Main AI with "Grounding" prompt if no result yet
       if (!resultAnswer) {
+        const { supabase } = await import('@/lib/supabase');
+        const { data: { session } } = await supabase.auth.getSession();
+        const idToken = session?.access_token || "";
+
         const promptOverride = `[SYSTEM: THINKLM GROUNDED MODE]
 You are acting as a Grounded AI Knowledge Retrieval system. 
 The user asks: "${question}"
@@ -177,7 +181,10 @@ If you don't know the exact contents, provide a highly educational response base
 
         const res = await fetch(mainAiUrl, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": idToken ? `Bearer ${idToken}` : ""
+          },
           body: JSON.stringify({ prompt: promptOverride, history: [] })
         });
 

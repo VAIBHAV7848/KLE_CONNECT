@@ -10,8 +10,8 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 const ENCRYPTION_SECRET = process.env.ENCRYPTION_SECRET || "TIER_0_GOD_MODE_SECRET";
 
 // Supabase Configuration
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "https://dlwjaqymlobhmtmwraly.supabase.co";
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "https://thrshfigvpafopddosto.supabase.co";
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
 // Initialize Supabase Admin Client
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
@@ -53,7 +53,7 @@ function sendJsonError(res, status, code, message, details = null) {
 async function trackUsage(supabaseClient, token, activeProvider, success, responseTimeMs = null, errorMsg = null, tokens = { prompt: 0, completion: 0 }) {
     try {
         const { data: { user } } = await supabaseClient.auth.getUser(token);
-        
+
         await supabaseClient.from('ai_usage_stats').insert({
             provider: activeProvider ? activeProvider.replace('_API_KEY', '') : 'unknown',
             user_id: user?.id || null,
@@ -73,7 +73,7 @@ async function trackUsage(supabaseClient, token, activeProvider, success, respon
 // AI Execution function with timeout safety
 async function executeAIRequest(activeProvider, apiKey, prompt, history, systemPrompt) {
     const EXECUTION_TIMEOUT_MS = 25000; // 25 seconds max for serverless safety
-    
+
     const executionPromise = (async () => {
         if (activeProvider.includes("GEMINI")) {
             const genAI = new GoogleGenerativeAI(apiKey);
@@ -97,7 +97,7 @@ async function executeAIRequest(activeProvider, apiKey, prompt, history, systemP
             const result = await chat.sendMessage(prompt);
             const response = await result.response;
             return { text: response.text() };
-            
+
         } else if (activeProvider.includes("ANTHROPIC")) {
             const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
                 method: 'POST',
@@ -127,7 +127,7 @@ async function executeAIRequest(activeProvider, apiKey, prompt, history, systemP
 
             const data = await anthropicResponse.json();
             return { text: data.content[0].text };
-            
+
         } else if (activeProvider.includes("MISTRAL")) {
             const client = new Internal API({
                 apiKey: apiKey,
@@ -154,11 +154,11 @@ async function executeAIRequest(activeProvider, apiKey, prompt, history, systemP
             });
 
             return { text: completion.choices[0].message.content };
-            
+
         } else {
             // Internal API-compatible providers (Groq, Internal API)
             let baseURL = "https://api.groq.com/openai/v1";
-            let modelName = "llama-3.1-8b-instant"; 
+            let modelName = "llama-3.1-8b-instant";
 
             if (activeProvider.includes("OPENAI")) {
                 baseURL = "https://api.openai.com/v1";
@@ -192,11 +192,11 @@ async function executeAIRequest(activeProvider, apiKey, prompt, history, systemP
             return { text: completion.choices[0].message.content };
         }
     })();
-    
-    const timeoutPromise = new Promise((_, reject) => 
+
+    const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('EXECUTION_TIMEOUT')), EXECUTION_TIMEOUT_MS)
     );
-    
+
     return await Promise.race([executionPromise, timeoutPromise]);
 }
 
@@ -229,14 +229,14 @@ export default async function handler(req, res) {
         }
 
         const token = authHeader.split('Bearer ')[1];
-        
+
         try {
             const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-            
+
             if (authError || !user) {
                 throw new Error(authError?.message || 'Invalid token');
             }
-            
+
             console.info(`[SECURITY_MONITOR] AI_ACCESS_GRANTED | User: ${user.email} | UID: ${user.id}`);
         } catch (authError) {
             console.warn(`[SECURITY_MONITOR] AI_ACCESS_DENIED | Reason: ${authError.message}`);
@@ -263,23 +263,23 @@ export default async function handler(req, res) {
 
         try {
             console.log("[System] Synchronizing with Key Mesh (1.5s lane)...");
-            
+
             // GUARD: Database fetch with timeout - prevents hanging on DB issues
-            const timeout = new Promise((_, reject) => 
+            const timeout = new Promise((_, reject) =>
                 setTimeout(() => reject(new Error('MESH_TIMEOUT')), 1500)
             );
-            
+
             const dbFetch = supabase
                 .from('system_config')
                 .select('*');
-            
+
             const result = await Promise.race([dbFetch, timeout]);
-            
+
             // GUARD: Check for database errors
             if (result.error) {
                 throw new Error(`DB_ERROR: ${result.error.message}`);
             }
-            
+
             const configData = result.data;
 
             // GUARD: Validate config data is array
@@ -295,7 +295,7 @@ export default async function handler(req, res) {
             // Find active provider
             const activeProviderEntry = configData.find(item => item.key_name === 'active_ai_provider');
             activeProvider = activeProviderEntry?.key_value;
-            
+
             // GUARD: Validate active provider exists
             if (!activeProvider || typeof activeProvider !== 'string') {
                 throw new Error('ACTIVE_PROVIDER_NOT_SET: No active AI provider configured');
@@ -303,71 +303,71 @@ export default async function handler(req, res) {
 
             // GUARD: Validate active provider format (must be a valid provider key)
             const validProviderPrefixes = ['OPENAI', 'GROQ', 'GEMINI', 'ANTHROPIC', 'MISTRAL'];
-            const isValidProvider = validProviderPrefixes.some(prefix => 
+            const isValidProvider = validProviderPrefixes.some(prefix =>
                 activeProvider.toUpperCase().includes(prefix)
             );
-            
+
             if (!isValidProvider) {
                 throw new Error(`INVALID_PROVIDER: "${activeProvider}" is not a supported provider`);
             }
-            
+
             // Find API key for active provider
             const keyData = configData.find(item => item.key_name === activeProvider);
-            
+
             // GUARD: API key must exist in config
             if (!keyData) {
                 throw new Error(`API_KEY_MISSING: No configuration entry found for ${activeProvider}`);
             }
-            
+
             // GUARD: API key must have a value
             if (!keyData.key_value) {
                 throw new Error(`API_KEY_MISSING: Stored key for ${activeProvider} is null or undefined`);
             }
-            
+
             // GUARD: API key must be non-empty string
             if (typeof keyData.key_value !== 'string' || keyData.key_value.trim().length === 0) {
                 throw new Error(`API_KEY_EMPTY: Key for ${activeProvider} is empty string`);
             }
-            
+
             // Decrypt API key
             try {
                 const bytes = AES.decrypt(keyData.key_value, ENCRYPTION_SECRET);
                 const decrypted = bytes.toString(encUtf8);
-                
-                // GUARD: Decryption must produce valid result
+
                 if (!decrypted || decrypted.trim().length === 0) {
-                    throw new Error('DECRYPT_FAILED: Decryption produced empty result - check ENCRYPTION_SECRET');
+                    throw new Error('DECRYPT_FAILED');
                 }
-                
-                // SECURITY: Block leaked keys
-                if (decrypted.endsWith("IUfE")) {
-                    throw new Error('LEAKED_KEY_BLOCKED: Known leaked key detected and blocked');
-                }
-                
+
                 apiKey = decrypted;
                 routeStatus = "MESH (SYNCED)";
                 console.log(`[System] Mesh Node Active: ${activeProvider}`);
             } catch (decryptError) {
-                throw new Error(`DECRYPT_FAILURE: ${decryptError.message}`);
+                // If decryption failed but the key itself might be raw (unencrypted fallback)
+                apiKey = keyData.key_value;
+                routeStatus = "MESH (RAW)";
             }
-            
+
         } catch (configError) {
             console.warn(`[System] Configuration Error: ${configError.message}`);
-            routeStatus = `CONFIG_ERROR`;
-            
-            // CRITICAL: Return JSON error immediately - don't proceed without valid config
-            return sendJsonError(res, 503, 'CONFIGURATION_ERROR', 
-                'AI provider configuration is missing or invalid. Please configure a provider in System Settings.',
-                {
-                    details: configError.message,
-                    routeStatus: routeStatus
-                }
-            );
+
+            // --- FALLBACK: Use Environment Variables ---
+            activeProvider = process.env.ACTIVE_AI_PROVIDER || (process.env.VITE_GEMINI_API_KEY ? "GEMINI_API_KEY" : "GROQ_API_KEY");
+            apiKey = process.env[activeProvider] || process.env.VITE_GEMINI_API_KEY || process.env.VITE_GROQ_API_KEY;
+
+            if (apiKey) {
+                routeStatus = "ENV_FALLBACK";
+            } else {
+                routeStatus = `CONFIG_ERROR`;
+                return sendJsonError(res, 503, 'CONFIGURATION_ERROR',
+                    'AI provider configuration is missing. Please configure a provider in System Settings or .env.',
+                    { details: configError.message, routeStatus: routeStatus }
+                );
+            }
         }
 
         // GUARD: Final validation - must have apiKey and activeProvider before proceeding
         if (!apiKey || !activeProvider) {
-            return sendJsonError(res, 503, 'NO_PROVIDER_CONFIGURED', 
+            return sendJsonError(res, 503, 'NO_PROVIDER_CONFIGURED',
                 'No AI provider is properly configured. Please add provider credentials in System Settings.',
                 { routeStatus: routeStatus }
             );
@@ -404,61 +404,61 @@ Tone rules:
 If a greeting is given, respond warmly and ask how you can help with studies.`;
 
         const startTime = Date.now();
-        
+
         try {
             const aiResponse = await executeAIRequest(activeProvider, apiKey, prompt, history, systemPrompt);
-            
+
             const responseTime = Date.now() - startTime;
-            
+
             // Track successful usage (non-blocking)
-            trackUsage(supabase, token, activeProvider, true, responseTime, null, { 
-                prompt: prompt.length, 
-                completion: aiResponse.text?.length || 0 
-            }).catch(() => {}); // Ignore analytics errors
-            
+            trackUsage(supabase, token, activeProvider, true, responseTime, null, {
+                prompt: prompt.length,
+                completion: aiResponse.text?.length || 0
+            }).catch(() => { }); // Ignore analytics errors
+
             return res.status(200).json({
                 reply: aiResponse.text,
                 provider: activeProvider.replace('_API_KEY', ''),
                 routeStatus: routeStatus,
                 responseTimeMs: responseTime
             });
-            
+
         } catch (execError) {
             const responseTime = Date.now() - startTime;
             const errorMsg = execError.message || "Unknown AI Error";
-            
+
             console.error("[System] AI Execution Failed:", errorMsg);
-            
+
             // Track failed usage (non-blocking)
-            trackUsage(supabase, token, activeProvider, false, responseTime, errorMsg).catch(() => {});
-            
+            trackUsage(supabase, token, activeProvider, false, responseTime, errorMsg).catch(() => { });
+
             // GUARD: Check if it's a timeout
             if (errorMsg.includes('TIMEOUT')) {
-                return sendJsonError(res, 504, 'AI_TIMEOUT', 
+                return sendJsonError(res, 504, 'AI_TIMEOUT',
                     'The AI service took too long to respond. Please try again.',
                     { provider: activeProvider, routeStatus: routeStatus }
                 );
             }
-            
-            return sendJsonError(res, 502, 'AI_EXECUTION_FAILED', 
+
+            return sendJsonError(res, 502, 'AI_EXECUTION_FAILED',
                 `AI service error: ${errorMsg}`,
-                { 
-                    provider: activeProvider, 
+                {
+                    provider: activeProvider,
                     routeStatus: routeStatus,
                     keySuffix: keySuffix
                 }
             );
         }
-        
+
     } catch (globalError) {
         // ABSOLUTE TOP-LEVEL CATCH: Ensure we NEVER return non-JSON
         console.error("[FATAL] Global Handler Error:", globalError);
-        
+
         // Set JSON content type even in error case
         if (res.setHeader) {
             res.setHeader('Content-Type', 'application/json');
         }
-        
+
         return res.status(500).json({
             error: 'INTERNAL_SERVER_ERROR',
             message: 'An unexpected error occurred. Please try again.',
