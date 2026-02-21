@@ -22,15 +22,66 @@ const AuthCallback = () => {
 
     useEffect(() => {
         let mounted = true;
-        
+
         const handleCallback = async () => {
             const hash = window.location.hash;
-            console.log('[AuthCallback] handling hash:', hash);
-            
-            // Check if this is an OAuth callback (has access_token)
+            const search = window.location.search;
+            const searchParams = new URLSearchParams(search);
+
+            console.log('[AuthCallback] handling hash:', hash, 'search:', search);
+
+            // ✅ Helper: parse error from URLSearchParams-style string
+            const extractOAuthError = (paramString: string) => {
+                const params = new URLSearchParams(paramString);
+                return {
+                    error: params.get('error'),
+                    description: params.get('error_description'),
+                };
+            };
+
+            // ✅ 1. Check for errors in QUERY PARAMS (?error=...)
+            const queryError = searchParams.get('error');
+            const queryErrorDescription = searchParams.get('error_description');
+            if (queryError) {
+                console.error('[AuthCallback] OAuth error in query params:', queryError, queryErrorDescription);
+                if (mounted) {
+                    toast({
+                        title: "Google Sign-In Failed",
+                        description: queryErrorDescription
+                            ? decodeURIComponent(queryErrorDescription)
+                            : "Unable to complete sign-in. Please try again.",
+                        variant: "destructive"
+                    });
+                    window.history.replaceState(null, '', '/');
+                    navigate('/auth', { replace: true });
+                }
+                return;
+            }
+
+            // ✅ 2. Check for errors in HASH PATH (/#/error=... from HashRouter)
+            // e.g. hash = "#/error=server_error&error_description=..."
+            const hashPath = hash.startsWith('#/') ? hash.slice(2) : hash.slice(1);
+            if (hashPath.startsWith('error=')) {
+                const { error: hashError, description: hashDesc } = extractOAuthError(hashPath);
+                console.error('[AuthCallback] OAuth error in hash path:', hashError, hashDesc);
+                if (mounted) {
+                    toast({
+                        title: "Google Sign-In Failed",
+                        description: hashDesc
+                            ? decodeURIComponent(hashDesc)
+                            : "Unable to complete sign-in. Please try again.",
+                        variant: "destructive"
+                    });
+                    window.history.replaceState(null, '', '/');
+                    navigate('/auth', { replace: true });
+                }
+                return;
+            }
+
+            // Check if this is a successful OAuth callback (has access_token)
             const hasAccessToken = hash.includes('access_token=');
             const hasError = hash.includes('error=');
-            
+
             if (!hasAccessToken && !hasError) {
                 // Not an OAuth callback, redirect to auth
                 if (!user && mounted) {
@@ -39,17 +90,18 @@ const AuthCallback = () => {
                 return;
             }
 
+
             // Supabase auto-detects tokens from URL, so we just wait
             // The onAuthStateChange listener in useAuth will handle the rest
             console.log('[AuthCallback] Waiting for Supabase to auto-detect session...');
-            
+
             // Give Supabase time to process (it reads hash automatically)
             setTimeout(async () => {
                 if (!mounted) return;
-                
+
                 try {
                     const { data: { session }, error } = await supabase.auth.getSession();
-                    
+
                     if (error) {
                         console.error('[AuthCallback] getSession error:', error);
                         if (mounted) {
@@ -58,7 +110,7 @@ const AuthCallback = () => {
                         }
                         return;
                     }
-                    
+
                     if (session) {
                         console.log('[AuthCallback] Session detected:', session.user.email);
                         // Clear hash to clean up URL
@@ -82,7 +134,7 @@ const AuthCallback = () => {
                         console.log('[AuthCallback] Aborted (StrictMode), session will be detected by listener');
                         return;
                     }
-                    
+
                     console.error('[AuthCallback] Error:', error);
                     if (mounted) {
                         toast({
@@ -100,12 +152,12 @@ const AuthCallback = () => {
         if (!user) {
             handleCallback();
         }
-        
+
         return () => {
             mounted = false;
         };
     }, [navigate, toast, user]);
-    
+
     // Safety timeout: if processing takes too long, show error
     useEffect(() => {
         const timeout = setTimeout(() => {
@@ -115,7 +167,7 @@ const AuthCallback = () => {
                 setIsNotFound(true);
             }
         }, 10000); // 10 second timeout
-        
+
         return () => clearTimeout(timeout);
     }, [isProcessing, user]);
 
