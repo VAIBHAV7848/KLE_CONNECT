@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { useDockAnimation } from '@/hooks/useDockAnimation';
 import { useAuth } from '@/hooks/useAuth';
+import { useIsMobile } from '@/hooks/use-mobile';
 import DockItem from './DockItem';
 import {
   LayoutDashboard,
@@ -121,6 +122,7 @@ const navigationItems = [
  */
 const Dock = () => {
   const { isAdmin } = useAuth();
+  const isMobile = useIsMobile();
 
   // Filter out admin item if current user is not an admin
   const filteredItems = navigationItems.filter(item => {
@@ -129,9 +131,9 @@ const Dock = () => {
   });
 
   const { dockRef, setItemRef } = useDockAnimation(filteredItems.length, {
-    baseSize: 48,
-    maxScale: 1.6,
-    maxDistance: 100
+    baseSize: isMobile ? 40 : 48,
+    maxScale: isMobile ? 1 : 1.6,
+    maxDistance: isMobile ? 0 : 100
   });
 
   const createRefCallback = useCallback((index: number) => {
@@ -139,31 +141,45 @@ const Dock = () => {
   }, [setItemRef]);
 
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50">
+    <div className={`fixed z-[100] transition-all duration-300 ${isMobile
+        ? 'bottom-0 left-0 right-0 w-full'
+        : 'bottom-4 left-1/2 -translate-x-1/2'
+      }`}>
       {/* Dock container with glassmorphism */}
       <div
         ref={dockRef}
-        className="glass-dock rounded-2xl px-3 py-2.5 flex items-end gap-1"
+        className={`glass-dock flex items-end ${isMobile
+            ? 'rounded-t-2xl px-2 py-3 gap-3 overflow-x-auto justify-start border-l-0 border-r-0 border-b-0 no-scrollbar pb-safe'
+            : 'rounded-2xl px-3 py-2.5 gap-1 justify-center'
+          }`}
+        style={{
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+          WebkitOverflowScrolling: 'touch'
+        }}
       >
         {filteredItems.map((item, index) => (
-          <DockItem
-            key={item.to}
-            icon={item.icon}
-            label={item.label}
-            to={item.to}
-            gradient={item.gradient}
-            onSetRef={createRefCallback(index)}
-          />
+          <div key={item.to} className={isMobile ? 'flex-shrink-0' : ''}>
+            <DockItem
+              icon={item.icon}
+              label={item.label}
+              to={item.to}
+              gradient={item.gradient}
+              onSetRef={createRefCallback(index)}
+            />
+          </div>
         ))}
       </div>
 
       {/* Subtle reflection effect */}
-      <div
-        className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-3/4 h-8 opacity-20 blur-xl pointer-events-none"
-        style={{
-          background: 'linear-gradient(to bottom, hsl(199 89% 48% / 0.3), transparent)'
-        }}
-      />
+      {!isMobile && (
+        <div
+          className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-3/4 h-8 opacity-20 blur-xl pointer-events-none"
+          style={{
+            background: 'linear-gradient(to bottom, hsl(199 89% 48% / 0.3), transparent)'
+          }}
+        />
+      )}
     </div>
   );
 };
