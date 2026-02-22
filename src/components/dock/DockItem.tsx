@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LucideIcon } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface DockItemProps {
   icon: LucideIcon;
@@ -18,6 +19,7 @@ const DockItem = ({ icon: Icon, label, to, gradient, onSetRef }: DockItemProps) 
   const [isHovered, setIsHovered] = useState(false);
   const location = useLocation();
   const isActive = location.pathname === to;
+  const isMobile = useIsMobile();
 
   const handleRef = useCallback((el: HTMLDivElement | null) => {
     onSetRef(el);
@@ -31,9 +33,9 @@ const DockItem = ({ icon: Icon, label, to, gradient, onSetRef }: DockItemProps) 
       onMouseLeave={() => setIsHovered(false)}
       style={{ willChange: 'transform' }}
     >
-      {/* Tooltip */}
+      {/* Tooltip (Only showing on desktop where hover makes sense) */}
       <AnimatePresence>
-        {isHovered && (
+        {!isMobile && isHovered && (
           <motion.div
             initial={{ opacity: 0, y: 8, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -48,21 +50,22 @@ const DockItem = ({ icon: Icon, label, to, gradient, onSetRef }: DockItemProps) 
         )}
       </AnimatePresence>
 
-      {/* Icon Button */}
+      {/* Icon Button Area */}
       <Link
         to={to}
         className={`
-          relative flex items-center justify-center w-12 h-12 rounded-xl
+          relative flex flex-col items-center justify-center rounded-xl
           transition-colors duration-200 group
+          ${isMobile ? 'w-16 py-1 h-14' : 'w-12 h-12'}
           ${isActive ? 'active' : ''}
         `}
         aria-label={label}
       >
-        {/* Background glow on hover/active */}
+        {/* Background glow on hover/active (desktop) & active (mobile) */}
         <div
           className={`
             absolute inset-0 rounded-xl opacity-0 transition-opacity duration-300
-            ${isActive ? 'opacity-100' : 'group-hover:opacity-70'}
+            ${isActive ? 'opacity-100' : (!isMobile ? 'group-hover:opacity-70' : '')}
           `}
           style={{
             background: gradient || 'linear-gradient(135deg, hsl(199 89% 48% / 0.25), hsl(263 70% 58% / 0.25))'
@@ -72,13 +75,21 @@ const DockItem = ({ icon: Icon, label, to, gradient, onSetRef }: DockItemProps) 
         {/* Icon */}
         <Icon
           className={`
-            w-6 h-6 relative z-10 transition-colors duration-200
+            relative z-10 transition-colors duration-200
+            ${isMobile ? 'w-5 h-5 mb-1' : 'w-6 h-6'}
             ${isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}
           `}
         />
 
-        {/* Active indicator dot */}
-        {isActive && (
+        {/* Mobile text label under icon */}
+        {isMobile && (
+          <span className={`text-[10px] leading-tight font-medium relative z-10 truncate w-full text-center px-1 transition-colors ${isActive ? 'text-foreground' : 'text-muted-foreground'}`}>
+            {label}
+          </span>
+        )}
+
+        {/* Active indicator dot (Desktop Only, since mobile uses text highlighting + bg) */}
+        {!isMobile && isActive && (
           <motion.div
             layoutId="activeIndicator"
             className="absolute -bottom-1.5 w-1 h-1 rounded-full bg-primary"
