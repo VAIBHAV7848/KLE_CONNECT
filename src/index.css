@@ -124,6 +124,8 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: 'Inter', system-ui, sans-serif;
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
   }
 }
 
@@ -131,12 +133,14 @@
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
   .pb-safe {
-    padding-bottom: env(safe-area-inset-bottom, 1rem);
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
   }
 
   .glass {
@@ -220,7 +224,7 @@
   }
 
   .page-container {
-    @apply min-h-screen pb-32 pt-8 px-4 md:px-8;
+    @apply min-h-screen pb-40 pt-8 px-4 md:px-8;
   }
 
   .module-card {

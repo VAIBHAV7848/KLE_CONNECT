@@ -10,12 +10,10 @@ interface DockItemProps {
   to: string;
   gradient?: string;
   onSetRef: (el: HTMLDivElement | null) => void;
+  onClick?: () => void;
 }
 
-/**
- * Individual dock item with tooltip and active state
- */
-const DockItem = ({ icon: Icon, label, to, gradient, onSetRef }: DockItemProps) => {
+const DockItem = ({ icon: Icon, label, to, gradient, onSetRef, onClick }: DockItemProps) => {
   const [isHovered, setIsHovered] = useState(false);
   const location = useLocation();
   const isActive = location.pathname === to;
@@ -28,12 +26,11 @@ const DockItem = ({ icon: Icon, label, to, gradient, onSetRef }: DockItemProps) 
   return (
     <div
       ref={handleRef}
-      className="dock-item relative origin-bottom"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      style={{ willChange: 'transform' }}
+      className={`relative origin-bottom ${isMobile ? 'flex flex-col items-center justify-center' : 'dock-item'}`}
+      onMouseEnter={() => !isMobile && setIsHovered(true)}
+      onMouseLeave={() => !isMobile && setIsHovered(false)}
+      style={{ willChange: 'transform, opacity' }}
     >
-      {/* Tooltip (Only showing on desktop where hover makes sense) */}
       <AnimatePresence>
         {!isMobile && isHovered && (
           <motion.div
@@ -50,34 +47,32 @@ const DockItem = ({ icon: Icon, label, to, gradient, onSetRef }: DockItemProps) 
         )}
       </AnimatePresence>
 
-      {/* Icon Button Area */}
       <Link
         to={to}
         onClick={() => {
-          // Pro detail: Subtle haptic vibration when tapping tabs on mobile devices
           if (isMobile && typeof navigator.vibrate === 'function') {
-            navigator.vibrate(30);
+            navigator.vibrate(20);
           }
+          if (onClick) onClick();
         }}
         className={`
           relative flex flex-col items-center justify-center 
           transition-colors duration-200 group
-          ${isMobile ? 'w-16 py-1.5 h-[60px] rounded-[20px]' : 'rounded-xl w-12 h-12'}
+          ${isMobile ? 'w-[64px] h-[64px] rounded-2xl active:scale-95' : 'rounded-xl w-12 h-12'}
           ${isActive && !isMobile ? 'active' : ''}
         `}
         aria-label={label}
+        style={{ WebkitTapHighlightColor: 'transparent' }}
       >
-        {/* Pro Mobile feature: Fluid sliding active indicator (imitates native tabs) */}
         {isMobile && isActive && (
           <motion.div
             layoutId="mobileActiveDockBubble"
-            className="absolute inset-0 bg-primary/15 border-[0.5px] border-primary/30 backdrop-blur-md z-0"
-            style={{ borderRadius: '20px' }}
-            transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
+            className="absolute inset-0 bg-primary/10 border border-primary/20 shadow-[0_4px_16px_rgba(0,195,255,0.1)] z-0"
+            style={{ borderRadius: '16px' }}
+            transition={{ type: "spring", stiffness: 400, damping: 30 }}
           />
         )}
 
-        {/* Desktop glow layer */}
         {!isMobile && (
           <div
             className={`
@@ -90,26 +85,28 @@ const DockItem = ({ icon: Icon, label, to, gradient, onSetRef }: DockItemProps) 
           />
         )}
 
-        {/* Icon */}
         <Icon
           className={`
-            relative z-10 transition-colors duration-200
-            ${isMobile ? 'w-[22px] h-[22px] mb-1' : 'w-6 h-6'}
-            ${isActive ? 'text-primary drop-shadow-[0_0_8px_rgba(0,195,255,0.4)]' : 'text-muted-foreground group-hover:text-foreground'}
+            relative z-10 transition-all duration-300
+            ${isMobile ? 'w-6 h-6 mb-1' : 'w-6 h-6'}
+            ${isActive
+              ? isMobile
+                ? 'text-primary drop-shadow-[0_0_8px_rgba(0,195,255,0.4)] scale-110'
+                : 'text-primary'
+              : 'text-muted-foreground group-hover:text-foreground scale-100'
+            }
           `}
         />
 
-        {/* Mobile text label under icon */}
         {isMobile && (
           <span
-            className={`text-[10px] leading-tight relative z-10 truncate w-full text-center px-1 transition-all duration-300
-            ${isActive ? 'text-foreground font-semibold' : 'text-muted-foreground font-medium'}
+            className={`text-[11px] leading-tight relative z-10 truncate w-full text-center px-1 transition-colors duration-300
+            ${isActive ? 'text-primary font-semibold' : 'text-muted-foreground font-medium'}
           `}>
             {label}
           </span>
         )}
 
-        {/* Active indicator dot (Desktop Only, since mobile uses text highlighting + bg) */}
         {!isMobile && isActive && (
           <motion.div
             layoutId="activeIndicator"
