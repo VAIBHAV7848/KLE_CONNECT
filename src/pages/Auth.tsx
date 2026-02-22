@@ -159,7 +159,13 @@ const Auth = () => {
           // Automatic switching causes auth loops - let user decide to switch manually
           const shouldRedirectToSignIn = (error as any).shouldRedirectToSignIn;
 
-          if (shouldRedirectToSignIn ||
+          if (error.message?.includes('aborted') || error.message?.includes('signal')) {
+            toast({
+              title: 'Browser Restriction Detected',
+              description: 'WhatsApp/Instagram built-in browsers block secure logins. Please tap the 3 dots (⋮) in the top right and select "Open in Chrome" or "Open in Safari".',
+              variant: 'destructive',
+            });
+          } else if (shouldRedirectToSignIn ||
             error.message?.includes('User already registered') ||
             error.message?.includes('already exists')) {
             toast({
@@ -167,8 +173,6 @@ const Auth = () => {
               description: 'This email is already registered. Please sign in instead, or use "Forgot Password" if you need to reset your credentials.',
               variant: 'destructive',
             });
-            // CRITICAL: Do NOT auto-switch modes - this causes infinite loops
-            // Instead, show clear message and let user manually switch
           } else {
             toast({
               title: 'Sign up failed',
@@ -188,7 +192,13 @@ const Auth = () => {
         if (error) {
           // DETERMINISTIC ERROR HANDLING: Map Supabase error codes to user-friendly messages
           // Error information comes ONLY from Supabase - no client-side inference
-          if (error.message?.includes('Invalid login credentials')) {
+          if (error.message?.includes('aborted') || error.message?.includes('signal')) {
+            toast({
+              title: 'Browser Restriction Detected',
+              description: 'In-app browsers (like WhatsApp) block secure logins. Please tap the 3 dots (⋮) in the top right and select "Open in Chrome/Safari".',
+              variant: 'destructive',
+            });
+          } else if (error.message?.includes('Invalid login credentials')) {
             toast({
               title: 'Invalid Credentials',
               description: 'The email or password you entered is incorrect. Please try again or use "Forgot Password" to reset.',
@@ -380,11 +390,19 @@ const Auth = () => {
     const { error } = await signInAnonymously();
     setLoading(false);
     if (error) {
-      toast({
-        title: 'Guest Login Failed',
-        description: error.message,
-        variant: 'destructive',
-      });
+      if (error.message?.includes('aborted') || error.message?.includes('signal')) {
+        toast({
+          title: 'Browser Restriction Detected',
+          description: 'Please tap the 3 dots (⋮) in the top right and select "Open in Chrome/Safari" to login.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Guest Login Failed',
+          description: error.message,
+          variant: 'destructive',
+        });
+      }
     } else {
       toast({
         title: 'Welcome Guest!',
@@ -689,11 +707,19 @@ const Auth = () => {
                 const { error } = await signInWithGoogle();
                 if (error) {
                   setLoading(false);
-                  toast({
-                    title: 'Google Sign In failed',
-                    description: error.message,
-                    variant: 'destructive',
-                  });
+                  if (error.message?.includes('aborted') || error.message?.includes('signal')) {
+                    toast({
+                      title: 'Browser Restriction Detected',
+                      description: 'WhatsApp blocks Google Login. Please tap the 3 dots (⋮) in the top right and select "Open in Chrome" or Safari.',
+                      variant: 'destructive',
+                    });
+                  } else {
+                    toast({
+                      title: 'Google Sign In failed',
+                      description: error.message,
+                      variant: 'destructive',
+                    });
+                  }
                 }
               }}
             >
