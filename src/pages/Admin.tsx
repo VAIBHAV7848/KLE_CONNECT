@@ -104,9 +104,17 @@ const Admin = () => {
             .on('postgres_changes',
                 { event: '*', schema: 'public', table: 'system_settings', filter: 'id=eq.1' },
                 (payload) => {
-                    const newData = payload.new as SystemSettings;
-                    if (newData?.broadcast?.active) {
-                        setBroadcast(newData.broadcast.message);
+                    let newData = payload.new as any;
+                    let bcast = newData?.broadcast;
+                    if (typeof bcast === 'string') {
+                        try {
+                            bcast = JSON.parse(bcast);
+                        } catch (e) {
+                            // ignore parse error or old string format
+                        }
+                    }
+                    if (bcast && typeof bcast === 'object' && bcast.active) {
+                        setBroadcast(bcast.message);
                     } else {
                         setBroadcast('');
                     }

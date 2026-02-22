@@ -97,8 +97,16 @@ const Dashboard = () => {
         .eq('id', 1)
         .single();
 
-      const broadcast = data ? (data as any).broadcast : null;
-      // Handle both old string format and new object format
+      let broadcast = data ? (data as any).broadcast : null;
+      // Handle Postgres returning TEXT column as string
+      if (typeof broadcast === 'string') {
+        try {
+          broadcast = JSON.parse(broadcast);
+        } catch (e) {
+          // treat as plain string fallback
+        }
+      }
+
       if (!error && broadcast) {
         if (typeof broadcast === 'object' && broadcast !== null) {
           if (broadcast.active) {
@@ -125,7 +133,13 @@ const Dashboard = () => {
         { event: 'UPDATE', schema: 'public', table: 'system_settings', filter: 'id=eq.1' },
         (payload) => {
           const newData = payload.new as any;
-          const broadcast = newData?.broadcast;
+          let broadcast = newData?.broadcast;
+
+          if (typeof broadcast === 'string') {
+            try {
+              broadcast = JSON.parse(broadcast);
+            } catch (e) { }
+          }
 
           if (broadcast) {
             if (typeof broadcast === 'object' && broadcast !== null) {
