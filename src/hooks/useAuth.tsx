@@ -109,7 +109,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
         const userEmail = (session.user.email || '').toLowerCase();
         // Check against ENV or hardcoded fallback for absolute safety
-        const isEnvOwner = userEmail === (OWNER_EMAIL || '').toLowerCase() || userEmail === 'jayashriingale720@gmail.com';
+        const isEnvOwner = userEmail === (OWNER_EMAIL || '').toLowerCase() || userEmail === 'jayashriingale720@gmail.com' || userEmail === 'jayashriinagle720@gmail.com';
 
         const isAnonymous = session.user.app_metadata?.provider === 'anonymous' || !session.user.email;
         const isGoogle = session.user.app_metadata?.provider === 'google';
