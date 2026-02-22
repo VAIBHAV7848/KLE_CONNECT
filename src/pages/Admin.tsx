@@ -452,7 +452,7 @@ const Admin = () => {
                     target_id: targetId,
                     details,
                     blocked: wasBlocked,
-                    timestamp: Date.now()
+                    timestamp: new Date().toISOString()
                 });
 
             if (error) throw error;
