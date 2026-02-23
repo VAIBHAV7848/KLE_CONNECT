@@ -536,26 +536,34 @@ const Admin = () => {
             return;
         }
 
-        if (!confirm(`Are you sure you want to permanently delete ${targetUser?.name || 'this user'}? This action cannot be undone.`)) return;
+        if (!confirm(`Are you sure you want to permanently delete ${targetUser?.name || 'this user'}? This will remove their AUTH account and profile.`)) return;
 
         try {
-            const { error, count } = await supabase
+            // Call the Edge Function to delete from auth.users
+            const { data, error: functionError } = await supabase.functions.invoke('delete-user', {
+                body: { userId: id }
+            });
+
+            if (functionError) throw functionError;
+
+            // Also delete from profiles just in case cascade isn't set
+            const { error: profileError } = await supabase
                 .from('profiles')
                 .delete()
                 .eq('user_id', id);
 
-            if (error) throw error;
+            if (profileError) console.warn('Profile deletion warning:', profileError);
 
             // Instant UI update — remove user from local state
             setUsers(prev => prev.filter(u => u.user_id !== id));
 
-            logAdminAction('delete_user', id, `User ${targetUser?.email} deleted successfully`);
+            logAdminAction('delete_user', id, `User ${targetUser?.email} deleted via Edge Function`);
             toast({ title: "User Revoked", description: `${targetUser?.email || 'User'} has been permanently removed from the portal.` });
         } catch (error: any) {
             console.error('Error deleting user:', error);
             toast({
                 title: "Delete Failed",
-                description: error?.message || error?.details || "Database rule prevented this action. Check RLS policies.",
+                description: error?.message || error?.details || "Could not remove user. Check Edge Function logs.",
                 variant: "destructive"
             });
         }
