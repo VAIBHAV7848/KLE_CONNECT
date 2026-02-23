@@ -32,7 +32,7 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [role, setRole] = useState<UserRole>('user');
+  const [role, setRole] = useState<UserRole>('student');
   const [isOwner, setIsOwner] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
 
@@ -48,7 +48,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const fetchUserProfile = async (userId: string): Promise<any> => {
     try {
       const { data, error } = await supabase
-        .from('users')
+        .from('profiles')
         .select('*')
         .eq('id', userId)
         .single();
@@ -78,7 +78,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const subscription = supabase
       .channel(`user_profile_${user.uid}`)
       .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'users', filter: `id=eq.${user.uid}` },
+        { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${user.uid}` },
         async (payload) => {
           const profile = payload.new as any;
           if (profile) {
@@ -128,7 +128,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           displayName: session.user.user_metadata?.display_name || session.user.email?.split('@')[0] || (isAnonymous ? 'Guest User' : 'User'),
           phoneNumber: session.user.phone || undefined,
           photoURL: session.user.user_metadata?.avatar_url || undefined,
-          role: isEnvOwner ? 'super_admin' : 'user',
+          role: isEnvOwner ? 'super_admin' : 'student',
         };
 
         if (mounted) {
@@ -149,8 +149,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             session.access_token
           );
 
-          // Update last_seen
-          (supabase.from('users').update as any)({ last_seen: new Date().toISOString() }).eq('id', session.user.id).then(() => { });
+          // Update last_seen/updated_at
+          supabase.from('profiles').update({ updated_at: new Date().toISOString() }).eq('id', session.user.id).then(() => { });
         }
 
         // 3. Fetch detailed profile in background
@@ -174,7 +174,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (mounted) {
           const prevUser = user;
           setUser(null);
-          setRole('user');
+          setRole('student');
           setIsOwner(false);
           setLoading(false);
 
@@ -353,7 +353,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signOut = async () => {
     // Immediate UI update
     setUser(null);
-    setRole('user');
+    setRole('student');
     setIsOwner(false);
 
     // Clear local storage
@@ -431,7 +431,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       signInWithPhone,
       verifyPhoneOtp,
       signOut,
-      isAdmin: role !== 'user',
+      isAdmin: role !== 'student',
       role,
       isOwner,
       updateUserProfile,

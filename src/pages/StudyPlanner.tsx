@@ -2,55 +2,200 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import PageLayout from '@/components/layout/PageLayout';
 import PageHeader from '@/components/ui/PageHeader';
-import { Brain, Plus, CheckCircle2, Circle, Clock } from 'lucide-react';
+import { Brain, Plus, CheckCircle2, Circle, Clock, Loader2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/lib/supabase';
+import { useToast } from '@/hooks/use-toast';
+
+import { Task as SupabaseTask } from '@/types/supabase';
+
+interface StudyTask {
+  id: string;
+  title: string;
+  time: string;
+  completed: boolean;
+}
 
 /**
  * Study Planner - Plan and track study sessions
  */
 const StudyPlanner = () => {
+  const { user } = useAuth();
+  const { toast } = useToast();
+
   // State
-  const [tasks, setTasks] = useState<{ id: string, title: string, time: string, completed: boolean }[]>([]);
+  const [tasks, setTasks] = useState<StudyTask[]>([]);
   const [newTask, setNewTask] = useState("");
   const [newTaskTime, setNewTaskTime] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   // Load Tasks
   useEffect(() => {
-    const saved = localStorage.getItem('study-planner-tasks');
-    if (saved) {
-      setTasks(JSON.parse(saved));
-    } else {
-      // Default / Onboarding Tasks
-      setTasks([]);
-    }
-  }, []);
+    const loadTasks = async () => {
+      setLoading(true);
+      if (user?.uid) {
+        try {
+          const { data, error } = await (supabase.from('tasks') as any)
+            .select('*')
+            .eq('user_id', user.uid)
+            .order('created_at', { ascending: true });
 
-  // Save Tasks
+          if (error) throw error;
+
+          if (data) {
+            setTasks(data.map((t: any) => ({
+              id: t.id,
+              title: t.title,
+              time: t.time || 'Anytime',
+              completed: t.completed
+            })));
+          }
+        } catch (err: any) {
+          console.error('Error fetching tasks:', err);
+          toast({
+            title: 'Failed to load tasks',
+            description: err.message,
+            variant: 'destructive',
+          });
+          // Fallback to localStorage on error
+          const saved = localStorage.getItem('study-planner-tasks');
+          if (saved) setTasks(JSON.parse(saved));
+        }
+      } else {
+        // Guest user - load from localStorage
+        const saved = localStorage.getItem('study-planner-tasks');
+        if (saved) {
+          setTasks(JSON.parse(saved));
+        } else {
+          setTasks([]);
+        }
+      }
+      setLoading(false);
+    };
+
+    loadTasks();
+  }, [user?.uid, toast]);
+
+  // Sync to localStorage for Guest users
   useEffect(() => {
-    localStorage.setItem('study-planner-tasks', JSON.stringify(tasks));
-  }, [tasks]);
+    if (!user?.uid) {
+      localStorage.setItem('study-planner-tasks', JSON.stringify(tasks));
+    }
+  }, [tasks, user?.uid]);
 
-  const addTask = () => {
+  const addTask = async () => {
     if (!newTask.trim()) return;
-    const task = {
-      id: crypto.randomUUID(),
+
+    setActionLoading('add');
+    const tempId = crypto.randomUUID();
+    const taskData = {
       title: newTask,
       time: newTaskTime || 'Anytime',
       completed: false
     };
-    setTasks([...tasks, task]);
+
+    if (user?.uid) {
+      try {
+        const { data, error } = await (supabase.from('tasks') as any)
+          .insert({
+            user_id: user.uid,
+            title: taskData.title,
+            time: taskData.time,
+            completed: taskData.completed
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        if (data) {
+          setTasks(prev => [...prev, {
+            id: data.id,
+            title: data.title,
+            time: data.time || 'Anytime',
+            completed: data.completed
+          }]);
+        }
+
+        toast({
+          title: 'Task added',
+          description: 'Your goal has been saved to the cloud.',
+        });
+      } catch (err: any) {
+        toast({
+          title: 'Error adding task',
+          description: err.message,
+          variant: 'destructive',
+        });
+      }
+    } else {
+      // Guest local update
+      setTasks(prev => [...prev, { id: tempId, ...taskData }]);
+    }
+
     setNewTask("");
     setNewTaskTime("");
     setIsAddOpen(false);
+    setActionLoading(null);
   };
 
-  const toggleTask = (id: string) => {
-    setTasks(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+  const toggleTask = async (id: string) => {
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+
+    setActionLoading(id);
+    const newCompleted = !task.completed;
+
+    if (user?.uid) {
+      try {
+        const { error } = await (supabase.from('tasks') as any)
+          .update({ completed: newCompleted })
+          .eq('id', id);
+
+        if (error) throw error;
+
+        setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: newCompleted } : t));
+      } catch (err: any) {
+        toast({
+          title: 'Error updating task',
+          description: err.message,
+          variant: 'destructive',
+        });
+      }
+    } else {
+      setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: newCompleted } : t));
+    }
+    setActionLoading(null);
   };
 
-  const deleteTask = (id: string) => {
-    setTasks(tasks.filter(t => t.id !== id));
+  const deleteTask = async (id: string) => {
+    setActionLoading(id);
+    if (user?.uid) {
+      try {
+        const { error } = await (supabase.from('tasks') as any)
+          .delete()
+          .eq('id', id);
+
+        if (error) throw error;
+
+        setTasks(prev => prev.filter(t => t.id !== id));
+        toast({
+          title: 'Task deleted',
+        });
+      } catch (err: any) {
+        toast({
+          title: 'Error deleting task',
+          description: err.message,
+          variant: 'destructive',
+        });
+      }
+    } else {
+      setTasks(prev => prev.filter(t => t.id !== id));
+    }
+    setActionLoading(null);
   };
 
   // Calculate Progress
@@ -62,7 +207,7 @@ const StudyPlanner = () => {
       <PageHeader
         icon={Brain}
         title="Study Planner"
-        subtitle="Track your daily academic goals"
+        subtitle={user ? `Tracking goals for ${user.displayName}` : "Track your daily academic goals"}
         gradient="linear-gradient(135deg, hsl(45 93% 47% / 0.3), hsl(45 93% 47% / 0.1))"
       />
 
@@ -96,60 +241,81 @@ const StudyPlanner = () => {
                   value={newTask}
                   onChange={e => setNewTask(e.target.value)}
                   autoFocus
+                  onKeyDown={e => e.key === 'Enter' && addTask()}
                 />
                 <input
                   className="w-24 bg-transparent border-b border-border focus:border-primary outline-none px-2 py-1 text-sm"
                   placeholder="Time (opt)"
                   value={newTaskTime}
                   onChange={e => setNewTaskTime(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addTask()}
                 />
-                <Button size="sm" onClick={addTask}>Save</Button>
+                <Button size="sm" onClick={addTask} disabled={actionLoading === 'add'}>
+                  {actionLoading === 'add' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save'}
+                </Button>
               </div>
             </motion.div>
           )}
 
-          <div className="glass rounded-2xl p-6 space-y-4 min-h-[300px]">
-            {tasks.length === 0 && (
+          <div className="glass rounded-2xl p-6 space-y-4 min-h-[300px] relative">
+            {loading ? (
+              <div className="flex flex-col items-center justify-center h-48 space-y-4">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                <p className="text-muted-foreground animate-pulse">Syncing goals...</p>
+              </div>
+            ) : tasks.length === 0 ? (
               <div className="text-center text-muted-foreground py-10">
                 <p>No tasks yet. Enjoy your free time! 🎉</p>
               </div>
+            ) : (
+              tasks.map((task) => (
+                <motion.div
+                  key={task.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  layout
+                  className={`flex items-center gap-4 p-4 rounded-xl transition-all group ${task.completed ? 'bg-primary/5 opacity-60' : 'bg-muted/50 hover:bg-muted/80'
+                    }`}
+                >
+                  <button onClick={() => toggleTask(task.id)} disabled={actionLoading === task.id}>
+                    {actionLoading === task.id ? (
+                      <Loader2 className="w-6 h-6 text-primary animate-spin" />
+                    ) : task.completed ? (
+                      <CheckCircle2 className="w-6 h-6 text-primary flex-shrink-0" />
+                    ) : (
+                      <Circle className="w-6 h-6 text-muted-foreground flex-shrink-0 hover:text-primary transition-colors" />
+                    )}
+                  </button>
+
+                  <div className="flex-1 cursor-pointer" onClick={() => toggleTask(task.id)}>
+                    <h3 className={`font-medium ${task.completed ? 'line-through' : ''}`}>
+                      {task.title}
+                    </h3>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Clock className="w-3 h-3" />
+                      <span>{task.time}</span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => deleteTask(task.id)}
+                    className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all p-2"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </motion.div>
+              ))
             )}
 
-            {tasks.map((task, index) => (
-              <motion.div
-                key={task.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                layout
-                className={`flex items-center gap-4 p-4 rounded-xl transition-colors group ${task.completed ? 'bg-primary/5 opacity-60' : 'bg-muted/50 hover:bg-muted/80'
-                  }`}
-              >
-                <button onClick={() => toggleTask(task.id)}>
-                  {task.completed ? (
-                    <CheckCircle2 className="w-6 h-6 text-primary flex-shrink-0" />
-                  ) : (
-                    <Circle className="w-6 h-6 text-muted-foreground flex-shrink-0 hover:text-primary transition-colors" />
-                  )}
-                </button>
-
-                <div className="flex-1 cursor-pointer" onClick={() => toggleTask(task.id)}>
-                  <h3 className={`font-medium ${task.completed ? 'line-through' : ''}`}>
-                    {task.title}
-                  </h3>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Clock className="w-3 h-3" />
-                    <span>{task.time}</span>
-                  </div>
+            {user && (
+              <div className="mt-6 pt-4 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
+                <div className="flex items-center gap-1">
+                  <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+                  Cloud Synced
                 </div>
-
-                <button
-                  onClick={() => deleteTask(task.id)}
-                  className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all p-2"
-                >
-                  ✕
-                </button>
-              </motion.div>
-            ))}
+                <span>{user.email}</span>
+              </div>
+            )}
           </div>
         </motion.div>
 
@@ -186,6 +352,12 @@ const StudyPlanner = () => {
               {completedCount} of {tasks.length} tasks completed
             </p>
 
+            {!user && (
+              <div className="mt-6 p-3 rounded-lg bg-primary/10 border border-primary/20 text-xs text-left">
+                <p className="font-semibold text-primary mb-1">💡 Pro-Tip</p>
+                <p>Sign in to sync your tasks across devices and never lose your progress!</p>
+              </div>
+            )}
           </div>
         </motion.div>
       </div>

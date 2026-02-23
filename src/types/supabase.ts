@@ -9,407 +9,316 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
-      users: {
+      profiles: {
         Row: {
           id: string;
           email: string;
-          display_name: string;
-          role: "user" | "ops_admin" | "super_admin";
-          status: "Active" | "Suspended";
-          is_owner: boolean;
-          last_seen: string;
+          display_name: string | null;
+          role: "student" | "ops_admin" | "super_admin";
+          avatar_url: string | null;
           created_at: string;
           updated_at: string;
         };
         Insert: {
           id: string;
           email: string;
-          display_name: string;
-          role?: "user" | "ops_admin" | "super_admin";
-          status?: "Active" | "Suspended";
-          is_owner?: boolean;
-          last_seen?: string;
+          display_name?: string | null;
+          role?: "student" | "ops_admin" | "super_admin";
+          avatar_url?: string | null;
           created_at?: string;
           updated_at?: string;
         };
         Update: {
           id?: string;
           email?: string;
-          display_name?: string;
-          role?: "user" | "ops_admin" | "super_admin";
-          status?: "Active" | "Suspended";
-          is_owner?: boolean;
-          last_seen?: string;
+          display_name?: string | null;
+          role?: "student" | "ops_admin" | "super_admin";
+          avatar_url?: string | null;
           created_at?: string;
           updated_at?: string;
-        };
-      };
-      chats: {
-        Row: {
-          id: string;
-          channel_id: string;
-          sender_id: string | null;
-          sender_name: string;
-          text: string;
-          timestamp: string;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          channel_id: string;
-          sender_id?: string | null;
-          sender_name: string;
-          text: string;
-          timestamp?: string;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          channel_id?: string;
-          sender_id?: string | null;
-          sender_name?: string;
-          text?: string;
-          timestamp?: string;
-          created_at?: string;
-        };
-      };
-      forum_questions: {
-        Row: {
-          id: string;
-          question: string;
-          author_id: string | null;
-          author_name: string;
-          subject: string;
-          answers_count: number;
-          votes: number;
-          timestamp: string;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          question: string;
-          author_id?: string | null;
-          author_name: string;
-          subject: string;
-          answers_count?: number;
-          votes?: number;
-          timestamp?: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          question?: string;
-          author_id?: string | null;
-          author_name?: string;
-          subject?: string;
-          answers_count?: number;
-          votes?: number;
-          timestamp?: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-      };
-      forum_answers: {
-        Row: {
-          id: string;
-          question_id: string;
-          answer: string;
-          author_id: string | null;
-          author_name: string;
-          votes: number;
-          timestamp: string;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          question_id: string;
-          answer: string;
-          author_id?: string | null;
-          author_name: string;
-          votes?: number;
-          timestamp?: string;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          question_id?: string;
-          answer?: string;
-          author_id?: string | null;
-          author_name?: string;
-          votes?: number;
-          timestamp?: string;
-          created_at?: string;
         };
       };
       notes: {
         Row: {
           id: string;
+          user_id: string;
           title: string;
-          subject: string;
-          link: string;
+          subject: string | null;
+          content: string | null;
+          is_public: boolean;
           rating: number;
           downloads: number;
-          uploaded_by: string | null;
-          uploaded_by_name: string;
-          uploaded_at: string;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          title: string;
-          subject: string;
-          link: string;
-          rating?: number;
-          downloads?: number;
-          uploaded_by?: string | null;
-          uploaded_by_name: string;
-          uploaded_at?: string;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          title?: string;
-          subject?: string;
-          link?: string;
-          rating?: number;
-          downloads?: number;
-          uploaded_by?: string | null;
-          uploaded_by_name?: string;
-          uploaded_at?: string;
-          created_at?: string;
-        };
-      };
-      rooms: {
-        Row: {
-          id: string;
-          name: string;
-          host_id: string | null;
+          uploaded_by_name: string | null;
           created_at: string;
           updated_at: string;
         };
         Insert: {
           id?: string;
-          name: string;
-          host_id?: string | null;
+          user_id: string;
+          title: string;
+          subject?: string | null;
+          content?: string | null;
+          is_public?: boolean;
+          rating?: number;
+          downloads?: number;
+          uploaded_by_name?: string | null;
           created_at?: string;
           updated_at?: string;
         };
         Update: {
           id?: string;
-          name?: string;
-          host_id?: string | null;
+          user_id?: string;
+          title?: string;
+          subject?: string | null;
+          content?: string | null;
+          is_public?: boolean;
+          rating?: number;
+          downloads?: number;
+          uploaded_by_name?: string | null;
           created_at?: string;
           updated_at?: string;
         };
       };
-      room_participants: {
+      planner_tasks: {
+        Row: {
+          id: string;
+          user_id: string;
+          title: string;
+          description: string | null;
+          deadline: string | null;
+          priority: "low" | "medium" | "high";
+          status: "todo" | "in_progress" | "done";
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          title: string;
+          description?: string | null;
+          deadline?: string | null;
+          priority?: "low" | "medium" | "high";
+          status?: "todo" | "in_progress" | "done";
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          title?: string;
+          description?: string | null;
+          deadline?: string | null;
+          priority?: "low" | "medium" | "high";
+          status?: "todo" | "in_progress" | "done";
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      community_posts: {
+        Row: {
+          id: string;
+          user_id: string;
+          content: string;
+          image_url: string | null;
+          likes_count: number;
+          comments_count: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          content: string;
+          image_url?: string | null;
+          likes_count?: number;
+          comments_count?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          content?: string;
+          image_url?: string | null;
+          likes_count?: number;
+          comments_count?: number;
+          created_at?: string;
+        };
+      };
+      community_likes: {
+        Row: {
+          post_id: string;
+          user_id: string;
+        };
+        Insert: {
+          post_id: string;
+          user_id: string;
+        };
+        Update: {
+          post_id?: string;
+          user_id?: string;
+        };
+      };
+      doubts: {
+        Row: {
+          id: string;
+          user_id: string;
+          title: string;
+          description: string;
+          subject: string | null;
+          is_resolved: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          title: string;
+          description: string;
+          subject?: string | null;
+          is_resolved?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          title?: string;
+          description?: string;
+          subject?: string | null;
+          is_resolved?: boolean;
+          created_at?: string;
+        };
+      };
+      doubt_replies: {
+        Row: {
+          id: string;
+          doubt_id: string;
+          user_id: string;
+          content: string;
+          is_correct_answer: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          doubt_id: string;
+          user_id: string;
+          content: string;
+          is_correct_answer?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          doubt_id?: string;
+          user_id?: string;
+          content?: string;
+          is_correct_answer?: boolean;
+          created_at?: string;
+        };
+      };
+      study_rooms: {
+        Row: {
+          id: string;
+          name: string;
+          capacity: number;
+          description: string | null;
+          is_available: boolean;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          capacity: number;
+          description?: string | null;
+          is_available?: boolean;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          capacity?: number;
+          description?: string | null;
+          is_available?: boolean;
+        };
+      };
+      room_bookings: {
         Row: {
           id: string;
           room_id: string;
           user_id: string;
-          user_name: string;
-          joined_at: string;
+          start_time: string;
+          end_time: string;
+          created_at: string;
         };
         Insert: {
           id?: string;
           room_id: string;
           user_id: string;
-          user_name: string;
-          joined_at?: string;
+          start_time: string;
+          end_time: string;
+          created_at?: string;
         };
         Update: {
           id?: string;
           room_id?: string;
           user_id?: string;
-          user_name?: string;
-          joined_at?: string;
+          start_time?: string;
+          end_time?: string;
+          created_at?: string;
         };
       };
-      system_config: {
+      events: {
         Row: {
           id: string;
-          key_name: string;
-          key_value: string;
-          last_updated_by: string | null;
-          updated_at: string;
+          title: string;
+          description: string | null;
+          location: string | null;
+          start_time: string;
+          end_time: string | null;
+          category: string | null;
+          image_url: string | null;
+          created_by: string | null;
+          created_at: string;
         };
         Insert: {
           id?: string;
-          key_name: string;
-          key_value: string;
-          last_updated_by?: string | null;
-          updated_at?: string;
+          title: string;
+          description?: string | null;
+          location?: string | null;
+          start_time: string;
+          end_time?: string | null;
+          category?: string | null;
+          image_url?: string | null;
+          created_by?: string | null;
+          created_at?: string;
         };
         Update: {
           id?: string;
-          key_name?: string;
-          key_value?: string;
-          last_updated_by?: string | null;
-          updated_at?: string;
+          title?: string;
+          description?: string | null;
+          location?: string | null;
+          start_time?: string;
+          end_time?: string | null;
+          category?: string | null;
+          image_url?: string | null;
+          created_by?: string | null;
+          created_at?: string;
         };
       };
-      system_settings: {
+    };
+    Functions: {
+      book_study_room: {
+        Args: {
+          request_room_id: string;
+          request_start: string;
+          request_end: string;
+        };
+        Returns: Json;
+      };
+    };
+    Views: {
+      student_stats: {
         Row: {
-          id: number;
-          lockdown: boolean;
-          broadcast: string;
-          maintenance: boolean;
-          updated_at: string;
+          user_id: string;
+          pending_tasks: number;
+          total_notes: number;
+          open_doubts: number;
         };
-        Insert: {
-          id?: number;
-          lockdown?: boolean;
-          broadcast?: string;
-          maintenance?: boolean;
-          updated_at?: string;
-        };
-        Update: {
-          id?: number;
-          lockdown?: boolean;
-          broadcast?: string;
-          maintenance?: boolean;
-          updated_at?: string;
-        };
-      };
-      audit_logs: {
-        Row: {
-          id: string;
-          action: string;
-          actor_id: string | null;
-          details: Json;
-          timestamp: string;
-        };
-        Insert: {
-          id?: string;
-          action: string;
-          actor_id?: string | null;
-          details?: Json;
-          timestamp?: string;
-        };
-        Update: {
-          id?: string;
-          action?: string;
-          actor_id?: string | null;
-          details?: Json;
-          timestamp?: string;
-      };
-    };
-    ai_usage_stats: {
-      Row: {
-        id: string;
-        provider: string;
-        user_id: string | null;
-        success: boolean;
-        response_time_ms: number | null;
-        prompt_tokens: number;
-        completion_tokens: number;
-        error_message: string | null;
-        route_status: string | null;
-        created_at: string;
-      };
-      Insert: {
-        id?: string;
-        provider: string;
-        user_id?: string | null;
-        success?: boolean;
-        response_time_ms?: number | null;
-        prompt_tokens?: number;
-        completion_tokens?: number;
-        error_message?: string | null;
-        route_status?: string | null;
-        created_at?: string;
-      };
-      Update: {
-        id?: string;
-        provider?: string;
-        user_id?: string | null;
-        success?: boolean;
-        response_time_ms?: number | null;
-        prompt_tokens?: number;
-        completion_tokens?: number;
-        error_message?: string | null;
-        route_status?: string | null;
-        created_at?: string;
-      };
-    };
-    provider_health: {
-      Row: {
-        id: string;
-        provider: string;
-        status: "healthy" | "degraded" | "unhealthy";
-        response_time_ms: number | null;
-        error_message: string | null;
-        last_checked: string;
-        consecutive_failures: number;
-      };
-      Insert: {
-        id?: string;
-        provider: string;
-        status?: "healthy" | "degraded" | "unhealthy";
-        response_time_ms?: number | null;
-        error_message?: string | null;
-        last_checked?: string;
-        consecutive_failures?: number;
-      };
-      Update: {
-        id?: string;
-        provider?: string;
-        status?: "healthy" | "degraded" | "unhealthy";
-        response_time_ms?: number | null;
-        error_message?: string | null;
-        last_checked?: string;
-        consecutive_failures?: number;
-      };
-    };
-    failover_config: {
-      Row: {
-        id: string;
-        primary_provider: string;
-        fallback_order: string[];
-        max_failures_before_failover: number;
-        created_at: string;
-        updated_at: string;
-      };
-      Insert: {
-        id?: string;
-        primary_provider: string;
-        fallback_order: string[];
-        max_failures_before_failover?: number;
-        created_at?: string;
-        updated_at?: string;
-      };
-      Update: {
-        id?: string;
-        primary_provider?: string;
-        fallback_order?: string[];
-        max_failures_before_failover?: number;
-        created_at?: string;
-        updated_at?: string;
       };
     };
   };
 }
-
-// Type helpers
-export type Tables<T extends keyof Database["public"]["Tables"]> =
-  Database["public"]["Tables"][T]["Row"];
-
-export type Inserts<T extends keyof Database["public"]["Tables"]> =
-  Database["public"]["Tables"][T]["Insert"];
-
-export type Updates<T extends keyof Database["public"]["Tables"]> =
-  Database["public"]["Tables"][T]["Update"];
-
-// Specific table types
-export type User = Tables<"users">;
-export type Chat = Tables<"chats">;
-export type ForumQuestion = Tables<"forum_questions">;
-export type ForumAnswer = Tables<"forum_answers">;
-export type Note = Tables<"notes">;
-export type Room = Tables<"rooms">;
-export type RoomParticipant = Tables<"room_participants">;
-export type SystemConfig = Tables<"system_config">;
-export type SystemSettings = Tables<"system_settings">;
-export type AuditLog = Tables<"audit_logs">;
