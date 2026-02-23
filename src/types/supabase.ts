@@ -299,6 +299,165 @@ export interface Database {
           created_at?: string;
         };
       };
+      support_tickets: {
+        Row: {
+          id: string;
+          user_id: string;
+          subject: string;
+          description: string;
+          status: "open" | "closed";
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          subject: string;
+          description: string;
+          status?: "open" | "closed";
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          subject?: string;
+          description?: string;
+          status?: "open" | "closed";
+          created_at?: string;
+        };
+      };
+      system_settings: {
+        Row: {
+          id: number;
+          broadcast: any;
+          lockdown: boolean | null;
+          maintenance: boolean | null;
+        };
+        Insert: {
+          id?: number;
+          broadcast?: any;
+          lockdown?: boolean | null;
+          maintenance?: boolean | null;
+        };
+        Update: {
+          id?: number;
+          broadcast?: any;
+          lockdown?: boolean | null;
+          maintenance?: boolean | null;
+        };
+      };
+      rooms: {
+        Row: {
+          id: string;
+          name: string;
+          topic: string | null;
+          participants: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          topic?: string | null;
+          participants?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          topic?: string | null;
+          participants?: number;
+          created_at?: string;
+        };
+      };
+      audit_logs: {
+        Row: {
+          id: string;
+          actor_id: string;
+          actor_email: string;
+          role: string;
+          action: string;
+          target_id: string;
+          details: string;
+          blocked: boolean;
+          timestamp: string;
+        };
+        Insert: {
+          id?: string;
+          actor_id: string;
+          actor_email: string;
+          role: string;
+          action: string;
+          target_id: string;
+          details: string;
+          blocked?: boolean;
+          timestamp?: string;
+        };
+        Update: {
+          id?: string;
+          actor_id?: string;
+          actor_email?: string;
+          role?: string;
+          action?: string;
+          target_id?: string;
+          details?: string;
+          blocked?: boolean;
+          timestamp?: string;
+        };
+      };
+      login_history: {
+        Row: {
+          id: string;
+          user_id: string | null;
+          user_email: string | null;
+          user_name: string | null;
+          event_type: string;
+          user_agent: string | null;
+          timestamp: string;
+          session_id: string | null;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string | null;
+          user_email?: string | null;
+          user_name?: string | null;
+          event_type: string;
+          user_agent?: string | null;
+          timestamp?: string;
+          session_id?: string | null;
+        };
+        Update: {
+          id?: string;
+          user_id?: string | null;
+          user_email?: string | null;
+          user_name?: string | null;
+          event_type?: string;
+          user_agent?: string | null;
+          timestamp?: string;
+          session_id?: string | null;
+        };
+      };
+      forum_questions: {
+        Row: {
+          id: string;
+          user_id: string;
+          title: string;
+          content: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          title: string;
+          content: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          title?: string;
+          content?: string;
+          created_at?: string;
+        };
+      };
     };
     Functions: {
       book_study_room: {

@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useRealtimeDashboardStats } from '@/hooks/useRealtimeDashboardStats';
 import SystemSecrets from '@/components/admin/SystemSecrets';
 import AIAnalytics from '@/components/admin/AIAnalytics';
 import ErrorBoundary from '@/components/ErrorBoundary';
@@ -55,6 +56,7 @@ interface SystemSettings {
 const Admin = () => {
     const { toast } = useToast();
     const { role: currentAdminRole, user: currentUser, isOwner: iAmOwner } = useAuth();
+    const { stats: dashboardStats } = useRealtimeDashboardStats();
     const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'rooms' | 'moderation' | 'login_history' | 'system_config' | 'analytics'>('overview');
     const [isLive, setIsLive] = useState(true);
     const [isLockdownActive, setIsLockdownActive] = useState(false);
@@ -65,7 +67,6 @@ const Admin = () => {
     const [users, setUsers] = useState<ManagedUser[]>([]);
     const [rooms, setRooms] = useState<any[]>([]);
     const [stats, setStats] = useState<AdminStat[]>([]);
-    const [doubtCountState, setDoubtCountState] = useState(0);
     const [auditLogs, setAuditLogs] = useState<any[]>([]);
     const [loginHistory, setLoginHistory] = useState<any[]>([]);
 
@@ -82,9 +83,12 @@ const Admin = () => {
                     .from('system_settings')
                     .select('broadcast')
                     .eq('id', 1)
-                    .single();
+                    .maybeSingle();
 
-                if (error) throw error;
+                if (error) {
+                    console.warn('[Admin] Broadcast fetch:', error.message);
+                    return;
+                }
 
                 if (data?.broadcast?.active) {
                     setBroadcast(data.broadcast.message);
@@ -122,37 +126,36 @@ const Admin = () => {
             )
             .subscribe();
 
-        // Load Users (for management tab)
+        // Load Users (for management tab) — uses profiles table
         const loadUsers = async () => {
             try {
                 const { data, error } = await supabase
-                    .from('users')
+                    .from('profiles')
                     .select('*');
 
-                if (error) throw error;
+                if (error) {
+                    console.warn('[Admin] Profiles fetch:', error.message);
+                    return;
+                }
 
                 if (data) {
-                    // DEBUG: Log user count for verification
-                    console.log(`[Admin] Fetched ${data.length} users from Supabase.`);
-
-                    const userList: ManagedUser[] = data.map(user => ({
+                    const userList: ManagedUser[] = data.map((user: any) => ({
                         id: user.id,
-                        name: user.display_name || 'Unknown User',
+                        name: user.display_name || user.full_name || 'Unknown User',
                         email: user.email || 'No Email',
-                        role: user.role || 'user',
+                        role: user.role || 'student',
                         status: user.status || 'Active',
-                        isOwner: user.is_owner === true
+                        isOwner: user.is_owner === true || user.role === 'super_admin'
                     }));
                     setUsers(userList);
                 } else {
-                    console.log('[Admin] No users found in database.');
                     setUsers([]);
                 }
             } catch (error) {
                 console.error('[Admin] Error fetching users:', error);
                 toast({
                     title: "Access Error",
-                    description: "Database Permission Denied. Please check your Supabase permissions.",
+                    description: "Could not load user directory. Check Supabase permissions.",
                     variant: "destructive"
                 });
             }
@@ -160,11 +163,11 @@ const Admin = () => {
 
         loadUsers();
 
-        // Subscribe to users changes
+        // Subscribe to profile changes for live user directory
         const usersSubscription = supabase
-            .channel('users_changes')
+            .channel('profiles_changes_admin')
             .on('postgres_changes',
-                { event: '*', schema: 'public', table: 'users' },
+                { event: '*', schema: 'public', table: 'profiles' },
                 () => {
                     loadUsers();
                 }
@@ -221,9 +224,12 @@ const Admin = () => {
                     .from('system_settings')
                     .select('lockdown')
                     .eq('id', 1)
-                    .single();
+                    .maybeSingle();
 
-                if (error) throw error;
+                if (error) {
+                    console.warn('[Admin] Lockdown fetch:', error.message);
+                    return;
+                }
 
                 setIsLockdownActive(data?.lockdown === true);
             } catch (error) {
@@ -245,34 +251,8 @@ const Admin = () => {
             )
             .subscribe();
 
-        // --- FETCH REAL STATS ---
-        const loadDoubtCount = async () => {
-            try {
-                const { count, error } = await supabase
-                    .from('forum_questions')
-                    .select('*', { count: 'exact', head: true });
-
-                if (error) throw error;
-
-                setDoubtCountState(count || 0);
-            } catch (error) {
-                console.error('[Admin] Error fetching doubt count:', error);
-                setDoubtCountState(0);
-            }
-        };
-
-        loadDoubtCount();
-
-        // Subscribe to forum_questions changes for live count
-        const doubtsSubscription = supabase
-            .channel('doubts_changes')
-            .on('postgres_changes',
-                { event: '*', schema: 'public', table: 'forum_questions' },
-                () => {
-                    loadDoubtCount();
-                }
-            )
-            .subscribe();
+        // Stats are now handled by useRealtimeDashboardStats hook.
+        // No manual doubt counting or subscription needed here.
 
         // Load Audit Logs (for Session Activity monitor)
         const loadAuditLogs = async () => {
@@ -343,23 +323,20 @@ const Admin = () => {
             usersSubscription.unsubscribe();
             roomsSubscription.unsubscribe();
             lockdownSubscription.unsubscribe();
-            doubtsSubscription.unsubscribe();
             auditSubscription.unsubscribe();
             loginHistorySubscription.unsubscribe();
         };
     }, []);
 
+    // Derive UI stat cards from the realtime hook
     useEffect(() => {
-        // Mock jitter for load
-        const load = (12 + Math.floor(Math.random() * 5)) + '%';
-
         setStats([
-            { label: 'Total Students', value: users.length.toLocaleString(), trend: '+ Live', icon: Users, color: 'text-blue-400' },
-            { label: 'Active Sessions', value: rooms.length, trend: 'Live', icon: Activity, color: 'text-green-400' },
-            { label: 'Doubts Posted', value: doubtCountState.toLocaleString(), trend: 'Total', icon: MessageSquare, color: 'text-purple-400' },
-            { label: 'System Load', value: load, trend: 'Minimal', icon: BarChart3, color: 'text-yellow-400' },
+            { label: 'Total Students', value: dashboardStats.totalStudents.toLocaleString(), trend: '+ Live', icon: Users, color: 'text-blue-400' },
+            { label: 'Active Sessions', value: dashboardStats.activeSessions, trend: 'Live', icon: Activity, color: 'text-green-400' },
+            { label: 'Doubts Posted', value: dashboardStats.doubtsPosted.toLocaleString(), trend: 'Total', icon: MessageSquare, color: 'text-purple-400' },
+            { label: 'System Load', value: dashboardStats.systemLoad, trend: 'Minimal', icon: BarChart3, color: 'text-yellow-400' },
         ]);
-    }, [users.length, rooms.length, doubtCountState]);
+    }, [dashboardStats]);
 
     // --- FUNCTIONAL ACTIONS ---
 
@@ -493,7 +470,7 @@ const Admin = () => {
 
         try {
             const { error } = await supabase
-                .from('users')
+                .from('profiles')
                 .update({ role: newRole })
                 .eq('id', id);
 
@@ -515,7 +492,7 @@ const Admin = () => {
 
         try {
             const { error } = await supabase
-                .from('users')
+                .from('profiles')
                 .update({ status: nextStatus })
                 .eq('id', id);
 
@@ -553,7 +530,7 @@ const Admin = () => {
 
         try {
             const { error } = await supabase
-                .from('users')
+                .from('profiles')
                 .delete()
                 .eq('id', id);
 
@@ -950,7 +927,7 @@ const Admin = () => {
                                                                 onChange={(e) => updateUserRole(user.id, e.target.value)}
                                                                 className="bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[9px] uppercase font-black rounded-xl px-3 py-1.5 outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer hover:bg-blue-500/20 transition-all appearance-none tracking-widest text-center min-w-[120px]"
                                                             >
-                                                                <option value="user">User</option>
+                                                                <option value="student">Student</option>
                                                                 <option value="moderator">Moderator</option>
                                                                 <option value="ops_admin">Ops Admin</option>
                                                                 <option value="super_admin">Super Admin</option>
