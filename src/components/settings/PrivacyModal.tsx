@@ -25,7 +25,7 @@ export function PrivacyModal({ isOpen, onClose, defaultVisibility = 'public' }: 
         const { data, error } = await supabase
           .from('profiles')
           .select('settings')
-          .eq('id', user.uid)
+          .eq('user_id', user.uid)
           .maybeSingle();
 
         if (!error && data?.settings?.profileVisibility) {
@@ -48,7 +48,7 @@ export function PrivacyModal({ isOpen, onClose, defaultVisibility = 'public' }: 
             profileVisibility: visibility
           }
         })
-        .eq('id', user.uid);
+        .eq('user_id', user.uid);
 
       if (error) throw error;
 

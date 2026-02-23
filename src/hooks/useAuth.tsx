@@ -50,8 +50,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', userId)
-        .single();
+        .eq('user_id', userId)
+        .maybeSingle();
 
       if (error) {
         // Ignore abort errors which happen on strict mode re-renders
@@ -78,7 +78,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const subscription = supabase
       .channel(`user_profile_${user.uid}`)
       .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${user.uid}` },
+        { event: '*', schema: 'public', table: 'profiles', filter: `user_id=eq.${user.uid}` },
         async (payload) => {
           const profile = payload.new as any;
           if (profile) {
@@ -150,7 +150,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           );
 
           // Update last_seen/updated_at
-          supabase.from('profiles').update({ updated_at: new Date().toISOString() }).eq('id', session.user.id).then(() => { });
+          supabase.from('profiles').update({ updated_at: new Date().toISOString() }).eq('user_id', session.user.id).then(() => { });
         }
 
         // 3. Fetch detailed profile in background
@@ -383,7 +383,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const { error: dbError } = await supabase
         .from('profiles')
         .update({ display_name: displayName })
-        .eq('id', currentUser.id);
+        .eq('user_id', currentUser.id);
 
       if (dbError) throw dbError;
 

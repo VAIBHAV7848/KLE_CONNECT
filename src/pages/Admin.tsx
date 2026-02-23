@@ -29,7 +29,7 @@ interface AdminStat {
 }
 
 interface ManagedUser {
-    id: string;
+    user_id: string;
     name: string;
     email: string;
     role: string;
@@ -99,8 +99,9 @@ const Admin = () => {
                     return;
                 }
 
-                if (data?.broadcast?.active) {
-                    setBroadcast(data.broadcast.message);
+                const bcast = data?.broadcast as unknown as BroadcastData | null;
+                if (bcast?.active) {
+                    setBroadcast(bcast.message);
                 } else {
                     setBroadcast('');
                 }
@@ -149,7 +150,7 @@ const Admin = () => {
 
                 if (data) {
                     const userList: ManagedUser[] = data.map((user: any) => ({
-                        id: user.id,
+                        user_id: user.user_id || user.id,
                         name: user.display_name || user.full_name || 'Unknown User',
                         email: user.email || 'No Email',
                         role: user.role || 'student',
@@ -376,7 +377,7 @@ const Admin = () => {
             // Update in Supabase
             const { error } = await supabase
                 .from('system_settings')
-                .update({ broadcast: payload })
+                .update({ broadcast: payload as any })
                 .eq('id', 1);
 
             if (error) throw error;
@@ -412,7 +413,7 @@ const Admin = () => {
 
             const { error } = await supabase
                 .from('system_settings')
-                .update({ broadcast: payload })
+                .update({ broadcast: payload as any })
                 .eq('id', 1);
 
             if (error) throw error;
@@ -441,10 +442,10 @@ const Admin = () => {
                 .insert({
                     actor_id: currentUser?.uid || 'unknown',
                     actor_email: currentUser?.email || 'unknown',
-                    role: currentAdminRole,
+                    role: currentAdminRole as string,
                     action,
                     target_id: targetId,
-                    details,
+                    details: details as any,
                     blocked: wasBlocked,
                     timestamp: new Date().toISOString()
                 });
@@ -461,7 +462,7 @@ const Admin = () => {
             return;
         }
 
-        const targetUser = users.find(u => u.id === id);
+        const targetUser = users.find(u => u.user_id === id);
 
         // RULE A: Owner Protection
         if (targetUser?.isOwner) {
@@ -480,8 +481,8 @@ const Admin = () => {
         try {
             const { error } = await supabase
                 .from('profiles')
-                .update({ role: newRole })
-                .eq('id', id);
+                .update({ role: newRole as any })
+                .eq('user_id', id);
 
             if (error) throw error;
 
@@ -493,8 +494,8 @@ const Admin = () => {
         }
     };
 
-    const toggleUserStatus = async (id: string) => {
-        const userToUpdate = users.find(u => u.id === id);
+    const toggleUserStatus = async (userId: string) => {
+        const userToUpdate = users.find(u => u.user_id === userId);
         if (!userToUpdate) return;
 
         const nextStatus = userToUpdate.status === 'Active' ? 'Suspended' : 'Active';
@@ -503,7 +504,7 @@ const Admin = () => {
             const { error } = await supabase
                 .from('profiles')
                 .update({ status: nextStatus })
-                .eq('id', id);
+                .eq('user_id', userId);
 
             if (error) throw error;
 
@@ -519,7 +520,7 @@ const Admin = () => {
     };
 
     const deleteUser = async (id: string) => {
-        const targetUser = users.find(u => u.id === id);
+        const targetUser = users.find(u => u.user_id === id);
 
         // RULE A: Owner Protection
         if (targetUser?.isOwner) {
@@ -541,12 +542,12 @@ const Admin = () => {
             const { error, count } = await supabase
                 .from('profiles')
                 .delete()
-                .eq('id', id);
+                .eq('user_id', id);
 
             if (error) throw error;
 
             // Instant UI update — remove user from local state
-            setUsers(prev => prev.filter(u => u.id !== id));
+            setUsers(prev => prev.filter(u => u.user_id !== id));
 
             logAdminAction('delete_user', id, `User ${targetUser?.email} deleted successfully`);
             toast({ title: "User Revoked", description: `${targetUser?.email || 'User'} has been permanently removed from the portal.` });
@@ -599,10 +600,10 @@ const Admin = () => {
             const { error: profileError } = await supabase
                 .from('profiles')
                 .upsert({
-                    id: newUserId,
+                    user_id: newUserId,
                     email: newUserEmail.trim(),
                     display_name: newUserName.trim() || newUserEmail.split('@')[0],
-                    role: newUserRole,
+                    role: newUserRole as any,
                     status: 'Active',
                 });
 
@@ -625,7 +626,7 @@ const Admin = () => {
             const { data: refreshedUsers } = await supabase.from('profiles').select('*');
             if (refreshedUsers) {
                 setUsers(refreshedUsers.map((u: any) => ({
-                    id: u.id,
+                    user_id: u.user_id || u.id,
                     name: u.display_name || u.email?.split('@')[0] || 'Unknown',
                     email: u.email || '',
                     role: u.role || 'student',
@@ -1013,7 +1014,7 @@ const Admin = () => {
                                         </thead>
                                         <tbody className="divide-y divide-white/[0.03]">
                                             {users.map(user => (
-                                                <tr key={user.id} className="group hover:bg-white/[0.03] transition-all duration-300">
+                                                <tr key={user.user_id} className="group hover:bg-white/[0.03] transition-all duration-300">
                                                     <td className="py-6 px-10">
                                                         <div className="flex items-center gap-4">
                                                             <div className="relative">
@@ -1034,7 +1035,7 @@ const Admin = () => {
                                                         ) : (currentAdminRole === 'super_admin' && (iAmOwner || user.role !== 'super_admin')) ? (
                                                             <select
                                                                 value={user.role}
-                                                                onChange={(e) => updateUserRole(user.id, e.target.value)}
+                                                                onChange={(e) => updateUserRole(user.user_id, e.target.value)}
                                                                 className="bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[9px] uppercase font-black rounded-xl px-3 py-1.5 outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer hover:bg-blue-500/20 transition-all appearance-none tracking-widest text-center min-w-[120px]"
                                                             >
                                                                 <option value="student">Student</option>
@@ -1064,7 +1065,7 @@ const Admin = () => {
                                                         <div className="flex items-center justify-end gap-2">
                                                             <Button
                                                                 disabled={user.isOwner || (user.role === 'super_admin' && !iAmOwner)}
-                                                                onClick={() => toggleUserStatus(user.id)}
+                                                                onClick={() => toggleUserStatus(user.user_id)}
                                                                 variant="ghost" size="icon"
                                                                 className={cn("h-9 w-9 rounded-xl transition-all", user.status === 'Suspended' ? 'bg-emerald-500/5 text-emerald-400 border border-emerald-500/10' : 'bg-amber-500/5 text-amber-400 border border-amber-500/10')}
                                                             >
@@ -1073,7 +1074,7 @@ const Admin = () => {
                                                             {iAmOwner && (
                                                                 <Button
                                                                     disabled={user.isOwner}
-                                                                    onClick={() => deleteUser(user.id)}
+                                                                    onClick={() => deleteUser(user.user_id)}
                                                                     variant="ghost" size="icon"
                                                                     className="h-9 w-9 rounded-xl transition-all bg-rose-500/5 text-gray-500 hover:text-rose-500 border border-white/5 hover:border-rose-500/20"
                                                                 >

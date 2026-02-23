@@ -70,7 +70,7 @@ const SettingsPage = () => {
       const { data, error } = await supabase
         .from('profiles')
         .select('settings')
-        .eq('id', user.uid)
+        .eq('user_id', user.uid)
         .maybeSingle();
 
       if (!error && data?.settings) {
@@ -100,7 +100,7 @@ const SettingsPage = () => {
             [key]: newValue
           }
         })
-        .eq('id', user.uid);
+        .eq('user_id', user.uid);
 
       if (error) {
         console.error('Error syncing settings:', error);

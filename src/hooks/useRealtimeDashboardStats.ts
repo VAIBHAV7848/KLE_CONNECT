@@ -57,8 +57,8 @@ export function useRealtimeDashboardStats() {
     const fetchStats = useCallback(async () => {
         try {
             // Fire all count queries in parallel for speed
-            const [studentsResult, roomsResult, doubtsResult, forumResult] = await Promise.allSettled([
-                // 1. Total Students — count from profiles (or users as fallback)
+            const [studentsResult, roomsResult, forumResult] = await Promise.allSettled([
+                // 1. Total Students — count from profiles
                 supabase
                     .from('profiles')
                     .select('*', { count: 'exact', head: true }),
@@ -69,12 +69,7 @@ export function useRealtimeDashboardStats() {
                     .select('*', { count: 'exact', head: true })
                     .gt('participants', 0),
 
-                // 3. Doubts Posted — count from doubts table (new schema)
-                supabase
-                    .from('doubts')
-                    .select('*', { count: 'exact', head: true }),
-
-                // 4. Forum Questions fallback (legacy table)
+                // 3. Doubts Posted — count from forum_questions table (replaces non-existent doubts)
                 supabase
                     .from('forum_questions')
                     .select('*', { count: 'exact', head: true }),
@@ -91,13 +86,10 @@ export function useRealtimeDashboardStats() {
                     ? (roomsResult.value.count ?? 0)
                     : 0;
 
-            // Use doubts count, fall back to forum_questions if doubts table doesn't exist
-            let doubtsPosted = 0;
-            if (doubtsResult.status === 'fulfilled' && !doubtsResult.value.error) {
-                doubtsPosted = doubtsResult.value.count ?? 0;
-            } else if (forumResult.status === 'fulfilled' && !forumResult.value.error) {
-                doubtsPosted = forumResult.value.count ?? 0;
-            }
+            const doubtsPosted =
+                forumResult.status === 'fulfilled' && !forumResult.value.error
+                    ? (forumResult.value.count ?? 0)
+                    : 0;
 
             // System load is a synthetic metric (no real table behind it)
             const systemLoad = `${12 + Math.floor(Math.random() * 5)}%`;
@@ -148,25 +140,13 @@ export function useRealtimeDashboardStats() {
                 { event: '*', schema: 'public', table: 'profiles' },
                 () => debouncedRefetch()
             )
-            // users → Total Students (legacy fallback)
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'users' },
-                () => debouncedRefetch()
-            )
             // rooms → Active Sessions
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'rooms' },
                 () => debouncedRefetch()
             )
-            // doubts → Doubts Posted (new schema)
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'doubts' },
-                () => debouncedRefetch()
-            )
-            // forum_questions → Doubts Posted (legacy)
+            // forum_questions → Doubts Posted
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'forum_questions' },
