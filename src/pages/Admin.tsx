@@ -5,7 +5,7 @@ import {
     ShieldCheck, Users, Video, AlertCircle, TrendingUp,
     MessageSquare, Calendar, Trash2, Power, CheckCircle2,
     Activity, BarChart3, Bell, Lock, Globe, Command,
-    RefreshCcw, UserMinus, ShieldAlert, Zap, X, LogIn, LogOut, History
+    RefreshCcw, UserMinus, ShieldAlert, Zap, X, LogIn, LogOut, History, UserPlus, Eye, EyeOff
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -69,6 +69,15 @@ const Admin = () => {
     const [stats, setStats] = useState<AdminStat[]>([]);
     const [auditLogs, setAuditLogs] = useState<any[]>([]);
     const [loginHistory, setLoginHistory] = useState<any[]>([]);
+
+    // Add User modal states (Owner only)
+    const [showAddUserModal, setShowAddUserModal] = useState(false);
+    const [newUserEmail, setNewUserEmail] = useState('');
+    const [newUserPassword, setNewUserPassword] = useState('');
+    const [newUserName, setNewUserName] = useState('');
+    const [newUserRole, setNewUserRole] = useState('student');
+    const [isAddingUser, setIsAddingUser] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
 
     // Rate limiters for security
     const broadcastLimiter = useRef(new RateLimiter(10, 60000)); // 10 broadcasts per minute
@@ -544,6 +553,80 @@ const Admin = () => {
         }
     };
 
+    // --- ADD NEW USER (Owner-only) ---
+    const addNewUser = async () => {
+        if (!iAmOwner) {
+            toast({ title: "Permission Denied", description: "Only the Platform Owner can add new users.", variant: "destructive" });
+            return;
+        }
+
+        if (!newUserEmail.trim() || !newUserPassword.trim()) {
+            toast({ title: "Missing Fields", description: "Email and password are required.", variant: "destructive" });
+            return;
+        }
+
+        if (newUserPassword.length < 6) {
+            toast({ title: "Weak Password", description: "Password must be at least 6 characters.", variant: "destructive" });
+            return;
+        }
+
+        setIsAddingUser(true);
+        try {
+            // Step 1: Create auth user via signUp
+            const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+                email: newUserEmail.trim(),
+                password: newUserPassword,
+                options: {
+                    data: {
+                        display_name: newUserName.trim() || newUserEmail.split('@')[0],
+                    }
+                }
+            });
+
+            if (signUpError) throw signUpError;
+
+            const newUserId = signUpData.user?.id;
+            if (!newUserId) throw new Error('User creation returned no ID');
+
+            // Step 2: Update the profile with role and display_name
+            const { error: profileError } = await supabase
+                .from('profiles')
+                .upsert({
+                    id: newUserId,
+                    email: newUserEmail.trim(),
+                    display_name: newUserName.trim() || newUserEmail.split('@')[0],
+                    role: newUserRole,
+                    status: 'Active',
+                });
+
+            if (profileError) console.warn('Profile update warning:', profileError);
+
+            logAdminAction('add_user', newUserId, `Created user: ${newUserEmail} with role: ${newUserRole}`);
+            toast({
+                title: "User Created",
+                description: `${newUserEmail} has been registered as ${newUserRole}. They may need to verify their email.`,
+            });
+
+            // Reset form
+            setNewUserEmail('');
+            setNewUserPassword('');
+            setNewUserName('');
+            setNewUserRole('student');
+            setShowAddUserModal(false);
+            loadUsers();
+        } catch (error: any) {
+            console.error('Error creating user:', error);
+            logAdminAction('add_user', 'N/A', `Failed to create user: ${error.message}`, true);
+            toast({
+                title: "User Creation Failed",
+                description: error.message || "Could not create the user.",
+                variant: "destructive"
+            });
+        } finally {
+            setIsAddingUser(false);
+        }
+    };
+
     const terminateRoom = async (id: string) => {
         try {
             const { error } = await supabase
@@ -887,6 +970,14 @@ const Admin = () => {
                                         <Button variant="outline" size="sm" className="rounded-2xl h-10 px-5 border-white/10 glass hover:bg-white/10 transition-all font-bold text-[11px] uppercase tracking-wider" onClick={() => window.location.reload()}>
                                             <RefreshCcw className="w-3.5 h-3.5 mr-2" /> Refresh
                                         </Button>
+                                        {iAmOwner && (
+                                            <Button
+                                                onClick={() => setShowAddUserModal(true)}
+                                                className="rounded-2xl h-10 px-5 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/20 transition-all font-black text-[11px] uppercase tracking-wider"
+                                            >
+                                                <UserPlus className="w-3.5 h-3.5 mr-2" /> Register User
+                                            </Button>
+                                        )}
                                     </div>
                                 </div>
 
@@ -960,14 +1051,16 @@ const Admin = () => {
                                                             >
                                                                 {user.status === 'Suspended' ? <Power className="w-4 h-4" /> : <UserMinus className="w-4 h-4" />}
                                                             </Button>
-                                                            <Button
-                                                                disabled={user.isOwner || (user.role === 'super_admin' && !iAmOwner)}
-                                                                onClick={() => deleteUser(user.id)}
-                                                                variant="ghost" size="icon"
-                                                                className="h-9 w-9 rounded-xl transition-all bg-rose-500/5 text-gray-500 hover:text-rose-500 border border-white/5 hover:border-rose-500/20"
-                                                            >
-                                                                <Trash2 className="w-4 h-4" />
-                                                            </Button>
+                                                            {iAmOwner && (
+                                                                <Button
+                                                                    disabled={user.isOwner}
+                                                                    onClick={() => deleteUser(user.id)}
+                                                                    variant="ghost" size="icon"
+                                                                    className="h-9 w-9 rounded-xl transition-all bg-rose-500/5 text-gray-500 hover:text-rose-500 border border-white/5 hover:border-rose-500/20"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </Button>
+                                                            )}
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -975,6 +1068,127 @@ const Admin = () => {
                                         </tbody>
                                     </table>
                                 </div>
+
+                                {/* Add User Modal (Owner Only) */}
+                                <AnimatePresence>
+                                    {showAddUserModal && iAmOwner && (
+                                        <motion.div
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            exit={{ opacity: 0 }}
+                                            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md"
+                                            onClick={() => setShowAddUserModal(false)}
+                                        >
+                                            <motion.div
+                                                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="w-full max-w-md mx-4 glass rounded-[32px] border border-white/10 bg-[#0c0c0d]/95 shadow-2xl overflow-hidden"
+                                            >
+                                                {/* Modal Header */}
+                                                <div className="flex items-center justify-between p-8 pb-4 border-b border-white/5">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="p-2.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
+                                                            <UserPlus className="w-5 h-5 text-emerald-400" />
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="text-lg font-black text-white">Register New User</h3>
+                                                            <p className="text-[10px] text-gray-500 font-medium">Create a new campus identity</p>
+                                                        </div>
+                                                    </div>
+                                                    <button onClick={() => setShowAddUserModal(false)} className="p-2 rounded-xl hover:bg-white/5 transition-all">
+                                                        <X className="w-5 h-5 text-gray-500" />
+                                                    </button>
+                                                </div>
+
+                                                {/* Modal Body */}
+                                                <div className="p-8 space-y-5">
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Display Name</label>
+                                                        <input
+                                                            type="text"
+                                                            value={newUserName}
+                                                            onChange={(e) => setNewUserName(e.target.value)}
+                                                            placeholder="Full name (optional)"
+                                                            className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-sm text-white placeholder:text-gray-600 outline-none focus:border-emerald-500/30 focus:ring-1 focus:ring-emerald-500/20 transition-all"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Email Address *</label>
+                                                        <input
+                                                            type="email"
+                                                            value={newUserEmail}
+                                                            onChange={(e) => setNewUserEmail(e.target.value)}
+                                                            placeholder="student@klescet.ac.in"
+                                                            className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-sm text-white placeholder:text-gray-600 outline-none focus:border-emerald-500/30 focus:ring-1 focus:ring-emerald-500/20 transition-all"
+                                                            required
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Password *</label>
+                                                        <div className="relative">
+                                                            <input
+                                                                type={showPassword ? "text" : "password"}
+                                                                value={newUserPassword}
+                                                                onChange={(e) => setNewUserPassword(e.target.value)}
+                                                                placeholder="Min 6 characters"
+                                                                className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 pr-12 text-sm text-white placeholder:text-gray-600 outline-none focus:border-emerald-500/30 focus:ring-1 focus:ring-emerald-500/20 transition-all"
+                                                                required
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setShowPassword(!showPassword)}
+                                                                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                                                            >
+                                                                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Role</label>
+                                                        <select
+                                                            value={newUserRole}
+                                                            onChange={(e) => setNewUserRole(e.target.value)}
+                                                            className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-sm text-white outline-none focus:border-emerald-500/30 focus:ring-1 focus:ring-emerald-500/20 cursor-pointer transition-all appearance-none"
+                                                        >
+                                                            <option value="student">Student</option>
+                                                            <option value="moderator">Moderator</option>
+                                                            <option value="ops_admin">Ops Admin</option>
+                                                            <option value="super_admin">Super Admin</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+
+                                                {/* Modal Footer */}
+                                                <div className="p-8 pt-4 border-t border-white/5 flex gap-3">
+                                                    <Button
+                                                        onClick={() => setShowAddUserModal(false)}
+                                                        variant="outline"
+                                                        className="flex-1 rounded-2xl h-12 border-white/10 glass hover:bg-white/10 font-black text-[11px] uppercase tracking-wider"
+                                                    >
+                                                        Cancel
+                                                    </Button>
+                                                    <Button
+                                                        onClick={addNewUser}
+                                                        disabled={isAddingUser || !newUserEmail.trim() || !newUserPassword.trim()}
+                                                        className="flex-1 rounded-2xl h-12 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-[11px] uppercase tracking-wider transition-all disabled:opacity-40"
+                                                    >
+                                                        {isAddingUser ? (
+                                                            <span className="flex items-center gap-2">
+                                                                <RefreshCcw className="w-4 h-4 animate-spin" /> Creating...
+                                                            </span>
+                                                        ) : (
+                                                            <span className="flex items-center gap-2">
+                                                                <UserPlus className="w-4 h-4" /> Create User
+                                                            </span>
+                                                        )}
+                                                    </Button>
+                                                </div>
+                                            </motion.div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
                             </motion.div>
                         )}
 
