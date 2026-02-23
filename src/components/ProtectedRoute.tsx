@@ -16,7 +16,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
                 .from('system_settings')
                 .select('lockdown')
                 .eq('id', 1)
-                .single();
+                .maybeSingle();
 
             if (!error && data) {
                 setIsLockdownActive(data.lockdown === true);
@@ -28,7 +28,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
         // Subscribe to realtime changes
         const subscription = supabase
             .channel('system_settings_changes')
-            .on('postgres_changes', 
+            .on('postgres_changes',
                 { event: 'UPDATE', schema: 'public', table: 'system_settings', filter: 'id=eq.1' },
                 (payload) => {
                     const newData = payload.new as any;

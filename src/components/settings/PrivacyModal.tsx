@@ -23,11 +23,11 @@ export function PrivacyModal({ isOpen, onClose, defaultVisibility = 'public' }: 
       // Fetch current visibility setting
       const fetchSettings = async () => {
         const { data, error } = await supabase
-          .from('users')
+          .from('profiles')
           .select('settings')
           .eq('id', user.uid)
-          .single();
-        
+          .maybeSingle();
+
         if (!error && data?.settings?.profileVisibility) {
           setVisibility(data.settings.profileVisibility);
         }
@@ -38,38 +38,38 @@ export function PrivacyModal({ isOpen, onClose, defaultVisibility = 'public' }: 
 
   const handleSave = async () => {
     if (!user?.uid) return;
-    
+
     setIsLoading(true);
     try {
       const { error } = await supabase
-        .from('users')
+        .from('profiles')
         .update({
           settings: {
             profileVisibility: visibility
           }
         })
         .eq('id', user.uid);
-      
+
       if (error) throw error;
-      
+
       toast.success('Privacy settings updated');
       onClose();
     } catch (error) {
-        toast.error('Failed to update privacy settings');
+      toast.error('Failed to update privacy settings');
     } finally {
       setIsLoading(false);
     }
   };
-  
+
   const handleExportData = () => {
-      toast.promise(
-          new Promise((resolve) => setTimeout(resolve, 2000)),
-          {
-              loading: 'Preparing your data download...',
-              success: 'Data export emailed to you!',
-              error: 'Failed to export data'
-          }
-      );
+    toast.promise(
+      new Promise((resolve) => setTimeout(resolve, 2000)),
+      {
+        loading: 'Preparing your data download...',
+        success: 'Data export emailed to you!',
+        error: 'Failed to export data'
+      }
+    );
   };
 
   return (
@@ -81,7 +81,7 @@ export function PrivacyModal({ isOpen, onClose, defaultVisibility = 'public' }: 
             Manage who can see your profile and your data.
           </DialogDescription>
         </DialogHeader>
-        
+
         <div className="grid gap-6 py-4">
           <div className="space-y-2">
             <Label>Profile Visibility</Label>
@@ -99,12 +99,12 @@ export function PrivacyModal({ isOpen, onClose, defaultVisibility = 'public' }: 
               This controls who can view your profile details and study stats.
             </p>
           </div>
-          
+
           <div className="space-y-2 pt-4 border-t border-border">
-              <Label>Data Management</Label>
-              <Button variant="outline" className="w-full justify-start" onClick={handleExportData}>
-                  Download My Data
-              </Button>
+            <Label>Data Management</Label>
+            <Button variant="outline" className="w-full justify-start" onClick={handleExportData}>
+              Download My Data
+            </Button>
           </div>
         </div>
 

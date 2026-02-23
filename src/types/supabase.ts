@@ -14,8 +14,12 @@ export interface Database {
           id: string;
           email: string;
           display_name: string | null;
-          role: "student" | "ops_admin" | "super_admin";
+          full_name: string | null;
+          role: "student" | "moderator" | "ops_admin" | "super_admin";
           avatar_url: string | null;
+          status: string | null;
+          is_owner: boolean | null;
+          settings: Json | null;
           created_at: string;
           updated_at: string;
         };
@@ -23,8 +27,12 @@ export interface Database {
           id: string;
           email: string;
           display_name?: string | null;
-          role?: "student" | "ops_admin" | "super_admin";
+          full_name?: string | null;
+          role?: "student" | "moderator" | "ops_admin" | "super_admin";
           avatar_url?: string | null;
+          status?: string | null;
+          is_owner?: boolean | null;
+          settings?: Json | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -32,8 +40,12 @@ export interface Database {
           id?: string;
           email?: string;
           display_name?: string | null;
-          role?: "student" | "ops_admin" | "super_admin";
+          full_name?: string | null;
+          role?: "student" | "moderator" | "ops_admin" | "super_admin";
           avatar_url?: string | null;
+          status?: string | null;
+          is_owner?: boolean | null;
+          settings?: Json | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -328,19 +340,19 @@ export interface Database {
       system_settings: {
         Row: {
           id: number;
-          broadcast: any;
+          broadcast: Json | null;
           lockdown: boolean | null;
           maintenance: boolean | null;
         };
         Insert: {
           id?: number;
-          broadcast?: any;
+          broadcast?: Json | null;
           lockdown?: boolean | null;
           maintenance?: boolean | null;
         };
         Update: {
           id?: number;
-          broadcast?: any;
+          broadcast?: Json | null;
           lockdown?: boolean | null;
           maintenance?: boolean | null;
         };
@@ -350,6 +362,7 @@ export interface Database {
           id: string;
           name: string;
           topic: string | null;
+          host_id: string | null;
           participants: number;
           created_at: string;
         };
@@ -357,6 +370,7 @@ export interface Database {
           id?: string;
           name: string;
           topic?: string | null;
+          host_id?: string | null;
           participants?: number;
           created_at?: string;
         };
@@ -364,41 +378,65 @@ export interface Database {
           id?: string;
           name?: string;
           topic?: string | null;
+          host_id?: string | null;
           participants?: number;
           created_at?: string;
+        };
+      };
+      room_participants: {
+        Row: {
+          id: string;
+          room_id: string;
+          user_id: string;
+          user_name: string;
+          joined_at: string;
+        };
+        Insert: {
+          id?: string;
+          room_id: string;
+          user_id: string;
+          user_name: string;
+          joined_at?: string;
+        };
+        Update: {
+          id?: string;
+          room_id?: string;
+          user_id?: string;
+          user_name?: string;
+          joined_at?: string;
         };
       };
       audit_logs: {
         Row: {
           id: string;
           actor_id: string;
-          actor_email: string;
-          role: string;
+          actor_email: string | null;
+          role: string | null;
           action: string;
-          target_id: string;
-          details: string;
+          target_id: string | null;
+          details: Json | null;
           blocked: boolean;
           timestamp: string;
         };
         Insert: {
           id?: string;
           actor_id: string;
-          actor_email: string;
-          role: string;
+          actor_email?: string | null;
+          role?: string | null;
           action: string;
-          target_id: string;
-          details: string;
+          target_id?: string | null;
+          details?: Json | null;
           blocked?: boolean;
           timestamp?: string;
         };
         Update: {
           id?: string;
           actor_id?: string;
-          actor_email?: string;
-          role?: string;
+          actor_email?: string | null;
+          role?: string | null;
           action?: string;
-          target_id?: string;
-          details?: string;
+          target_id?: string | null;
+          details?: Json | null;
           blocked?: boolean;
           timestamp?: string;
         };
@@ -438,23 +476,84 @@ export interface Database {
       forum_questions: {
         Row: {
           id: string;
-          user_id: string;
-          title: string;
-          content: string;
+          question: string;
+          subject: string;
+          author_id: string | null;
+          author_name: string;
+          answers_count: number;
+          votes: number;
+          timestamp: string;
           created_at: string;
         };
         Insert: {
           id?: string;
-          user_id: string;
-          title: string;
-          content: string;
+          question: string;
+          subject: string;
+          author_id?: string | null;
+          author_name: string;
+          answers_count?: number;
+          votes?: number;
+          timestamp?: string;
           created_at?: string;
         };
         Update: {
           id?: string;
-          user_id?: string;
-          title?: string;
-          content?: string;
+          question?: string;
+          subject?: string;
+          author_id?: string | null;
+          author_name?: string;
+          answers_count?: number;
+          votes?: number;
+          timestamp?: string;
+          created_at?: string;
+        };
+      };
+      system_config: {
+        Row: {
+          id: string;
+          key_name: string;
+          key_value: string;
+          last_updated_by: string | null;
+          created_at: string;
+          updated_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          key_name: string;
+          key_value: string;
+          last_updated_by?: string | null;
+          created_at?: string;
+          updated_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          key_name?: string;
+          key_value?: string;
+          last_updated_by?: string | null;
+          created_at?: string;
+          updated_at?: string | null;
+        };
+      };
+      api_keys: {
+        Row: {
+          id: string;
+          provider: string;
+          api_key: string;
+          is_active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          provider: string;
+          api_key: string;
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          provider?: string;
+          api_key?: string;
+          is_active?: boolean;
           created_at?: string;
         };
       };
@@ -467,6 +566,12 @@ export interface Database {
           request_end: string;
         };
         Returns: Json;
+      };
+      increment_votes: {
+        Args: {
+          question_id: string;
+        };
+        Returns: void;
       };
     };
     Views: {

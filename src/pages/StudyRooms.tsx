@@ -227,25 +227,25 @@ const Lobby = ({ onJoin }: { onJoin: (code: string) => void }) => {
 
   const handleCreateRoom = async () => {
     if (!newRoomName.trim()) return;
-    
+
     const newRoom = {
       name: newRoomName,
       topic: newRoomTopic,
       participants: 0,
-      hostId: user?.uid || null
+      host_id: user?.uid || null
     };
-    
+
     const { data, error } = await supabase
       .from('rooms')
       .insert(newRoom)
       .select()
-      .single();
-    
+      .maybeSingle();
+
     if (error) {
       console.error('Error creating room:', error);
       return;
     }
-    
+
     setIsCreateOpen(false);
     onJoin(newRoomName);
   };
@@ -587,7 +587,7 @@ const LiveMeeting = (props: {
     // Subscribe to room changes using Supabase real-time
     const subscription = supabase
       .channel(`room_${props.roomCode}`)
-      .on('postgres_changes', 
+      .on('postgres_changes',
         { event: '*', schema: 'public', table: 'rooms', filter: `name=eq.${props.roomCode}` },
         (payload) => {
           // If room is deleted or no longer exists

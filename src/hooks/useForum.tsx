@@ -23,7 +23,7 @@ export const useForum = () => {
         // Subscribe to realtime changes
         const subscription = supabase
             .channel('forum_questions_changes')
-            .on('postgres_changes', 
+            .on('postgres_changes',
                 { event: '*', schema: 'public', table: 'forum_questions' },
                 (payload) => {
                     if (payload.eventType === 'INSERT') {
@@ -41,7 +41,7 @@ export const useForum = () => {
                         setQuestions(prev => prev.filter(q => q.id !== payload.old.id));
                     } else if (payload.eventType === 'UPDATE') {
                         const updatedQuestion = payload.new as any;
-                        setQuestions(prev => prev.map(q => 
+                        setQuestions(prev => prev.map(q =>
                             q.id === updatedQuestion.id ? {
                                 id: updatedQuestion.id,
                                 question: updatedQuestion.question,
@@ -122,12 +122,12 @@ export const useForum = () => {
                 .from('forum_questions')
                 .select('votes')
                 .eq('id', id)
-                .single();
-            
+                .maybeSingle();
+
             if (question) {
                 await supabase
                     .from('forum_questions')
-                    .update({ votes: question.votes + 1 })
+                    .update({ votes: (question.votes ?? 0) + 1 })
                     .eq('id', id);
             }
         }

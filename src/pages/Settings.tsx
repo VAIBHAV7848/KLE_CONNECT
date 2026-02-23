@@ -64,15 +64,15 @@ const SettingsPage = () => {
   // Listen to Supabase Settings
   useEffect(() => {
     if (!user?.uid) return;
-    
+
     // Check if we have settings in DB
     const fetchSettings = async () => {
       const { data, error } = await supabase
-        .from('users')
+        .from('profiles')
         .select('settings')
         .eq('id', user.uid)
-        .single();
-      
+        .maybeSingle();
+
       if (!error && data?.settings) {
         const remoteSettings = data.settings;
         // Merge remote settings with local defaults, preferring remote
@@ -82,18 +82,18 @@ const SettingsPage = () => {
         }));
       }
     };
-    
+
     fetchSettings();
   }, [user]);
 
   const handleToggle = async (key: keyof SettingState) => {
     const newValue = !settings[key];
     setSettings(prev => ({ ...prev, [key]: newValue }));
-    
+
     // Sync to Supabase if user is logged in
     if (user?.uid) {
       const { error } = await supabase
-        .from('users')
+        .from('profiles')
         .update({
           settings: {
             ...settings,
@@ -101,7 +101,7 @@ const SettingsPage = () => {
           }
         })
         .eq('id', user.uid);
-      
+
       if (error) {
         console.error('Error syncing settings:', error);
       }
@@ -119,12 +119,12 @@ const SettingsPage = () => {
       setIsChangePasswordOpen(true);
       return;
     }
-    
+
     if (label === 'Profile Visibility' || label === 'Data & Privacy') {
       setIsPrivacyOpen(true);
       return;
     }
-    
+
     toast.info(`${label} coming soon!`, {
       description: "This feature is currently under development."
     });
@@ -286,19 +286,19 @@ const SettingsPage = () => {
           </button>
         </motion.div>
       </div>
-      <EditProfileModal 
-        isOpen={isEditProfileOpen} 
-        onClose={() => setIsEditProfileOpen(false)} 
+      <EditProfileModal
+        isOpen={isEditProfileOpen}
+        onClose={() => setIsEditProfileOpen(false)}
       />
-      
-      <ChangePasswordModal 
-        isOpen={isChangePasswordOpen} 
-        onClose={() => setIsChangePasswordOpen(false)} 
+
+      <ChangePasswordModal
+        isOpen={isChangePasswordOpen}
+        onClose={() => setIsChangePasswordOpen(false)}
       />
-      
-      <PrivacyModal 
-        isOpen={isPrivacyOpen} 
-        onClose={() => setIsPrivacyOpen(false)} 
+
+      <PrivacyModal
+        isOpen={isPrivacyOpen}
+        onClose={() => setIsPrivacyOpen(false)}
       />
     </PageLayout>
   );

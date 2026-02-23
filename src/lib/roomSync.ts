@@ -27,11 +27,15 @@ export const saveRoomToSupabase = async (room: Omit<Room, 'id' | 'createdAt'>) =
             host_id: room.hostId,
         })
         .select()
-        .single();
+        .maybeSingle();
 
     if (error) {
         console.error('Error saving room:', error);
         throw error;
+    }
+
+    if (!data) {
+        throw new Error('Room was not created');
     }
 
     return data;
@@ -54,7 +58,7 @@ export const deleteRoomFromSupabase = async (roomId: string) => {
 export const subscribeToRooms = (callback: (rooms: Room[]) => void) => {
     const subscription = supabase
         .channel('rooms_changes')
-        .on('postgres_changes', 
+        .on('postgres_changes',
             { event: '*', schema: 'public', table: 'rooms' },
             async () => {
                 // Fetch all rooms on any change
@@ -170,7 +174,7 @@ export const getRoomByName = async (roomName: string): Promise<Room | null> => {
         .from('rooms')
         .select('*')
         .eq('name', roomName)
-        .single();
+        .maybeSingle();
 
     if (error || !data) {
         return null;

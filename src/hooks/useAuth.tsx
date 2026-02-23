@@ -380,9 +380,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (authError) throw authError;
 
       // Update database profile
-      const { error: dbError } = await (supabase
-        .from('users')
-        .update as any)({ display_name: displayName })
+      const { error: dbError } = await supabase
+        .from('profiles')
+        .update({ display_name: displayName })
         .eq('id', currentUser.id);
 
       if (dbError) throw dbError;

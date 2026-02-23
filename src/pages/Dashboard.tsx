@@ -95,7 +95,7 @@ const Dashboard = () => {
         .from('system_settings')
         .select('broadcast')
         .eq('id', 1)
-        .single();
+        .maybeSingle();
 
       let broadcast = data ? (data as any).broadcast : null;
       // Handle Postgres returning TEXT column as string

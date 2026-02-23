@@ -8,7 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 
-import { Task as SupabaseTask } from '@/types/supabase';
+
 
 interface StudyTask {
   id: string;
@@ -107,7 +107,7 @@ const StudyPlanner = () => {
             completed: taskData.completed
           })
           .select()
-          .single();
+          .maybeSingle();
 
         if (error) throw error;
 
