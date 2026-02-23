@@ -535,21 +535,28 @@ const Admin = () => {
             return;
         }
 
-        if (!confirm('Are you sure you want to permanently delete this user? This action cannot be undone.')) return;
+        if (!confirm(`Are you sure you want to permanently delete ${targetUser?.name || 'this user'}? This action cannot be undone.`)) return;
 
         try {
-            const { error } = await supabase
+            const { error, count } = await supabase
                 .from('profiles')
                 .delete()
                 .eq('id', id);
 
             if (error) throw error;
 
-            logAdminAction('delete_user', id, "User deleted successfully");
-            toast({ title: "User Revoked", description: "Student access has been permanently removed from the portal." });
-        } catch (error) {
+            // Instant UI update — remove user from local state
+            setUsers(prev => prev.filter(u => u.id !== id));
+
+            logAdminAction('delete_user', id, `User ${targetUser?.email} deleted successfully`);
+            toast({ title: "User Revoked", description: `${targetUser?.email || 'User'} has been permanently removed from the portal.` });
+        } catch (error: any) {
             console.error('Error deleting user:', error);
-            toast({ title: "Delete Failed", description: "Database rule prevented this action.", variant: "destructive" });
+            toast({
+                title: "Delete Failed",
+                description: error?.message || error?.details || "Database rule prevented this action. Check RLS policies.",
+                variant: "destructive"
+            });
         }
     };
 
@@ -613,7 +620,19 @@ const Admin = () => {
             setNewUserName('');
             setNewUserRole('student');
             setShowAddUserModal(false);
-            loadUsers();
+
+            // Refresh user list from DB
+            const { data: refreshedUsers } = await supabase.from('profiles').select('*');
+            if (refreshedUsers) {
+                setUsers(refreshedUsers.map((u: any) => ({
+                    id: u.id,
+                    name: u.display_name || u.email?.split('@')[0] || 'Unknown',
+                    email: u.email || '',
+                    role: u.role || 'student',
+                    status: u.status || 'Active',
+                    isOwner: u.is_owner || false,
+                })));
+            }
         } catch (error: any) {
             console.error('Error creating user:', error);
             logAdminAction('add_user', 'N/A', `Failed to create user: ${error.message}`, true);
