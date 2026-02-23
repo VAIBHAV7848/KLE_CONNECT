@@ -37,8 +37,22 @@ import AdminProtectedRoute from "./components/AdminProtectedRoute";
 import { ThemeProvider } from "@/hooks/useTheme";
 import AuthCallback from "./components/AuthCallback";
 
+// Safe lazy loader to handle chunk failures
+const safeLazy = (factory: () => Promise<{ default: React.ComponentType<any> }>) => {
+  return lazy(() =>
+    factory().catch(error => {
+      if (error.message.includes("Failed to fetch dynamically imported module")) {
+        console.warn("[App] Chunk load failed. Force reloading page to fetch new assets...");
+        window.location.reload();
+        return { default: () => <div className="flex items-center justify-center min-h-screen"><Loader2 className="animate-spin" /></div> };
+      }
+      throw error;
+    })
+  );
+};
+
 // Lazy load Admin module
-const Admin = lazy(() => import("./pages/Admin"));
+const Admin = safeLazy(() => import("./pages/Admin"));
 
 // App.tsx - Optimized routing
 const router = createHashRouter([
