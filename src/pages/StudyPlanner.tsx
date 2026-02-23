@@ -38,7 +38,7 @@ const StudyPlanner = () => {
       setLoading(true);
       if (user?.uid) {
         try {
-          const { data, error } = await (supabase.from('tasks') as any)
+          const { data, error } = await (supabase.from('planner_tasks') as any)
             .select('*')
             .eq('user_id', user.uid)
             .order('created_at', { ascending: true });
@@ -99,7 +99,7 @@ const StudyPlanner = () => {
 
     if (user?.uid) {
       try {
-        const { data, error } = await (supabase.from('tasks') as any)
+        const { data, error } = await (supabase.from('planner_tasks') as any)
           .insert({
             user_id: user.uid,
             title: taskData.title,
@@ -151,7 +151,7 @@ const StudyPlanner = () => {
 
     if (user?.uid) {
       try {
-        const { error } = await (supabase.from('tasks') as any)
+        const { error } = await (supabase.from('planner_tasks') as any)
           .update({ completed: newCompleted })
           .eq('id', id);
 
@@ -175,7 +175,7 @@ const StudyPlanner = () => {
     setActionLoading(id);
     if (user?.uid) {
       try {
-        const { error } = await (supabase.from('tasks') as any)
+        const { error } = await (supabase.from('planner_tasks') as any)
           .delete()
           .eq('id', id);
 

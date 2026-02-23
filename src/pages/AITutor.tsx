@@ -8,6 +8,8 @@ import { Textarea } from '@/components/ui/textarea';
 import ReactMarkdown from 'react-markdown';
 // Removed GoogleGenerativeAI for security (Step 5)
 const generateId = () => Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import {
@@ -50,50 +52,79 @@ const AITutor = () => {
   // Dynamic AI Endpoint: Use environment variable for local dev, fallback to relative for production
   // This allows local testing against deployed backend while keeping relative paths in production
   const aiEndpoint = import.meta.env.VITE_AI_API_URL || "/api/ai";
-  
+
   console.log("[AITutor] AI Endpoint configured to:", aiEndpoint);
 
   const isNewChatRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // --- Persistence Logic (LocalStorage) ---
+  const { user } = useAuth();
+
+  // --- Persistence Logic (Supabase) ---
   useEffect(() => {
     // Load conversations on mount
-    const savedConvos = localStorage.getItem('aitutor-conversations');
-    if (savedConvos) {
-      setConversations(JSON.parse(savedConvos));
-    }
-  }, []);
+    const loadConversations = async () => {
+      if (!user?.uid) return;
+      try {
+        const { data, error } = await supabase
+          .from('ai_conversations')
+          .select('*')
+          .eq('user_id', user.uid)
+          .order('created_at', { ascending: false });
 
-  useEffect(() => {
-    // Save conversations when they change
-    localStorage.setItem('aitutor-conversations', JSON.stringify(conversations));
-  }, [conversations]);
+        if (error) throw error;
+
+        if (data) {
+          setConversations(data.map(c => ({
+            id: c.id,
+            title: c.title || 'New Chat',
+            createdAt: new Date(c.created_at).getTime()
+          })));
+        }
+      } catch (err: any) {
+        console.error('[AITutor] Load conversations failed:', err);
+        toast.error('Could not load chat history');
+      }
+    };
+
+    loadConversations();
+  }, [user?.uid]);
 
   useEffect(() => {
     // Load messages when switching conversations
-    if (currentConversationId) {
-      // If we just created this chat locally, don't overwrite the state from empty storage!
-      if (isNewChatRef.current) {
-        isNewChatRef.current = false;
+    const loadMessages = async () => {
+      if (!currentConversationId) {
+        setMessages([]);
         return;
       }
 
-      const savedMessages = localStorage.getItem(`aitutor-messages-${currentConversationId}`);
-      if (savedMessages) {
-        setMessages(JSON.parse(savedMessages));
-      } else {
-        setMessages([]);
-      }
-    } else {
-      // Clear messages if no conversation selected
-      if (messages.length > 0) setMessages([]);
-    }
-  }, [currentConversationId]);
+      setIsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('ai_messages')
+          .select('*')
+          .eq('conversation_id', currentConversationId)
+          .order('created_at', { ascending: true });
 
-  const saveMessagesToStorage = (chatId: string, newMessages: Message[]) => {
-    localStorage.setItem(`aitutor-messages-${chatId}`, JSON.stringify(newMessages));
-  };
+        if (error) throw error;
+
+        if (data) {
+          setMessages(data.map(m => ({
+            role: m.role as 'user' | 'assistant',
+            content: m.content,
+            timestamp: new Date(m.created_at).getTime()
+          })));
+        }
+      } catch (err: any) {
+        console.error('[AITutor] Load messages failed:', err);
+        toast.error('Could not load messages');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadMessages();
+  }, [currentConversationId]);
 
   // --- Sidebar Actions ---
   const createNewChat = () => {
@@ -102,13 +133,26 @@ const AITutor = () => {
     setInput('');
   };
 
-  const deleteConversation = (e: React.MouseEvent, id: string) => {
+  const deleteConversation = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    const updated = conversations.filter(c => c.id !== id);
-    setConversations(updated);
-    localStorage.removeItem(`aitutor-messages-${id}`);
-    if (currentConversationId === id) {
-      createNewChat();
+    if (!confirm('Are you sure you want to delete this conversation?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('ai_conversations')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setConversations(prev => prev.filter(c => c.id !== id));
+      if (currentConversationId === id) {
+        createNewChat();
+      }
+      toast.success('Conversation deleted');
+    } catch (err: any) {
+      console.error('[AITutor] Delete failed:', err);
+      toast.error('Delete failed');
     }
   };
 
@@ -155,14 +199,14 @@ const AITutor = () => {
       const targetEndpoint = aiEndpoint;
       console.log("[AITutor] Step 2: Fetching from", targetEndpoint);
       const startTime = Date.now();
-      
+
       const controller = new AbortController();
       const fetchTimeout = setTimeout(() => controller.abort(), 45000); // Increased to 45s
 
       try {
         const response = await fetch(targetEndpoint, {
           method: "POST",
-          headers: { 
+          headers: {
             "Content-Type": "application/json",
             "Authorization": idToken ? `Bearer ${idToken}` : ""
           },
@@ -201,6 +245,14 @@ const AITutor = () => {
           timestamp: Date.now(),
           provider: data.provider
         }]);
+
+        // Save assistant message to Supabase
+        await supabase.from('ai_messages').insert({
+          conversation_id: chatId,
+          role: 'assistant',
+          content: data.reply
+        });
+
         setStatus('idle');
       } catch (fetchErr: any) {
         if (fetchErr.name === 'AbortError') {
@@ -211,9 +263,9 @@ const AITutor = () => {
 
     } catch (error: any) {
       console.error("[AITutor] Request flow failed:", error);
-      
+
       let errorMsg = `**Connection Error**\n\n${error.message}`;
-      
+
       if (error.message.includes('503')) {
         errorMsg = "**System Maintenance**\n\nThe AI Tutor is currently being updated. Please check back shortly.";
       }
@@ -221,18 +273,14 @@ const AITutor = () => {
       setLastError(error.message);
       toast.error(error.message.slice(0, 50));
       setStatus('error');
-      
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: errorMsg, 
-        timestamp: Date.now() 
+
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: errorMsg,
+        timestamp: Date.now()
       }]);
     } finally {
       setIsLoading(false);
-      setMessages(prev => {
-        saveMessagesToStorage(chatId, prev);
-        return prev;
-      });
     }
   };
 
@@ -246,14 +294,23 @@ const AITutor = () => {
     let activeId = currentConversationId;
 
     if (!activeId) {
-      activeId = generateId();
-      isNewChatRef.current = true; // Flag this as a new chat to prevent useEffect overwrite
-      const newConvo: Conversation = {
-        id: activeId,
-        title: userMsgContent.slice(0, 30) + (userMsgContent.length > 30 ? '...' : ''),
-        createdAt: timestamp,
-      };
-      setConversations(prev => [newConvo, ...prev]);
+      const activeTitle = userMsgContent.slice(0, 30) + (userMsgContent.length > 30 ? '...' : '');
+      const { data: convo, error: convoErr } = await supabase
+        .from('ai_conversations')
+        .insert({
+          user_id: user?.uid,
+          title: activeTitle
+        })
+        .select()
+        .single();
+
+      if (convoErr) {
+        console.error('[AITutor] Convo creation failed:', convoErr);
+        toast.error('Failed to start chat');
+        return;
+      }
+      activeId = convo.id;
+      setConversations(prev => [{ id: activeId!, title: activeTitle, createdAt: Date.now() }, ...prev]);
       setCurrentConversationId(activeId);
     }
 
@@ -262,10 +319,16 @@ const AITutor = () => {
     const updatedMessages = [...messages, newMessage];
     setMessages(updatedMessages);
     setInput('');
-    saveMessagesToStorage(activeId, updatedMessages);
+
+    // Save user message to Supabase
+    await supabase.from('ai_messages').insert({
+      conversation_id: activeId,
+      role: 'user',
+      content: userMsgContent
+    });
 
     // 3. Trigger AI Response
-    await generateResponse(userMsgContent, activeId, updatedMessages);
+    await generateResponse(userMsgContent, activeId!, updatedMessages);
   };
 
   const suggestions = [
