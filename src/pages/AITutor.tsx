@@ -171,8 +171,15 @@ const AITutor = () => {
         (payload) => {
           const m = payload.new as any;
           setMessages(prev => {
-            // Avoid duplicates (we insert optimistically in handleSend)
-            if (prev.find(msg => msg.timestamp === new Date(m.created_at).getTime() && msg.content === m.content)) return prev;
+            // Deduplicate: If message with same content and role exists within 10 seconds, skip
+            const isDuplicate = prev.some(msg => 
+              msg.content === m.content && 
+              msg.role === m.role &&
+              Math.abs(msg.timestamp - new Date(m.created_at).getTime()) < 10000 
+            );
+
+            if (isDuplicate) return prev;
+            
             return [...prev, {
               role: m.role as 'user' | 'assistant',
               content: m.content,
