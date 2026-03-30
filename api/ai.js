@@ -77,7 +77,7 @@ async function executeAIRequest(activeProvider, apiKey, prompt, history, systemP
     const executionPromise = (async () => {
         if (activeProvider.includes("GEMINI")) {
             const genAI = new GoogleGenerativeAI(apiKey);
-            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" }, { apiVersion: 'v1' });
+            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" }, { apiVersion: 'v1beta' });
 
             const chatHistory = (history || []).map(m => ({
                 role: m.role === 'user' ? 'user' : 'model',
