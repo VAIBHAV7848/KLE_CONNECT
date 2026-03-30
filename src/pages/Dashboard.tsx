@@ -75,19 +75,38 @@ const Dashboard = () => {
   const [announcement, setAnnouncement] = useState<{ message: string; timestamp: number } | null>(null);
 
   useEffect(() => {
-    // 1. Get AI Sessions Count
-    const savedConvos = localStorage.getItem('aitutor-conversations');
-    const aiCount = savedConvos ? JSON.parse(savedConvos).length : 0;
+    // Fetch real stats from Supabase
+    const fetchStats = async () => {
+      let aiCount = 0;
+      let taskCount = 0;
 
-    // 2. Get Pending Tasks from Planner
-    const savedTasks = localStorage.getItem('study-planner-tasks');
-    const taskCount = savedTasks ? JSON.parse(savedTasks).filter((t: any) => !t.completed).length : 0;
+      if (user?.uid) {
+        // Real AI Sessions count from Supabase
+        const { count: aiSessions } = await supabase
+          .from('ai_conversations')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.uid);
 
-    setStats([
-      { label: 'AI Sessions', value: aiCount.toString(), icon: Bot, change: aiCount > 0 ? 'Active' : 'Start now' },
-      { label: 'Study Hours', value: '12.5', icon: Clock, change: '+2.5h' }, // Simulation
-      { label: 'Pending Tasks', value: taskCount.toString(), icon: Target, change: taskCount > 0 ? 'Action needed' : 'Clear' },
-    ]);
+        aiCount = aiSessions ?? 0;
+
+        // Real Pending Tasks from Supabase
+        const { count: pendingTasks } = await supabase
+          .from('planner_tasks')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.uid)
+          .eq('completed', false);
+
+        taskCount = pendingTasks ?? 0;
+      }
+
+      setStats([
+        { label: 'AI Sessions', value: aiCount.toString(), icon: Bot, change: aiCount > 0 ? 'Active' : 'Start now' },
+        { label: 'Study Hours', value: '12.5', icon: Clock, change: '+2.5h' },
+        { label: 'Pending Tasks', value: taskCount.toString(), icon: Target, change: taskCount > 0 ? 'Action needed' : 'Clear' },
+      ]);
+    };
+
+    fetchStats();
 
     // 3. Load Global Announcement from Supabase
     const fetchBroadcast = async () => {
@@ -164,10 +183,24 @@ const Dashboard = () => {
       )
       .subscribe();
 
+    // Realtime subscription for dashboard stat counters
+    const statsChannel = user?.uid ? supabase
+      .channel('dashboard_stats_live')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'ai_conversations' },
+        () => fetchStats()
+      )
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'planner_tasks' },
+        () => fetchStats()
+      )
+      .subscribe() : null;
+
     return () => {
       subscription.unsubscribe();
+      statsChannel?.unsubscribe();
     };
-  }, []);
+  }, [user]);
 
   return (
     <PageLayout>

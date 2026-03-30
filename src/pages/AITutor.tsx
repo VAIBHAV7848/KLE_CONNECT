@@ -88,6 +88,38 @@ const AITutor = () => {
     };
 
     loadConversations();
+
+    // Realtime subscription for conversation list
+    if (!user?.uid) return;
+
+    const convoChannel = supabase
+      .channel(`ai_convos_${user.uid}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'ai_conversations', filter: `user_id=eq.${user.uid}` },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const c = payload.new as any;
+            setConversations(prev => {
+              if (prev.find(conv => conv.id === c.id)) return prev;
+              return [{ id: c.id, title: c.title || 'New Chat', createdAt: new Date(c.created_at).getTime() }, ...prev];
+            });
+          } else if (payload.eventType === 'DELETE') {
+            const old = payload.old as any;
+            setConversations(prev => prev.filter(c => c.id !== old.id));
+          } else if (payload.eventType === 'UPDATE') {
+            const c = payload.new as any;
+            setConversations(prev => prev.map(conv =>
+              conv.id === c.id ? { ...conv, title: c.title || conv.title } : conv
+            ));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      convoChannel.unsubscribe();
+    };
   }, [user?.uid]);
 
   useEffect(() => {
@@ -124,6 +156,38 @@ const AITutor = () => {
     };
 
     loadMessages();
+
+    // Realtime subscription for messages in the current conversation
+    if (!currentConversationId) return;
+
+    const msgChannel = supabase
+      .channel(`ai_msgs_${currentConversationId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'ai_messages',
+          filter: `conversation_id=eq.${currentConversationId}`,
+        },
+        (payload) => {
+          const m = payload.new as any;
+          setMessages(prev => {
+            // Avoid duplicates (we insert optimistically in handleSend)
+            if (prev.find(msg => msg.timestamp === new Date(m.created_at).getTime() && msg.content === m.content)) return prev;
+            return [...prev, {
+              role: m.role as 'user' | 'assistant',
+              content: m.content,
+              timestamp: new Date(m.created_at).getTime()
+            }];
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      msgChannel.unsubscribe();
+    };
   }, [currentConversationId]);
 
   // --- Sidebar Actions ---

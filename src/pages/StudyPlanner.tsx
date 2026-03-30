@@ -32,7 +32,7 @@ const StudyPlanner = () => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  // Load Tasks
+  // Load Tasks + Realtime Subscription
   useEffect(() => {
     const loadTasks = async () => {
       setLoading(true);
@@ -77,6 +77,43 @@ const StudyPlanner = () => {
     };
 
     loadTasks();
+
+    // Realtime subscription for logged-in users
+    if (!user?.uid) return;
+
+    const channel = supabase
+      .channel(`planner_tasks_${user.uid}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'planner_tasks',
+          filter: `user_id=eq.${user.uid}`,
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const t = payload.new as any;
+            setTasks(prev => {
+              if (prev.find(task => task.id === t.id)) return prev;
+              return [...prev, { id: t.id, title: t.title, time: t.time || 'Anytime', completed: t.completed }];
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            const t = payload.new as any;
+            setTasks(prev => prev.map(task =>
+              task.id === t.id ? { id: t.id, title: t.title, time: t.time || 'Anytime', completed: t.completed } : task
+            ));
+          } else if (payload.eventType === 'DELETE') {
+            const old = payload.old as any;
+            setTasks(prev => prev.filter(task => task.id !== old.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+    };
   }, [user?.uid, toast]);
 
   // Sync to localStorage for Guest users
