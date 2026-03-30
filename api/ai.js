@@ -1,4 +1,4 @@
-import Internal API from 'openai';
+// Removed openai import to prevent serverless crash
 import { createClient } from '@supabase/supabase-js';
 import CryptoJS from 'crypto-js';
 
@@ -131,12 +131,6 @@ async function executeAIRequest(activeProvider, apiKey, prompt, history, systemP
             return { text: data.content[0].text };
 
         } else if (activeProvider.includes("MISTRAL")) {
-            const client = new Internal API({
-                apiKey: apiKey,
-                baseURL: "https://api.mistral.ai/v1",
-                timeout: 8000
-            });
-
             const messages = [{ role: "system", content: systemPrompt }];
 
             (history || []).forEach(msg => {
@@ -148,30 +142,37 @@ async function executeAIRequest(activeProvider, apiKey, prompt, history, systemP
 
             messages.push({ role: "user", content: prompt });
 
-            const completion = await client.chat.completions.create({
-                model: "mistral-large-latest",
-                messages: messages,
-                temperature: 0.5,
-                max_tokens: 1000
+            const mistralResponse = await fetch("https://api.mistral.ai/v1/chat/completions", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: "mistral-large-latest",
+                    messages: messages,
+                    temperature: 0.5,
+                    max_tokens: 1000
+                })
             });
 
+            if (!mistralResponse.ok) {
+                const errorData = await mistralResponse.json();
+                throw new Error(errorData.error?.message || `Mistral API error: ${mistralResponse.status}`);
+            }
+
+            const completion = await mistralResponse.json();
             return { text: completion.choices[0].message.content };
 
         } else {
-            // Internal API-compatible providers (Groq, Internal API)
-            let baseURL = "https://api.groq.com/openai/v1";
+            // Internal API-compatible providers (Groq, Internal API) via native fetch
+            let baseURL = "https://api.groq.com/openai/v1/chat/completions";
             let modelName = "llama-3.1-8b-instant";
 
             if (activeProvider.includes("OPENAI")) {
-                baseURL = "https://api.openai.com/v1";
+                baseURL = "https://api.openai.com/v1/chat/completions";
                 modelName = "gpt-4o-mini";
             }
-
-            const client = new Internal API({
-                apiKey: apiKey,
-                baseURL: baseURL,
-                timeout: 8000
-            });
 
             const messages = [{ role: "system", content: systemPrompt }];
 
@@ -184,13 +185,26 @@ async function executeAIRequest(activeProvider, apiKey, prompt, history, systemP
 
             messages.push({ role: "user", content: prompt });
 
-            const completion = await client.chat.completions.create({
-                model: modelName,
-                messages: messages,
-                temperature: 0.5,
-                max_tokens: 1000
+            const groqResponse = await fetch(baseURL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: modelName,
+                    messages: messages,
+                    temperature: 0.5,
+                    max_tokens: 1000
+                })
             });
 
+            if (!groqResponse.ok) {
+                const errorData = await groqResponse.json();
+                throw new Error(errorData.error?.message || `Groq API error: ${groqResponse.status}`);
+            }
+
+            const completion = await groqResponse.json();
             return { text: completion.choices[0].message.content };
         }
     })();
