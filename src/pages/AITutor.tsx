@@ -296,7 +296,8 @@ const AITutor = () => {
         }
 
         if (!response.ok) {
-          const serverError = data.reply || data.error || `Error ${response.status}`;
+          console.error("[AITutor] FULL BACKEND ERROR RESPONSE:", data);
+          const serverError = data.message || data.error || data.reply || `Error ${response.status}`;
           throw new Error(serverError);
         }
 
