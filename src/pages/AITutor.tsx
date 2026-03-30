@@ -53,8 +53,6 @@ const AITutor = () => {
   // This allows local testing against deployed backend while keeping relative paths in production
   const aiEndpoint = import.meta.env.VITE_AI_API_URL || "/api/ai";
 
-  console.log("[AITutor] AI Endpoint configured to:", aiEndpoint);
-
   const isNewChatRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
