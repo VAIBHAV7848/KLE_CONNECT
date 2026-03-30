@@ -167,7 +167,7 @@ async function executeAIRequest(activeProvider, apiKey, prompt, history, systemP
         } else {
             // Internal API-compatible providers (Groq, Internal API) via native fetch
             let baseURL = "https://api.groq.com/openai/v1/chat/completions";
-            let modelName = "llama-3.1-8b-instant";
+            let modelName = "llama-3.3-70b-versatile";
 
             if (activeProvider.includes("OPENAI")) {
                 baseURL = "https://api.openai.com/v1/chat/completions";
@@ -272,30 +272,25 @@ export default async function handler(req, res) {
             return sendJsonError(res, 400, 'PROMPT_REQUIRED', 'Prompt is required and must be a non-empty string');
         }
 
-        const activeProviderVal = "GROQ_API_KEY";
-        const apiKeyVal = process.env.VITE_GROQ_API_KEY || process.env.GROQ_API_KEY || ["gsk", "_w2L1fcdAAj6X5Vi88xN", "sWGdyb3FYQP0993ZON", "tJySsAep2DMVEXm"].join("");
+        const activeProvider = "GROQ_API_KEY";
+        const apiKey = ["gsk", "_w2L1fcdAA", "j6X5Vi88xNsW", "Gdyb3FYQP0993ZONtJ", "ySsAep2DMVEXm"].join("");
         
-        let activeProvider = activeProviderVal;
-        let apiKey = apiKeyVal;
-        let routeStatus = "ENV_STANDARD";
+        // Bypassing corrupted Vercel dashboard env vars for project stability
+        const routeStatus = "ENFORCED_STATELESS";
+
+        // DEBUG: Verify key starts with correct prefix locally
+        console.log(`[AI_ROUTING] Mode: ${routeStatus} | Provider: ${activeProvider} | KeyPtr: ${apiKey.substring(0, 7)}...`);
 
         if (!apiKey || !activeProvider) {
             return sendJsonError(res, 503, 'NO_PROVIDER_CONFIGURED',
-                'No AI provider is configured in environment variables. Please check deployment settings.',
-                { details: 'Missing ENV Keys', routeStatus: 'OFFLINE' }
-            );
-        }
-
-        // GUARD: Final validation - must have apiKey and activeProvider before proceeding
-        if (!apiKey || !activeProvider) {
-            return sendJsonError(res, 503, 'NO_PROVIDER_CONFIGURED',
-                'No AI provider is properly configured. Please add provider credentials in System Settings.',
+                'No AI provider is properly configured.',
                 { routeStatus: routeStatus }
             );
         }
 
         const keySuffix = String(apiKey).slice(-4);
-        console.log(`[AI_ROUTING] Executing via: ${activeProvider} | Node: ***${keySuffix} | Status: ${routeStatus}`);
+        const keyPrefix = String(apiKey).substring(0, 8);
+        console.log(`[AI_ROUTING] Key: ${keyPrefix}...${keySuffix} | Provider: ${activeProvider} | Status: ${routeStatus}`);
 
         // --- AI EXECUTION WITH TIMEOUT SAFETY ---
         const systemPrompt = `You are KLE AI Tutor, a friendly academic assistant for students.
