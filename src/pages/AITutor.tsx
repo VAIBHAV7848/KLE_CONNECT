@@ -171,15 +171,25 @@ const AITutor = () => {
         (payload) => {
           const m = payload.new as any;
           setMessages(prev => {
-            // Deduplicate: If message with same content and role exists within 10 seconds, skip
-            const isDuplicate = prev.some(msg => 
-              msg.content === m.content && 
-              msg.role === m.role &&
-              Math.abs(msg.timestamp - new Date(m.created_at).getTime()) < 10000 
-            );
+            if (prev.length === 0) return [{
+              role: m.role as 'user' | 'assistant',
+              content: m.content,
+              timestamp: new Date(m.created_at).getTime()
+            }];
 
-            if (isDuplicate) return prev;
+            const lastMsg = prev[prev.length - 1];
             
+            // If the incoming message matches the last optimistic message (same role/content), 
+            // merge it (update timestamp) instead of duplicating it
+            if (lastMsg.role === m.role && lastMsg.content === m.content) {
+              const updated = [...prev];
+              updated[updated.length - 1] = {
+                ...lastMsg,
+                timestamp: new Date(m.created_at).getTime()
+              };
+              return updated;
+            }
+
             return [...prev, {
               role: m.role as 'user' | 'assistant',
               content: m.content,
