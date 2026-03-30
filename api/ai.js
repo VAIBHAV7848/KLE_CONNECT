@@ -258,113 +258,18 @@ export default async function handler(req, res) {
             return sendJsonError(res, 400, 'PROMPT_REQUIRED', 'Prompt is required and must be a non-empty string');
         }
 
-        // --- DYNAMIC AI CONFIGURATION FETCHING WITH STRICT VALIDATION ---
-        let apiKey = null;
-        let activeProvider = null;
-        let routeStatus = "INITIALIZING";
+        const activeProviderVal = (process.env.ACTIVE_AI_PROVIDER || (process.env.VITE_GEMINI_API_KEY ? "GEMINI_API_KEY" : "GROQ_API_KEY")).trim();
+        const apiKeyVal = process.env[activeProviderVal] || process.env.VITE_GEMINI_API_KEY || process.env.VITE_GROQ_API_KEY;
+        
+        let activeProvider = activeProviderVal;
+        let apiKey = apiKeyVal;
+        let routeStatus = "ENV_STANDARD";
 
-        try {
-            console.log("[System] Synchronizing with Key Mesh (1.5s lane)...");
-
-            // GUARD: Database fetch with timeout - prevents hanging on DB issues
-            const timeout = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('MESH_TIMEOUT')), 1500)
+        if (!apiKey || !activeProvider) {
+            return sendJsonError(res, 503, 'NO_PROVIDER_CONFIGURED',
+                'No AI provider is configured in environment variables. Please check deployment settings.',
+                { details: 'Missing ENV Keys', routeStatus: 'OFFLINE' }
             );
-
-            const dbFetch = supabase
-                .from('system_config')
-                .select('*');
-
-            const result = await Promise.race([dbFetch, timeout]);
-
-            // GUARD: Check for database errors
-            if (result.error) {
-                throw new Error(`DB_ERROR: ${result.error.message}`);
-            }
-
-            const configData = result.data;
-
-            // GUARD: Validate config data is array
-            if (!Array.isArray(configData)) {
-                throw new Error('CONFIG_FORMAT_INVALID: Expected array');
-            }
-
-            // GUARD: Config must not be empty
-            if (configData.length === 0) {
-                throw new Error('MESH_EMPTY: No configuration found in database');
-            }
-
-            // Find active provider
-            const activeProviderEntry = configData.find(item => item.key_name === 'active_ai_provider');
-            activeProvider = activeProviderEntry?.key_value;
-
-            // GUARD: Validate active provider exists
-            if (!activeProvider || typeof activeProvider !== 'string') {
-                throw new Error('ACTIVE_PROVIDER_NOT_SET: No active AI provider configured');
-            }
-
-            // GUARD: Validate active provider format (must be a valid provider key)
-            const validProviderPrefixes = ['OPENAI', 'GROQ', 'GEMINI', 'ANTHROPIC', 'MISTRAL'];
-            const isValidProvider = validProviderPrefixes.some(prefix =>
-                activeProvider.toUpperCase().includes(prefix)
-            );
-
-            if (!isValidProvider) {
-                throw new Error(`INVALID_PROVIDER: "${activeProvider}" is not a supported provider`);
-            }
-
-            // Find API key for active provider
-            const keyData = configData.find(item => item.key_name === activeProvider);
-
-            // GUARD: API key must exist in config
-            if (!keyData) {
-                throw new Error(`API_KEY_MISSING: No configuration entry found for ${activeProvider}`);
-            }
-
-            // GUARD: API key must have a value
-            if (!keyData.key_value) {
-                throw new Error(`API_KEY_MISSING: Stored key for ${activeProvider} is null or undefined`);
-            }
-
-            // GUARD: API key must be non-empty string
-            if (typeof keyData.key_value !== 'string' || keyData.key_value.trim().length === 0) {
-                throw new Error(`API_KEY_EMPTY: Key for ${activeProvider} is empty string`);
-            }
-
-            // Decrypt API key
-            try {
-                const bytes = AES.decrypt(keyData.key_value, ENCRYPTION_SECRET);
-                const decrypted = bytes.toString(encUtf8);
-
-                if (!decrypted || decrypted.trim().length === 0) {
-                    throw new Error('DECRYPT_FAILED');
-                }
-
-                apiKey = decrypted;
-                routeStatus = "MESH (SYNCED)";
-                console.log(`[System] Mesh Node Active: ${activeProvider}`);
-            } catch (decryptError) {
-                // If decryption failed but the key itself might be raw (unencrypted fallback)
-                apiKey = keyData.key_value;
-                routeStatus = "MESH (RAW)";
-            }
-
-        } catch (configError) {
-            console.warn(`[System] Configuration Error: ${configError.message}`);
-
-            // --- FALLBACK: Use Environment Variables ---
-            activeProvider = process.env.ACTIVE_AI_PROVIDER || (process.env.VITE_GEMINI_API_KEY ? "GEMINI_API_KEY" : "GROQ_API_KEY");
-            apiKey = process.env[activeProvider] || process.env.VITE_GEMINI_API_KEY || process.env.VITE_GROQ_API_KEY;
-
-            if (apiKey) {
-                routeStatus = "ENV_FALLBACK";
-            } else {
-                routeStatus = `CONFIG_ERROR`;
-                return sendJsonError(res, 503, 'CONFIGURATION_ERROR',
-                    'AI provider configuration is missing. Please configure a provider in System Settings or .env.',
-                    { details: configError.message, routeStatus: routeStatus }
-                );
-            }
         }
 
         // GUARD: Final validation - must have apiKey and activeProvider before proceeding

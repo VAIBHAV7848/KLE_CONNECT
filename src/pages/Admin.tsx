@@ -12,7 +12,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useRealtimeDashboardStats } from '@/hooks/useRealtimeDashboardStats';
-import SystemSecrets from '@/components/admin/SystemSecrets';
 import AIAnalytics from '@/components/admin/AIAnalytics';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { useToast } from '@/hooks/use-toast';
@@ -57,7 +56,7 @@ const Admin = () => {
     const { toast } = useToast();
     const { role: currentAdminRole, user: currentUser, isOwner: iAmOwner } = useAuth();
     const { stats: dashboardStats } = useRealtimeDashboardStats();
-    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'rooms' | 'moderation' | 'login_history' | 'system_config' | 'analytics'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'rooms' | 'moderation' | 'login_history' | 'analytics'>('overview');
     const [isLive, setIsLive] = useState(true);
     const [isLockdownActive, setIsLockdownActive] = useState(false);
     const [isStopping, setIsStopping] = useState(false);
@@ -836,7 +835,6 @@ const Admin = () => {
                         { id: 'moderation', label: 'Security Lab', icon: Lock },
                         { id: 'login_history', label: 'Login History', icon: History },
                         ...(iAmOwner ? [
-                            { id: 'system_config', label: 'System Config', icon: ShieldCheck },
                             { id: 'analytics', label: 'Analytics', icon: BarChart3 }
                         ] : [])
                     ].map(tab => (
@@ -855,15 +853,14 @@ const Admin = () => {
                                     layoutId="nav_active"
                                     className={cn(
                                         "absolute inset-0 z-0",
-                                        tab.id === 'system_config' ? "bg-rose-500/20" :
-                                            tab.id === 'login_history' ? "bg-emerald-500/20" : "bg-white/[0.08]"
+                                        tab.id === 'login_history' ? "bg-emerald-500/20" : "bg-white/[0.08]"
                                     )}
                                     transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                                 />
                             )}
                             <tab.icon className={cn(
                                 "w-4 h-4 relative z-10 transition-transform duration-300 group-hover:scale-110",
-                                (tab.id === 'system_config' || tab.id === 'analytics') && "text-rose-500",
+                                (tab.id === 'analytics') && "text-rose-500",
                                 tab.id === 'login_history' && "text-emerald-400",
                                 activeTab === tab.id && "text-blue-400"
                             )} />
@@ -1569,18 +1566,6 @@ const Admin = () => {
                                         </tbody>
                                     </table>
                                 </div>
-                            </motion.div>
-                        )}
-
-                        {activeTab === 'system_config' && iAmOwner && (
-                            <motion.div
-                                key="system_config"
-                                initial={{ opacity: 0, scale: 0.98 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                            >
-                                <ErrorBoundary>
-                                    <SystemSecrets />
-                                </ErrorBoundary>
                             </motion.div>
                         )}
 
