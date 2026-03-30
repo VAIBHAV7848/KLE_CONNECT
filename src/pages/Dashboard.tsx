@@ -89,12 +89,12 @@ const Dashboard = () => {
 
         aiCount = aiSessions ?? 0;
 
-        // Real Pending Tasks from Supabase
+        // Real Pending Tasks from Supabase (status: todo/in_progress/done)
         const { count: pendingTasks } = await supabase
           .from('planner_tasks')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', user.uid)
-          .eq('completed', false);
+          .neq('status', 'done');
 
         taskCount = pendingTasks ?? 0;
       }
