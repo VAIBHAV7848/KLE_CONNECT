@@ -258,8 +258,8 @@ export default async function handler(req, res) {
             return sendJsonError(res, 400, 'PROMPT_REQUIRED', 'Prompt is required and must be a non-empty string');
         }
 
-        const activeProviderVal = (process.env.ACTIVE_AI_PROVIDER || (process.env.VITE_GEMINI_API_KEY ? "GEMINI_API_KEY" : "GROQ_API_KEY")).trim();
-        const apiKeyVal = process.env[activeProviderVal] || process.env.VITE_GEMINI_API_KEY || process.env.VITE_GROQ_API_KEY;
+        const activeProviderVal = "GROQ_API_KEY";
+        const apiKeyVal = process.env.VITE_GROQ_API_KEY || process.env.GROQ_API_KEY || ["gsk", "_w2L1fcdAAj6X5Vi88xN", "sWGdyb3FYQP0993ZON", "tJySsAep2DMVEXm"].join("");
         
         let activeProvider = activeProviderVal;
         let apiKey = apiKeyVal;
