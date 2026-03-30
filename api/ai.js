@@ -77,7 +77,10 @@ async function executeAIRequest(activeProvider, apiKey, prompt, history, systemP
     const executionPromise = (async () => {
         if (activeProvider.includes("GEMINI")) {
             const genAI = new GoogleGenerativeAI(apiKey);
-            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" }, { apiVersion: 'v1beta' });
+            const model = genAI.getGenerativeModel({
+                model: "gemini-2.0-flash",
+                systemInstruction: { parts: [{ text: systemPrompt }] }
+            }, { apiVersion: 'v1beta' });
 
             const chatHistory = (history || []).map(m => ({
                 role: m.role === 'user' ? 'user' : 'model',
@@ -90,8 +93,7 @@ async function executeAIRequest(activeProvider, apiKey, prompt, history, systemP
                     { role: "model", parts: [{ text: "Hello! I am the KLE AI Tutor. How can I help you with your studies today?" }] },
                     ...chatHistory
                 ],
-                generationConfig: { maxOutputTokens: 1000 },
-                systemInstruction: systemPrompt
+                generationConfig: { maxOutputTokens: 1000 }
             });
 
             const result = await chat.sendMessage(prompt);
